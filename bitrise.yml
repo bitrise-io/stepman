@@ -23,6 +23,12 @@ workflows:
     - script:
         inputs:
         - content: bash _scripts/ci.sh
+    - script:
+        inputs:
+        - content: |-
+            #!/bin/bash
+            cd _step_template
+            bitrise run step
 
   create-release:
     steps:
