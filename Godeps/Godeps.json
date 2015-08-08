@@ -9,13 +9,13 @@
 		},
 		{
 			"ImportPath": "github.com/bitrise-io/bitrise/colorstring",
-			"Comment": "0.9.7-24-ga5182d1",
-			"Rev": "a5182d155c1006f979d27ce2928eda113ee99fc1"
+			"Comment": "0.9.7-48-gbfa49f2",
+			"Rev": "bfa49f2cea2f94a49cb509882892ea6faf65e0ea"
 		},
 		{
 			"ImportPath": "github.com/bitrise-io/envman/models",
-			"Comment": "0.9.3-4-g1bb542d",
-			"Rev": "1bb542ddfc28409cdf324911b11993fcbbfbc607"
+			"Comment": "0.9.3-6-g3bc0732",
+			"Rev": "3bc0732f1bdf05593b126aa7972829e60c3dbb9e"
 		},
 		{
 			"ImportPath": "github.com/bitrise-io/go-pathutil/pathutil",
