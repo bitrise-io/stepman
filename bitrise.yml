@@ -23,6 +23,11 @@ workflows:
     - script:
         inputs:
         - content: bash _scripts/ci.sh
+    after_run:
+    - ci_step_template
+    
+  ci_step_template:
+    steps:
     - script:
         inputs:
         - content: |-
