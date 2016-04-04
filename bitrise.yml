@@ -97,17 +97,6 @@ workflows:
     description: |
         Prepares the environment for testing
     steps:
-    - git-clone:
-        title: Git Clone bitrise
-        inputs:
-        - clone_into_dir: $STEPMAN_PATH
-          opts:
-            is_expand: true
-    - change-workdir:
-        run_if: ".IsCI"
-        title: cd to bitrise go path
-        inputs:
-        - path: $STEPMAN_PATH
     - script:
         title: Install required testing tools
         run_if: .IsCI
