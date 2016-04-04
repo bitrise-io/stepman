@@ -21,47 +21,47 @@ func TestValidate(t *testing.T) {
 		},
 	}
 
-	require.Equal(t, nil, step.Validate(true))
+	require.Equal(t, nil, step.Validate())
 
 	step.Title = nil
-	require.NotEqual(t, nil, step.Validate(true))
+	require.NotEqual(t, nil, step.Validate())
 
 	step.Title = new(string)
 	*step.Title = ""
-	require.NotEqual(t, nil, step.Validate(true))
+	require.NotEqual(t, nil, step.Validate())
 
 	step.PublishedAt = nil
-	require.NotEqual(t, nil, step.Validate(true))
+	require.NotEqual(t, nil, step.Validate())
 	step.PublishedAt = new(time.Time)
 
 	*step.PublishedAt = time.Time{}
-	require.NotEqual(t, nil, step.Validate(true))
+	require.NotEqual(t, nil, step.Validate())
 
 	step.Description = nil
-	require.NotEqual(t, nil, step.Validate(true))
+	require.NotEqual(t, nil, step.Validate())
 	step.Description = new(string)
 
 	*step.Description = ""
-	require.NotEqual(t, nil, step.Validate(true))
+	require.NotEqual(t, nil, step.Validate())
 
 	step.Website = nil
-	require.NotEqual(t, nil, step.Validate(true))
+	require.NotEqual(t, nil, step.Validate())
 	step.Website = new(string)
 
 	*step.Website = ""
-	require.NotEqual(t, nil, step.Validate(true))
+	require.NotEqual(t, nil, step.Validate())
 
 	step.Source.Git = ""
-	require.NotEqual(t, nil, step.Validate(true))
+	require.NotEqual(t, nil, step.Validate())
 
 	step.Source.Git = "git@github.com:bitrise-io/bitrise.git"
-	require.NotEqual(t, nil, step.Validate(true))
+	require.NotEqual(t, nil, step.Validate())
 
 	step.Source.Git = "https://github.com/bitrise-io/bitrise"
-	require.NotEqual(t, nil, step.Validate(true))
+	require.NotEqual(t, nil, step.Validate())
 
 	step.Source.Commit = ""
-	require.NotEqual(t, nil, step.Validate(true))
+	require.NotEqual(t, nil, step.Validate())
 }
 
 func TestValidateStepInputOutputModel(t *testing.T) {
@@ -79,7 +79,11 @@ func TestValidateStepInputOutputModel(t *testing.T) {
 		},
 	}
 
-	require.Equal(t, nil, ValidateStepInputOutputModel(env, true))
+	step := StepModel{
+		Inputs: []envmanModels.EnvironmentItemModel{env},
+	}
+
+	require.NoError(t, step.ValidateInputAndOutputEns(true))
 
 	// Empty key
 	env = envmanModels.EnvironmentItemModel{
@@ -95,7 +99,11 @@ func TestValidateStepInputOutputModel(t *testing.T) {
 		},
 	}
 
-	require.NotEqual(t, nil, ValidateStepInputOutputModel(env, true))
+	step = StepModel{
+		Inputs: []envmanModels.EnvironmentItemModel{env},
+	}
+
+	require.Error(t, step.ValidateInputAndOutputEns(true))
 
 	// Title is empty
 	env = envmanModels.EnvironmentItemModel{
@@ -109,7 +117,11 @@ func TestValidateStepInputOutputModel(t *testing.T) {
 		},
 	}
 
-	require.NotEqual(t, nil, ValidateStepInputOutputModel(env, true))
+	step = StepModel{
+		Inputs: []envmanModels.EnvironmentItemModel{env},
+	}
+
+	require.Error(t, step.ValidateInputAndOutputEns(true))
 }
 
 func TestFillMissingDefaults(t *testing.T) {

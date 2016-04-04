@@ -62,7 +62,7 @@ func ParseStepYml(pth string, validate bool) (models.StepModel, error) {
 	}
 
 	if validate {
-		if err := stepModel.Validate(true); err != nil {
+		if err := stepModel.Validate(); err != nil {
 			return models.StepModel{}, err
 		}
 	}
