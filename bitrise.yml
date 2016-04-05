@@ -3,10 +3,9 @@ default_step_lib_source: https://github.com/bitrise-io/bitrise-steplib.git
 
 app:
   envs:
-  - BITRISE_BIN_NAME: stepman
-  - BITRISE_IO_GO_PATH: $GOPATH/src/github.com/bitrise-io
-  - STEPMAN_PATH: $BITRISE_IO_GO_PATH/$BITRISE_BIN_NAME
-  - GITHUB_RELEASES_URL: https://github.com/bitrise-io/${BITRISE_BIN_NAME}/releases
+  - BIN_NAME: stepman
+  - GITHUB_RELEASES_URL: https://github.com/bitrise-io/$BIN_NAME/releases
+
   - INTERNAL_DEV_SLACK_WEBHOOK_URL: https://hooks.slack.com/services/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
   - INTERNAL_DEV_SLACK_CHANNEL: bitrise-devs
   - INTERNAL_DEV_LIFELINE_SLACK_CHANNEL: bitrise-dev-lifeline
@@ -17,132 +16,87 @@ trigger_map:
   workflow: ci
 
 workflows:
-  create_changelog:
-    envs:
-    - FILTER_MERGE: true
+  # ----------------------------------------------------------------
+  # --- workflows for CI and testing
+  ci:
+    title: Stepman CI
+    description: |-
+      1, Install testing tools
+      2, Run tests
+      3, Announce test result
+    before_run:
+    - _prepare_and_setup
+    - test
+    steps:
+    - slack:
+        title: Slack notifications
+        run_if: .IsCI
+        inputs:
+        - webhook_url: $INTERNAL_DEV_SLACK_WEBHOOK_URL
+        - channel: $INTERNAL_DEV_LIFELINE_SLACK_CHANNEL
+        - from_username: ${BIN_NAME} - CI - OK
+        - from_username_on_error: ${BIN_NAME} - CI - ERROR
+        - message: |-
+            CI was successful on branch: *${BITRISE_GIT_BRANCH}*
+
+            Build URL: ${BITRISE_BUILD_URL}
+        - message_on_error: |-
+            CI FAILED on branch: *${BITRISE_GIT_BRANCH}*
+
+            Build URL: ${BITRISE_BUILD_URL}
+
+  test:
+    title: Stepman test
+    description: |-
+      1, Err Check
+      2, Go Lint
+      3, Go Test
     steps:
     - script:
-        title: Read first and last commit
+        title: Print infos for the test
         inputs:
-        - content: |
-            #!/bin/bash
-            set -e
-
-            # Latest tag on origin/master
-
-            latest_tag=$(git describe origin/master --abbrev=0 --tags)
-            echo "latest_tag: $latest_tag"
-
-
-            # Commit hash of latest tag
-
-            latest_tag_commit_out=$(git show-ref $latest_tag)
-            latest_tag_commit_regex="(.*) refs/tags/.*"
-            if [[ $latest_tag_commit_out =~ $latest_tag_commit_regex ]] ; then
-              latest_tag_commit="${BASH_REMATCH[1]}"
-            else
-              echo "error"
-              exit 1
-            fi
-            echo "latest_tag_commit: $latest_tag_commit"
-
-
-            # First commit since last release
-
-            first_commit="$latest_tag_commit"
-            echo "first_commit: $first_commit"
-
-
-            # Last commit on current branch
-
-            last_commit=$(git log -n 1 --pretty=format:"%H")
-            echo "last_commit: $last_commit"
-
-            envman add --key first_commit --value $first_commit
-            envman add --key last_commit --value $last_commit
-
+        - content: |-
+            set -x
+            go version
+            echo $GO15VENDOREXPERIMENT
     - script:
-        title: Collect git commits
+        title: Go list without vendor
         inputs:
-        - content: |
-            #!/bin/bash
+        - content: |-
             set -e
-
-            commits=$(git log --pretty=format:'(%h) - %s' $first_commit...$last_commit)
-            merge_pr_regex=".* Merge .*"
-            while read -r line; do
-              if [[ $FILTER_MERGE == "true" ]] ; then
-                if [[ ! $line =~ $merge_pr_regex ]] ; then
-                  echo $line
-                fi
-              else
-                echo $line
-              fi
-            done <<< "$commits"
-
-            envman add --key commits --value "$commits"
+            set -x
+            no_vendor_paths="$(go list ./... | grep -v vendor)"
+            envman add --key GOLIST_WITHOUT_VENDOR --value "$no_vendor_paths"
     - script:
-        title: Write commits to file
+        title: Err check
         inputs:
-        - content: |
+        - content: errcheck -asserts=true -blank=true $GOLIST_WITHOUT_VENDOR
+    - script:
+        title: Go Lint
+        inputs:
+        - content: |-
             #!/bin/bash
             set -e
-
-            # --------------------------------------------------
-            # FUNCTION: write formatted line in changelog file
-
-            change_log_line_regex="\(([a-z0-9]*)\) - (.*)"
-            function write_line {
-              file="$1"
-              line="$2"
-
-              if [[ "$line" =~ $change_log_line_regex ]] ; then
-                commit="${BASH_REMATCH[1]}"
-                content="${BASH_REMATCH[2]}"
-
-                # echo "commit: $commit"
-                # echo "* $content" >> $file
-                echo "* $line" >> $file
-              fi
-            }
-
-
-            # --------------------------------------------------
-            # Main
-
-            changelog_file="./_changelogs/next_version_tmp.md"
-            if [ ! -z "$changelog_path" ] ; then
-              changelog_file=$changelog_path
-            else
-              if [ -f $changelog_file ] ; then
-                  rm -rf $changelog_file
-              fi
-            fi
-            echo "changelog_file: $changelog_file"
-
-            short_first_commit=$(git rev-parse --short $first_commit)
-            short_last_commit=$(git rev-parse --short $last_commit)
-
-            echo "" >> $changelog_file
-            echo "## Change history ($short_first_commit - $short_last_commit)" >> $changelog_file
-            echo "" >> $changelog_file
-
-            merge_pr_regex=".* Merge .*"
             while read -r line; do
-              if [[ $FILTER_MERGE == "true" ]] ; then
-                if [[ ! $line =~ $merge_pr_regex ]] ; then
-                  write_line "$changelog_file" "$line"
-                fi
-              else
-                write_line "$changelog_file" "$line"
+              echo "-> Linting: $line"
+              golint_out="$(golint $line)"
+              if [[ "${golint_out}" != "" ]] ; then
+                echo "=> Golint issues found:"
+                echo "${golint_out}"
+                exit 1
               fi
-            done <<< "$commits"
+            done <<< "$GOLIST_WITHOUT_VENDOR"
+    - script:
+        title: Go Test
+        inputs:
+        - content: go test ./...
+
   _prepare_and_setup:
+    title: Install required testing tools
     description: |-
-      Prepare and Setup
-
-      Used fot bitrise-io.
-      Git clone stepman, cd to stepman GOPATH, install testing tools, install envman.
+        1, Install godep
+        2, Install errcheck
+        3, Install golint
     steps:
     - script:
         title: Install required testing tools
@@ -162,158 +116,134 @@ workflows:
             # Go lint
             go get -u github.com/golang/lint/golint
 
-  test_and_install:
+  # ----------------------------------------------------------------
+  # --- workflows for Releasing
+  create_release:
+    title: Create Release with auto version bump
     description: |-
-      Stepman Test and Install
+        Creates new version with auto patch version bump based on last git version tag
 
-      Used fot testing prepared stepman.
-      Errcheck, go lint, go test.
+        1, Create CHANGELOG and git release
+        2, Export RELEASE_VERSION
+        3, Create binaries
+    after_run:
+    - _export_release_version
+    - _create_binaries
     steps:
     - script:
-        title: GOPATH patch
+        title: Create CHANGELOG and git release
         inputs:
         - content: |-
             #!/bin/bash
             set -e
-            set -v
 
-            envman add --key ORIG_GOPATH --value "$GOPATH"
-            envman add --key GOPATH --value "$(godep path):$GOPATH"
-    - script:
-        title: Err check
-        inputs:
-        - content: |-
-            #!/bin/bash
-            set -e
-            set -v
+            export CI=true
+            releaseman create-changelog \
+              --bump-version patch \
+              --set-version-script "bash _scripts/set_version.sh version/version.go"
 
-            errcheck -asserts=true -blank=true $(godep go list ./...)
-    - script:
-        title: Go Lint
-        inputs:
-        - content: |-
-            #!/bin/bash
-            set -e
-            set -v
-
-            golint_out="$(golint ./...)"
-            if [[ "${golint_out}" != "" ]] ; then
-              echo "=> Golint issues found:"
-              echo "${golint_out}"
-              exit 1
-            fi
-    - script:
-        title: Go Test
-        inputs:
-        - content: |-
-            #!/bin/bash
-            set -e
-            set -v
-
-            godep go test ./...
-
-  ci:
+  create_release_version:
+    title: Create Release version
     description: |-
-      Bitrise ci
+        Creates new version with specified RELEASE_VERSION environment
 
-      Used for bitrise continous integration.
-      Prepare and Setup, Test and Install, notification.
-    before_run:
-    - _prepare_and_setup
-    - test_and_install
+        1, Create CHANGELOG and git release
+        2, Export RELEASE_VERSION
+        3, Create binaries
+    envs:
+    - RELEASE_VERSION: 1.3.0
+    after_run:
+    - _export_release_version
+    - _create_binaries
     steps:
-    - slack:
-        title: Slack notifications
-        run_if: .IsCI
+    - script:
+        title: Create CHANGELOG and git release
         inputs:
-        - webhook_url: $INTERNAL_DEV_SLACK_WEBHOOK_URL
-        - channel: $INTERNAL_DEV_LIFELINE_SLACK_CHANNEL
-        - from_username: ${BITRISE_BIN_NAME} - CI - OK
-        - from_username_on_error: ${BITRISE_BIN_NAME} - CI - ERROR
-        - message: |-
-            CI was successful on branch: *${BITRISE_GIT_BRANCH}*
+        - content: |-
+            #!/bin/bash
+            set -e
 
-            Build URL: ${BITRISE_BUILD_URL}
-        - message_on_error: |-
-            CI FAILED on branch: *${BITRISE_GIT_BRANCH}*
-
-            Build URL: ${BITRISE_BUILD_URL}
+            export CI=true
+            releaseman create-changelog
+              --version $RELEASE_VERSION \
+              --set-version-script "bash _scripts/set_version.sh version/version.go"
 
   announce-release:
+    title: Announce Release
+    description: |-
+      Notifying about new version of stepman
+
+      1, Export RELEASE_VERSION
+      2, Send Slack notifications
     steps:
-    - script:
-        title: Creating deploy
-        inputs:
-        - content: |-
-            #!/bin/bash
-            set -v
-            set -e
-            go install
-            # register the version for next steps
-            binversion="$(${BITRISE_BIN_NAME} -version)"
-            envman add --key RELEASE_VERSION --value "${binversion}"
     - slack@2.1.0:
         inputs:
         - webhook_url: $INTERNAL_DEV_SLACK_WEBHOOK_URL
         - channel: $INTERNAL_DEV_SLACK_CHANNEL
-        - from_username: ${BITRISE_BIN_NAME}
+        - from_username: ${BIN_NAME}
         - message: |
             Release v${RELEASE_VERSION} was just published! :tada:
 
             You can find it at ${GITHUB_RELEASES_URL}
         - emoji: ':rocket:'
 
-  create-release:
-    # before_run:
-    # - ci
-    after_run:
-    - create_changelog
+  _export_release_version:
+    title: Export release version
+    description: |
+        Exports RELEASE_VERSION from ./version/version.go
     steps:
     - script:
-        title: Creating deploy
+        title: Export RELEASE_VERSION
         inputs:
-        - content: |-
+        - content: |
             #!/bin/bash
-            set -v
             set -e
-            if [ -f _bin/tmpbin ] ; then
-              rm _bin/tmpbin
-            fi
-            go build -o _bin/tmpbin
-            binversion="$(_bin/tmpbin -version)"
-            echo "binversion: ${binversion}"
-            mkdir -p _bin/${binversion}
-            finalpth=_bin/${binversion}/${BITRISE_BIN_NAME}-$(uname -s)-$(uname -m)
-            echo "finalpth: ${finalpth}"
-            mv _bin/tmpbin "${finalpth}"
-            # register the version for next steps
-            envman add --key RELEASE_VERSION --value "${binversion}"
-    - script:
-        title: Creating release changelog template
-        inputs:
-        - content: |-
-            changelog_path = "./_changelogs/#{ENV['RELEASE_VERSION']}.md"
-            puts " * changelog_path: #{changelog_path}"
-            template_content = File.read("./_changelogs/template.md")
-            changelog_content = template_content.gsub("{{version}}", ENV['RELEASE_VERSION'])
-            File.open(changelog_path, "w") do |f|
-              f.write(changelog_content)
-            end
-            system("envman add --key changelog_path --value #{changelog_path}")
-        - runner_bin: ruby
-  create-release-with-docker-compose:
+
+            RELEASE_VERSION=$(go run _scripts/get_version.go -file ./version/version.go)
+            echo "RELEASE_VERSION: $RELEASE_VERSION"
+
+            envman add --key RELEASE_VERSION --value $RELEASE_VERSION
+
+  _create_binaries:
+    title: Create binaries
+    description: |
+        Creates Linux and Darwin binaries
     steps:
     - script:
-        title: Creating deploy
+        title: Create binaries
         inputs:
-        - content: |-
+        - content: |
             #!/bin/bash
             set -e
-            set -v
 
-            docker-compose build --no-cache app
-            docker-compose run --rm app bitrise run create-release
+            echo
+            echo "Create final binaries"
 
+            export ARCH=x86_64
+            export GOARCH=amd64
+
+            # Create Darwin bin
+            export OS=Darwin
+            export GOOS=darwin
+
+            BIN_NAME=$BIN_NAME-$OS-$ARCH
+            DEPLOY_PATH="_bin/$RELEASE_VERSION/$BIN_NAME-$OS-$ARCH"
+            echo "  Create final Darwin binary at: $DEPLOY_PATH"
+
+            go build -o "$DEPLOY_PATH"
+
+            # Create Linux binary
+            export OS=Linux
+            export GOOS=linux
+
+            BIN_NAME=$BIN_NAME-$OS-$ARCH
+            DEPLOY_PATH="_bin/$RELEASE_VERSION/$BIN_NAME-$OS-$ARCH"
+            echo "  Create final Linux binary at: $DEPLOY_PATH"
+
+            go build -o "$DEPLOY_PATH"
+
+  # ----------------------------------------------------------------
+  # --- workflows for Utility
   delete-stepman-dir:
     steps:
     - script:
@@ -324,24 +254,6 @@ workflows:
             set -v
             set -e
             rm -rf ~/.stepman
-
-  godeps-update:
-    description: |-
-      Dependenci Update
-
-      Used for updating stepman dependencies with godep
-    steps:
-    - script:
-        title: Dependency update
-        inputs:
-        - content: |-
-            #!/bin/bash
-            set -e
-            set -v
-
-            go get -u ./...
-            rm -rf ./Godeps
-            godep save ./...
 
   regenerate-default-collection:
     before_run:
@@ -357,3 +269,20 @@ workflows:
             set -v
             set -e
             stepman setup -c ${DEFAULT_STEPLIB_GIT}
+
+  godeps-update:
+    title: Godeps update
+    description: |
+      Used for updating bitrise dependencies with godep
+    steps:
+    - script:
+        title: Dependency update
+        inputs:
+        - content: |-
+            #!/bin/bash
+            set -e
+            set -v
+
+            go get -u ./...
+            rm -rf ./Godeps
+            godep save ./...
