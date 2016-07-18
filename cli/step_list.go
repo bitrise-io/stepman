@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/bitrise-io/go-utils/colorstring"
@@ -30,12 +31,12 @@ func printJSONStepList(stepList models.StepListModel, isShort bool) error {
 	return nil
 }
 
-func listSteps(stepLibURI, format string) error {
+func listSteps(stepLibURI, format string, isLocalStepLib bool) error {
 	// Check if setup was done for collection
 	if exist, err := stepman.RootExistForCollection(stepLibURI); err != nil {
 		return err
 	} else if !exist {
-		if err := setupSteplib(stepLibURI, format != OutputFormatRaw); err != nil {
+		if err := setupSteplib(stepLibURI, isLocalStepLib, format != OutputFormatRaw); err != nil {
 			log.Fatal("Failed to setup steplib")
 		}
 	}
@@ -70,12 +71,9 @@ func listSteps(stepLibURI, format string) error {
 
 func stepList(c *cli.Context) error {
 	// Input validation
-	stepLibURIs := []string{}
 	stepLibURI := c.String(CollectionKey)
 	if stepLibURI == "" {
-		stepLibURIs = stepman.GetAllStepCollectionPath()
-	} else {
-		stepLibURIs = []string{stepLibURI}
+		return fmt.Errorf("Missing required input: collection")
 	}
 
 	format := c.String(FormatKey)
@@ -85,10 +83,14 @@ func stepList(c *cli.Context) error {
 		log.Fatalf("Invalid format: %s", format)
 	}
 
-	for _, URI := range stepLibURIs {
-		if err := listSteps(URI, format); err != nil {
-			log.Errorf("Failed to list steps in StepLib (%s), err: %s", URI, err)
-		}
+	isLocalStepLib := false
+	if strings.HasPrefix(stepLibURI, "file://") {
+		isLocalStepLib = true
+		stepLibURI = strings.TrimPrefix(stepLibURI, "file://")
+	}
+
+	if err := listSteps(stepLibURI, format, isLocalStepLib); err != nil {
+		log.Errorf("Failed to list steps in StepLib (%s), err: %s", stepLibURI, err)
 	}
 
 	return nil

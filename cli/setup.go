@@ -27,7 +27,7 @@ func gitClone(uri, pth string) (string, error) {
 	return string(bytes), err
 }
 
-func setupSteplib(steplibURI string, silent bool) error {
+func setupSteplib(steplibURI string, isLocalStepLib, silent bool) error {
 	logger := output.NewLogger(silent)
 
 	if exist, err := stepman.RootExistForCollection(steplibURI); err != nil {
@@ -55,10 +55,8 @@ func setupSteplib(steplibURI string, silent bool) error {
 	}()
 
 	// Setup
-	isLocalSteplib := strings.HasPrefix(steplibURI, "file://")
-
 	pth := stepman.GetCollectionBaseDirPath(route)
-	if !isLocalSteplib {
+	if !isLocalStepLib {
 		if out, err := gitClone(steplibURI, pth); err != nil {
 			return fmt.Errorf("Failed to setup steplib (%s), output: %s, error: %s", steplibURI, out, err)
 		}
@@ -73,7 +71,7 @@ func setupSteplib(steplibURI string, silent bool) error {
 
 		logger.Info("Collection dir created - OK")
 		if err := cmdex.CopyDir(steplibURI, pth, true); err != nil {
-			return fmt.Errorf("Failed to setup local step spec:", err)
+			return fmt.Errorf("Failed to copy (%s) to (%s), error: %s", steplibURI, pth, err)
 		}
 	}
 
@@ -101,21 +99,21 @@ func setup(c *cli.Context) error {
 
 	copySpecJSONPath := c.String(CopySpecJSONKey)
 
+	isLocalStepLib := c.Bool(LocalCollectionKey)
+	if strings.HasPrefix(steplibURI, "file://") {
+		isLocalStepLib = true
+		steplibURI = strings.TrimPrefix(steplibURI, "file://")
+	}
+
 	if c.IsSet(LocalCollectionKey) {
 		log.Warn("'local' flag is deprecated")
 		log.Warn("use 'file://' suffix in steplib path instead")
 		fmt.Println()
 	}
 
-	if c.Bool(LocalCollectionKey) {
-		if !strings.HasPrefix(steplibURI, "file://") {
-			steplibURI = "file://" + steplibURI
-		}
-	}
-
 	// Setup
-	if err := setupSteplib(steplibURI, false); err != nil {
-		log.Fatalf("Steup failed, error: %s", err)
+	if err := setupSteplib(steplibURI, isLocalStepLib, false); err != nil {
+		log.Fatalf("Setup failed, error: %s", err)
 	}
 
 	// Copy spec.json

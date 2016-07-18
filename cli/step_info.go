@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	envmanModels "github.com/bitrise-io/envman/models"
 	"github.com/bitrise-io/go-utils/colorstring"
@@ -159,6 +160,12 @@ func stepInfo(c *cli.Context) error {
 		return fmt.Errorf("Missing required input: no StepLib, nor step.yml path defined as step info source")
 	}
 
+	isLocalStepLib := false
+	if strings.HasPrefix(collectionURI, "file://") {
+		isLocalStepLib = true
+		collectionURI = strings.TrimPrefix(collectionURI, "file://")
+	}
+
 	if YMLPath != "" {
 		//
 		// Local step info
@@ -201,7 +208,7 @@ func stepInfo(c *cli.Context) error {
 		if exist, err := stepman.RootExistForCollection(collectionURI); err != nil {
 			return fmt.Errorf("Failed to check if setup was done for steplib (%s), error: %s", collectionURI, err)
 		} else if !exist {
-			if err := setupSteplib(collectionURI, format != OutputFormatRaw); err != nil {
+			if err := setupSteplib(collectionURI, isLocalStepLib, format != OutputFormatRaw); err != nil {
 				return errors.New("Failed to setup steplib")
 			}
 		}

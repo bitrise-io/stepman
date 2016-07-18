@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/bitrise-io/go-utils/fileutil"
@@ -85,6 +86,12 @@ func export(c *cli.Context) error {
 		return fmt.Errorf("Missing required input: output")
 	}
 
+	isLocalStepLib := false
+	if strings.HasPrefix(steplibURI, "file://") {
+		isLocalStepLib = true
+		steplibURI = strings.TrimPrefix(steplibURI, "file://")
+	}
+
 	exportType := exportTypeFull
 	if exportTypeStr != "" {
 		var err error
@@ -101,7 +108,7 @@ func export(c *cli.Context) error {
 		return fmt.Errorf("Failed to check if setup was done for StepLib, error: %s", err)
 	} else if !exist {
 		log.Infof("StepLib does not exist, setup...")
-		if err := setupSteplib(steplibURI, false); err != nil {
+		if err := setupSteplib(steplibURI, isLocalStepLib, false); err != nil {
 			return fmt.Errorf("Failed to setup StepLib, error: %s", err)
 		}
 	}
