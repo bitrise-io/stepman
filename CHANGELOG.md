@@ -6,8 +6,16 @@
 
 ### Release Notes
 
-* __BREAKING__ : change 1
-* change 2
+* __Toolkit support:__  Currently available toolkits: `bash` and `go`.
+  * If a step utilizes a Toolkit it does not have to provide a bash entry file (`step.sh`) anymore (except using bash toolkit).
+  * Using the toolkit can also provide __performance benefits__, as it does automatic binary caching - which means that a given version of the step will only be compiled the first time, subsequent execution of the same version will use the compiled binary of the step.  
+  See more about Toolkit on bitrise cli's 1.4.0 [release page](https://github.com/bitrise-io/bitrise/releases/tag/1.4.0).
+* __Dependecy models got new property:__ `bin_name`  
+  bin_name is the binary's name, if it doesn't match the package's name.  
+  E.g. in case of "AWS CLI" the package is `awscli` and the binary is `aws`.  
+  If BinName is empty Name will be used as BinName too.
+* Every __networking__ command uses __retry logic.__ 
+* Better error messages.
 
 ### Install or upgrade
 
