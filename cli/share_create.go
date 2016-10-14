@@ -167,10 +167,11 @@ func create(c *cli.Context) error {
 		}
 	}
 
-	log.Info("Checkout branch:", share.StepID)
+	branch := share.StepID + "-" + share.StepTag
+	log.Infof("Checkout branch: %s", branch)
 	collectionDir := stepman.GetCollectionBaseDirPath(route)
-	if err := cmdex.GitCheckout(collectionDir, share.StepID); err != nil {
-		if err := cmdex.GitCreateAndCheckoutBranch(collectionDir, share.StepID); err != nil {
+	if err := cmdex.GitCheckout(collectionDir, branch); err != nil {
+		if err := cmdex.GitCreateAndCheckoutBranch(collectionDir, branch); err != nil {
 			log.Fatalf("Git failed to create and checkout branch, err: %s", err)
 		}
 	}
