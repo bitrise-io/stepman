@@ -94,40 +94,37 @@ func ParseDeprecationInfo(pth string) (models.DeprecationInfoModel, error) {
 // assets dir path example:
 // * STEPMAN_WORK_DIR/step_collections/COLLECTION_ALIAS/collection/steps/STEP_ID/assets/icon.svg
 func ParseAssetsFolder(assetsDirPth, assetsBaseURI, stepID string) (models.AssetURLMap, error) {
-	exist, err := pathutil.IsDirExists(assetsDirPth)
-	if err != nil {
-		return models.AssetURLMap{}, err
-	}
-
 	assetsMap := models.AssetURLMap{}
 
-	if exist {
-		err := filepath.Walk(assetsDirPth, func(pth string, f os.FileInfo, err error) error {
-			// Skip assets dir path (STEPMAN_WORK_DIR/step_collections/COLLECTION_ALIAS/collection/steps/STEP_ID/assets)
-			if pth == assetsDirPth {
-				return nil
-			}
+	if !strings.HasSuffix(assetsDirPth, "/") {
+		assetsDirPth += "/"
+	}
 
-			dir, base := filepath.Split(pth)
-
-			// skip if not a file in assets dir
-			if dir != assetsDirPth || base == "" {
-				return nil
-			}
-
-			assetURI, err := urlutil.Join(assetsBaseURI, stepID, "assets", base)
-			if err != nil {
-				return err
-			}
-
-			assetsMap[base] = assetURI
-
+	err := filepath.Walk(assetsDirPth, func(pth string, f os.FileInfo, err error) error {
+		// Skip assets dir path (STEPMAN_WORK_DIR/step_collections/COLLECTION_ALIAS/collection/steps/STEP_ID/assets)
+		if pth == assetsDirPth {
 			return nil
-		})
-
-		if err != nil {
-			return models.AssetURLMap{}, err
 		}
+
+		dir, base := filepath.Split(pth)
+
+		// skip if not a file in assets dir
+		if dir != assetsDirPth || base == "" {
+			return nil
+		}
+
+		assetURI, err := urlutil.Join(assetsBaseURI, stepID, "assets", base)
+		if err != nil {
+			return err
+		}
+
+		assetsMap[base] = assetURI
+
+		return nil
+	})
+
+	if err != nil {
+		return models.AssetURLMap{}, err
 	}
 
 	return assetsMap, nil
