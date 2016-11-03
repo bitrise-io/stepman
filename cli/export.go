@@ -54,16 +54,15 @@ func convertToLatestSpec(stepLib models.StepCollectionModel) models.StepCollecti
 
 	latestSteps := models.StepHash{}
 	for stepID, stepGroup := range steps {
-		groupInfo := stepGroup.Info
-		versions := stepGroup.Versions
-		latestVersionStr := stepGroup.LatestVersionNumber
-		latestStep := versions[latestVersionStr]
+		deprecation := stepGroup.Deprecation
+		latestVersion := stepGroup.LatestVersionNumber
+		latestStep := stepGroup.Versions[latestVersion]
 
 		latestSteps[stepID] = models.StepGroupModel{
 			Versions: map[string]models.StepModel{
-				latestVersionStr: latestStep,
+				latestVersion: latestStep,
 			},
-			Info: groupInfo,
+			Deprecation: deprecation,
 		}
 	}
 

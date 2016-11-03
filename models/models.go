@@ -6,11 +6,8 @@ import (
 	envmanModels "github.com/bitrise-io/envman/models"
 )
 
-// GlobalStepInfoModel ...
-type GlobalStepInfoModel struct {
-	RemovalDate    string `json:"removal_date,omitempty" yaml:"removal_date,omitempty"`
-	DeprecateNotes string `json:"deprecate_notes,omitempty" yaml:"deprecate_notes,omitempty"`
-}
+// --------------------
+// StepModel
 
 // StepSourceModel ...
 type StepSourceModel struct {
@@ -75,19 +72,29 @@ type StepToolkitModel struct {
 	Go   *GoStepToolkitModel   `json:"go,omitempty" yaml:"go,omitempty"`
 }
 
+// DeprecationInfoModel ...
+type DeprecationInfoModel struct {
+	RemovalDate string `json:"removal_date,omitempty" yaml:"removal_date,omitempty"`
+	Notes       string `json:"notes,omitempty" yaml:"notes,omitempty"`
+}
+
+// AssetURLMap ...
+type AssetURLMap map[string]string
+
 // StepModel ...
 type StepModel struct {
-	Title       *string `json:"title,omitempty" yaml:"title,omitempty"`
-	Summary     *string `json:"summary,omitempty" yaml:"summary,omitempty"`
-	Description *string `json:"description,omitempty" yaml:"description,omitempty"`
+	Title       *string              `json:"title,omitempty" yaml:"title,omitempty"`
+	Summary     *string              `json:"summary,omitempty" yaml:"summary,omitempty"`
+	Description *string              `json:"description,omitempty" yaml:"description,omitempty"`
+	Deprecation DeprecationInfoModel `json:"deprecation,omitempty" yaml:"deprecation,omitempty"`
 	//
 	Website       *string `json:"website,omitempty" yaml:"website,omitempty"`
 	SourceCodeURL *string `json:"source_code_url,omitempty" yaml:"source_code_url,omitempty"`
 	SupportURL    *string `json:"support_url,omitempty" yaml:"support_url,omitempty"`
 	// auto-generated at share
-	PublishedAt *time.Time        `json:"published_at,omitempty" yaml:"published_at,omitempty"`
-	Source      StepSourceModel   `json:"source,omitempty" yaml:"source,omitempty"`
-	AssetURLs   map[string]string `json:"asset_urls,omitempty" yaml:"asset_urls,omitempty"`
+	PublishedAt *time.Time      `json:"published_at,omitempty" yaml:"published_at,omitempty"`
+	Source      StepSourceModel `json:"source,omitempty" yaml:"source,omitempty"`
+	AssetURLs   AssetURLMap     `json:"asset_urls,omitempty" yaml:"asset_urls,omitempty"`
 	//
 	HostOsTags          []string          `json:"host_os_tags,omitempty" yaml:"host_os_tags,omitempty"`
 	ProjectTypeTags     []string          `json:"project_type_tags,omitempty" yaml:"project_type_tags,omitempty"`
@@ -111,16 +118,15 @@ type StepModel struct {
 	Outputs []envmanModels.EnvironmentItemModel `json:"outputs,omitempty" yaml:"outputs,omitempty"`
 }
 
-// StepGroupInfoModel ...
-type StepGroupInfoModel struct {
-	RemovalDate    string            `json:"removal_date,omitempty" yaml:"removal_date,omitempty"`
-	DeprecateNotes string            `json:"deprecate_notes,omitempty" yaml:"deprecate_notes,omitempty"`
-	AssetURLs      map[string]string `json:"asset_urls,omitempty" yaml:"asset_urls,omitempty"`
-}
+// --------------------
+
+// --------------------
+// StepCollectionModel
 
 // StepGroupModel ...
 type StepGroupModel struct {
-	Info                StepGroupInfoModel   `json:"info,omitempty" yaml:"info,omitempty"`
+	Deprecation         DeprecationInfoModel `json:"deprecation,omitempty" yaml:"deprecation,omitempty"`
+	AssetURLs           AssetURLMap          `json:"asset_urls,omitempty" yaml:"asset_urls,omitempty"`
 	LatestVersionNumber string               `json:"latest_version_number,omitempty" yaml:"latest_version_number,omitempty"`
 	Versions            map[string]StepModel `json:"versions,omitempty" yaml:"versions,omitempty"`
 }
@@ -144,6 +150,11 @@ type StepCollectionModel struct {
 	Steps                 StepHash                `json:"steps" yaml:"steps"`
 }
 
+// --------------------
+
+// --------------------
+// StepInfoModel
+
 // EnvInfoModel ...
 type EnvInfoModel struct {
 	Key          string   `json:"key,omitempty" yaml:"key,omitempty"`
@@ -154,21 +165,33 @@ type EnvInfoModel struct {
 	IsExpand     bool     `json:"is_expand" yaml:"is_expand"`
 }
 
+// GlobalStepInfoModel ...
+type GlobalStepInfoModel struct {
+	RemovalDate    string `json:"removal_date,omitempty" yaml:"removal_date,omitempty"`
+	DeprecateNotes string `json:"deprecate_notes,omitempty" yaml:"deprecate_notes,omitempty"`
+}
+
+// StepInfoModel : Used fields: Latest, Title, ID, Version, Steplib, GlobalInfo, SourceCodeURL, SupportURL
 // StepInfoModel ...
 type StepInfoModel struct {
-	ID            string              `json:"step_id,omitempty" yaml:"step_id,omitempty"`
-	Title         string              `json:"step_title,omitempty" yaml:"step_title,omitempty"`
-	Version       string              `json:"step_version,omitempty" yaml:"step_version,omitempty"`
-	Latest        string              `json:"latest_version,omitempty" yaml:"latest_version,omitempty"`
-	Description   string              `json:"description,omitempty" yaml:"description,omitempty"`
-	Source        string              `json:"source,omitempty" yaml:"source,omitempty"`
-	StepLib       string              `json:"steplib,omitempty" yaml:"steplib,omitempty"`
-	SupportURL    string              `json:"support_url,omitempty" yaml:"support_url,omitempty"`
-	SourceCodeURL string              `json:"source_code_url,omitempty" yaml:"source_code_url,omitempty"`
-	Inputs        []EnvInfoModel      `json:"inputs,omitempty" yaml:"inputs,omitempty"`
-	Outputs       []EnvInfoModel      `json:"outputs,omitempty" yaml:"outputs,omitempty"`
-	GlobalInfo    GlobalStepInfoModel `json:"global_info,omitempty" yaml:"global_info,omitempty"`
+	ID          string `json:"step_id,omitempty" yaml:"step_id,omitempty"`
+	Title       string `json:"step_title,omitempty" yaml:"step_title,omitempty"`
+	Description string `json:"description,omitempty" yaml:"description,omitempty"`
+
+	Version string `json:"step_version,omitempty" yaml:"step_version,omitempty"`
+	Latest  string `json:"latest_version,omitempty" yaml:"latest_version,omitempty"`
+
+	StepLib       string `json:"steplib,omitempty" yaml:"steplib,omitempty"`
+	SupportURL    string `json:"support_url,omitempty" yaml:"support_url,omitempty"`
+	SourceCodeURL string `json:"source_code_url,omitempty" yaml:"source_code_url,omitempty"`
+
+	GlobalInfo GlobalStepInfoModel `json:"global_info,omitempty" yaml:"global_info,omitempty"`
+
+	Inputs  []EnvInfoModel `json:"inputs,omitempty" yaml:"inputs,omitempty"`
+	Outputs []EnvInfoModel `json:"outputs,omitempty" yaml:"outputs,omitempty"`
 }
+
+// --------------------
 
 // StepListModel ...
 type StepListModel struct {
