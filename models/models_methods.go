@@ -114,6 +114,10 @@ func (step StepModel) AuditBeforeShare() error {
 		return errors.New("Invalid step: missing or empty required 'website' property")
 	}
 
+	if step.Timeout != nil && *step.Timeout < 0 {
+		return errors.New("Invalid step: timeout less then 0")
+	}
+
 	if err := step.ValidateInputAndOutputEnvs(true); err != nil {
 		return err
 	}
