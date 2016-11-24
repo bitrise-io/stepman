@@ -165,6 +165,9 @@ func TestFillMissingDefaults(t *testing.T) {
 	if step.RunIf == nil || *step.RunIf != "" {
 		t.Fatal("RunIf missing")
 	}
+	if step.Timeout == nil || *step.Timeout != 0 {
+		t.Fatal("Timeout missing")
+	}
 }
 
 func TestGetStep(t *testing.T) {

@@ -18,6 +18,8 @@ const (
 	DefaultIsRequiresAdminUser = false
 	// DefaultIsSkippable ...
 	DefaultIsSkippable = false
+	// DefaultTimeout ...
+	DefaultTimeout = 0
 )
 
 // CreateFromJSON ...
@@ -166,6 +168,9 @@ func (step *StepModel) FillMissingDefaults() error {
 	}
 	if step.RunIf == nil {
 		step.RunIf = pointers.NewStringPtr("")
+	}
+	if step.Timeout == nil {
+		step.Timeout = pointers.NewIntPtr(DefaultTimeout)
 	}
 
 	for _, input := range step.Inputs {
