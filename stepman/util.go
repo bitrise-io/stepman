@@ -75,19 +75,59 @@ func ParseStepYml(pth string, validate bool) (models.StepModel, error) {
 	return stepModel, nil
 }
 
-// ParseStepGroupInfo ...
-func ParseStepGroupInfo(pth string) (models.StepGroupInfoModel, error) {
+// ParseDeprecationInfo - Parses deprecation-info.yml file and returns the DeprecationInfoModel
+func ParseDeprecationInfo(pth string) (models.DeprecationInfoModel, error) {
 	bytes, err := fileutil.ReadBytesFromFile(pth)
 	if err != nil {
-		return models.StepGroupInfoModel{}, err
+		return models.DeprecationInfoModel{}, err
 	}
 
-	var stepGroupInfo models.StepGroupInfoModel
-	if err := yaml.Unmarshal(bytes, &stepGroupInfo); err != nil {
-		return models.StepGroupInfoModel{}, err
+	var deprecationInfo models.DeprecationInfoModel
+	if err := yaml.Unmarshal(bytes, &deprecationInfo); err != nil {
+		return models.DeprecationInfoModel{}, err
 	}
 
-	return stepGroupInfo, nil
+	return deprecationInfo, nil
+}
+
+// ParseAssetsFolder - Creates "asset.ext" - "asset_url" mapping from assets directory content
+// assets dir path example:
+// * STEPMAN_WORK_DIR/step_collections/COLLECTION_ALIAS/collection/steps/STEP_ID/assets/icon.svg
+func ParseAssetsFolder(assetsDirPth, assetsBaseURI, stepID string) (models.AssetURLMap, error) {
+	assetsMap := models.AssetURLMap{}
+
+	if !strings.HasSuffix(assetsDirPth, "/") {
+		assetsDirPth += "/"
+	}
+
+	err := filepath.Walk(assetsDirPth, func(pth string, f os.FileInfo, err error) error {
+		// Skip assets dir path (STEPMAN_WORK_DIR/step_collections/COLLECTION_ALIAS/collection/steps/STEP_ID/assets)
+		if pth == assetsDirPth {
+			return nil
+		}
+
+		dir, base := filepath.Split(pth)
+
+		// skip if not a file in assets dir
+		if dir != assetsDirPth || base == "" {
+			return nil
+		}
+
+		assetURI, err := urlutil.Join(assetsBaseURI, stepID, "assets", base)
+		if err != nil {
+			return err
+		}
+
+		assetsMap[base] = assetURI
+
+		return nil
+	})
+
+	if err != nil {
+		return models.AssetURLMap{}, err
+	}
+
+	return assetsMap, nil
 }
 
 // ParseStepCollection ...
@@ -206,65 +246,73 @@ func generateStepLib(route SteplibRoute, templateCollection models.StepCollectio
 					return parseErr
 				}
 
-				stepGroupInfo := models.StepGroupInfoModel{}
-
-				// Check for step-info.yml - STEP_SPEC_DIR/steps/step-id/step-info.yml
-				stepGroupInfoPth := filepath.Join(stepsSpecDirPth, stepsDirName, stepID, "step-info.yml")
-				if exist, err := pathutil.IsPathExists(stepGroupInfoPth); err != nil {
-					return err
-				} else if exist {
-					deprecationInfo, err := ParseStepGroupInfo(stepGroupInfoPth)
-					if err != nil {
+				// Check for step group deprecation-info.yml - STEP_SPEC_DIR/steps/STEP_ID/deprecation-info.yml
+				stepGroupDeprecationInfo := models.DeprecationInfoModel{}
+				{
+					stepGroupDeprecationInfoPth := filepath.Join(stepsSpecDirPth, stepsDirName, stepID, "deprecation-info.yml")
+					if exist, err := pathutil.IsPathExists(stepGroupDeprecationInfoPth); err != nil {
 						return err
-					}
-
-					stepGroupInfo.RemovalDate = deprecationInfo.RemovalDate
-					stepGroupInfo.DeprecateNotes = deprecationInfo.DeprecateNotes
-				}
-
-				// Check for assets - STEP_SPEC_DIR/steps/step-id/assets
-				if collection.AssetsDownloadBaseURI != "" {
-					assetsFolderPth := path.Join(stepsSpecDirPth, stepsDirName, stepID, "assets")
-					exist, err := pathutil.IsPathExists(assetsFolderPth)
-					if err != nil {
-						return err
-					}
-					if exist {
-						assetsMap := map[string]string{}
-						err := filepath.Walk(assetsFolderPth, func(pth string, f os.FileInfo, err error) error {
-							_, file := filepath.Split(pth)
-							if pth != assetsFolderPth && file != "" {
-								assetURI, err := urlutil.Join(collection.AssetsDownloadBaseURI, stepID, "assets", file)
-								if err != nil {
-									return err
-								}
-								assetsMap[file] = assetURI
-							}
-							return nil
-						})
-
+					} else if exist {
+						info, err := ParseDeprecationInfo(stepGroupDeprecationInfoPth)
 						if err != nil {
 							return err
 						}
 
-						step.AssetURLs = assetsMap
-						stepGroupInfo.AssetURLs = assetsMap
+						stepGroupDeprecationInfo = info
 					}
 				}
 
-				// Add to stepgroup
+				// Check for step version deprecation-info.yml - STEP_SPEC_DIR/steps/STEP_ID/version/STEP_VERSION/deprecation-info.yml
+				{
+					stepVersionDeprecationInfo := models.DeprecationInfoModel{}
+					stepVersionDeprecationInfoPth := filepath.Join(stepsSpecDirPth, stepsDirName, stepID, "versions", stepVersion, "deprecation-info.yml")
+					if exist, err := pathutil.IsPathExists(stepVersionDeprecationInfoPth); err != nil {
+						return err
+					} else if exist {
+						info, err := ParseDeprecationInfo(stepVersionDeprecationInfoPth)
+						if err != nil {
+							return err
+						}
+
+						stepVersionDeprecationInfo = info
+						step.Deprecation = stepVersionDeprecationInfo
+					}
+				}
+
+				// Check for step group assets - STEP_SPEC_DIR/steps/STEP_ID/assets
+				stepGroupAssetsMap := models.AssetURLMap{}
+				{
+					if collection.AssetsDownloadBaseURI != "" {
+						assetsDirPth := path.Join(stepsSpecDirPth, stepsDirName, stepID, "assets")
+						if exist, err := pathutil.IsPathExists(assetsDirPth); err != nil {
+							return err
+						} else if exist {
+							assetsMap, err := ParseAssetsFolder(assetsDirPth, collection.AssetsDownloadBaseURI, stepID)
+							if err != nil {
+								return err
+							}
+
+							stepGroupAssetsMap = assetsMap
+							step.AssetURLs = assetsMap
+						}
+					}
+				}
+
+				// Add infos to step group
 				stepGroup, found := stepHash[stepID]
 				if !found {
 					stepGroup = models.StepGroupModel{
 						Versions: map[string]models.StepModel{},
 					}
 				}
+
 				stepGroup, err = addStepVersionToStepGroup(step, stepVersion, stepGroup)
 				if err != nil {
 					return err
 				}
 
-				stepGroup.Info = stepGroupInfo
+				stepGroup.AssetURLs = stepGroupAssetsMap
+				stepGroup.Deprecation = stepGroupDeprecationInfo
 
 				stepHash[stepID] = stepGroup
 			} else {
@@ -277,7 +325,9 @@ func generateStepLib(route SteplibRoute, templateCollection models.StepCollectio
 		log.Error("Failed to walk through path:", err)
 		return models.StepCollectionModel{}, err
 	}
+
 	collection.Steps = stepHash
+
 	return collection, nil
 }
 

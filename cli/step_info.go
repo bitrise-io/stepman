@@ -87,7 +87,7 @@ func printRawStepInfo(stepInfo models.StepInfoModel, isShort, isLocal bool) {
 	}
 
 	if !isShort {
-		fmt.Printf("%s: %s\n", colorstring.Blue("source"), stepInfo.Source)
+		fmt.Printf("%s: %s\n", colorstring.Blue("source_code_url"), stepInfo.SourceCodeURL)
 		fmt.Printf("%s:\n", colorstring.Blue("description"))
 		fmt.Printf("%s\n", stepInfo.Description)
 		fmt.Println()
@@ -178,11 +178,11 @@ func stepInfo(c *cli.Context) error {
 		}
 
 		stepInfo := models.StepInfoModel{
-			StepLib:     YMLPath,
-			Description: *step.Description,
-			Source:      *step.SourceCodeURL,
-			Inputs:      inputs,
-			Outputs:     outputs,
+			StepLib:       YMLPath,
+			Description:   *step.Description,
+			SourceCodeURL: *step.SourceCodeURL,
+			Inputs:        inputs,
+			Outputs:       outputs,
 		}
 
 		if err := printStepInfo(stepInfo, format, isShort, true); err != nil {
@@ -240,14 +240,14 @@ func stepInfo(c *cli.Context) error {
 		}
 
 		stepInfo := models.StepInfoModel{
-			ID:          id,
-			Version:     version,
-			Latest:      latest,
-			Description: *step.Description,
-			StepLib:     collectionURI,
-			Source:      *step.SourceCodeURL,
-			Inputs:      inputs,
-			Outputs:     outputs,
+			ID:            id,
+			Version:       version,
+			Latest:        latest,
+			Description:   *step.Description,
+			StepLib:       collectionURI,
+			SourceCodeURL: *step.SourceCodeURL,
+			Inputs:        inputs,
+			Outputs:       outputs,
 		}
 
 		route, found := stepman.ReadRoute(collectionURI)
