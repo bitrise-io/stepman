@@ -75,13 +75,12 @@ func collections(c *cli.Context) error {
 	}
 
 	var log flog.Logger
-	log = flog.NewDefaultRawLogger()
 	if format == OutputFormatRaw {
 		log = flog.NewDefaultRawLogger()
 	} else if format == OutputFormatJSON {
 		log = flog.NewDefaultJSONLoger()
 	} else {
-		log.Print(NewErrorOutput("Invalid format: %s", format))
+		fmt.Printf("%s: invalid format: %s\n", colorstring.Red("Error"), format)
 		os.Exit(1)
 	}
 
