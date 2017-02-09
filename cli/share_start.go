@@ -28,7 +28,7 @@ func start(c *cli.Context) error {
 	}
 
 	if route, found := stepman.ReadRoute(collectionURI); found {
-		collLocalPth := stepman.GetCollectionBaseDirPath(route)
+		collLocalPth := stepman.GetLibraryBaseDirPath(route)
 		log.Warnf("StepLib found locally at: %s", collLocalPth)
 		log.Info("For sharing it's required to work with a clean StepLib repository.")
 		if val, err := goinp.AskForBool("Would you like to remove the local version (your forked StepLib repository) and re-clone it?"); err != nil {
@@ -69,7 +69,7 @@ func start(c *cli.Context) error {
 		FolderAlias: alias,
 	}
 
-	pth := stepman.GetCollectionBaseDirPath(route)
+	pth := stepman.GetLibraryBaseDirPath(route)
 	if err := command.GitClone(collectionURI, pth); err != nil {
 		log.Fatal("[STEPMAN] - Failed to setup step spec:", err)
 	}

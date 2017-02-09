@@ -38,7 +38,7 @@ func finish(c *cli.Context) error {
 		log.Fatalln("No route found for collectionURI (%s)", share.Collection)
 	}
 
-	collectionDir := stepman.GetCollectionBaseDirPath(route)
+	collectionDir := stepman.GetLibraryBaseDirPath(route)
 	if err := command.GitCheckIsNoChanges(collectionDir); err == nil {
 		log.Warn("No git changes!")
 		printFinishShare()

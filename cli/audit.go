@@ -16,7 +16,7 @@ import (
 )
 
 func auditStepBeforeShare(pth string) error {
-	stepModel, err := stepman.ParseStepYml(pth, false)
+	stepModel, err := stepman.ParseStepDefinition(pth, false)
 	if err != nil {
 		return err
 	}
@@ -53,7 +53,7 @@ func auditStepBeforeSharePullRequest(pth string) error {
 		return err
 	}
 
-	stepModel, err := stepman.ParseStepYml(pth, false)
+	stepModel, err := stepman.ParseStepDefinition(pth, false)
 	if err != nil {
 		return err
 	}
@@ -98,7 +98,7 @@ func auditStepModelBeforeSharePullRequest(step models.StepModel, stepID, version
 }
 
 func auditStepLibBeforeSharePullRequest(gitURI string) error {
-	if exist, err := stepman.RootExistForCollection(gitURI); err != nil {
+	if exist, err := stepman.RootExistForLibrary(gitURI); err != nil {
 		return err
 	} else if !exist {
 		return fmt.Errorf("Missing routing for collection, call 'stepman setup -c %s' before audit", gitURI)

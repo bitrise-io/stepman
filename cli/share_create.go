@@ -168,7 +168,7 @@ func create(c *cli.Context) error {
 	}
 
 	log.Infof("Checkout branch: %s", share.ShareBranchName())
-	collectionDir := stepman.GetCollectionBaseDirPath(route)
+	collectionDir := stepman.GetLibraryBaseDirPath(route)
 	if err := command.GitCheckout(collectionDir, share.ShareBranchName()); err != nil {
 		if err := command.GitCreateAndCheckoutBranch(collectionDir, share.ShareBranchName()); err != nil {
 			log.Fatalf("Git failed to create and checkout branch, err: %s", err)
@@ -184,7 +184,7 @@ func create(c *cli.Context) error {
 	}
 
 	// Update spec.json
-	if err := stepman.ReGenerateStepSpec(route); err != nil {
+	if err := stepman.ReGenerateLibrarySpec(route); err != nil {
 		log.Fatalf("Failed to re-create steplib, err: %s", err)
 	}
 
