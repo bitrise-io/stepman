@@ -170,16 +170,6 @@ type EnvInfoModel struct {
 	IsExpand     bool     `json:"is_expand" yaml:"is_expand"`
 }
 
-/*
-	ID:            stepInfoPtr.ID,
-	Title:         stepInfoPtr.Title,
-	Version:       stepInfoPtr.Version,
-	Latest:        stepInfoPtr.Latest,
-	SupportURL:    stepInfoPtr.SupportURL,
-	SourceCodeURL: stepInfoPtr.SourceCodeURL,
-	GlobalInfo:    stepInfoPtr.GlobalInfo,
-*/
-
 // StepInfoModel ...
 type StepInfoModel struct {
 	Library       string             `json:"library,omitempty" yaml:"library,omitempty"`
@@ -190,22 +180,6 @@ type StepInfoModel struct {
 	Step          StepModel          `json:"step,omitempty" yaml:"step,omitempty"`
 	DefinitionPth string             `json:"definition_pth,omitempty" yaml:"definition_pth,omitempty"`
 }
-
-// // StepInfoModel ...
-// type StepInfoModel struct {
-// 	ID            string              `json:"step_id,omitempty" yaml:"step_id,omitempty"`
-// 	Title         string              `json:"step_title,omitempty" yaml:"step_title,omitempty"`
-// 	Version       string              `json:"step_version,omitempty" yaml:"step_version,omitempty"`
-// 	Latest        string              `json:"latest_version,omitempty" yaml:"latest_version,omitempty"`
-// 	Description   string              `json:"description,omitempty" yaml:"description,omitempty"`
-// 	Source        string              `json:"source,omitempty" yaml:"source,omitempty"`
-// 	StepLib       string              `json:"steplib,omitempty" yaml:"steplib,omitempty"`
-// 	SupportURL    string              `json:"support_url,omitempty" yaml:"support_url,omitempty"`
-// 	SourceCodeURL string              `json:"source_code_url,omitempty" yaml:"source_code_url,omitempty"`
-// 	Inputs        []EnvInfoModel      `json:"inputs,omitempty" yaml:"inputs,omitempty"`
-// 	Outputs       []EnvInfoModel      `json:"outputs,omitempty" yaml:"outputs,omitempty"`
-// 	GlobalInfo    GlobalStepInfoModel `json:"global_info,omitempty" yaml:"global_info,omitempty"`
-// }
 
 // StepListModel ...
 type StepListModel struct {

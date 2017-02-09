@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bitrise-io/depman/pathutil"
 	"github.com/bitrise-io/go-utils/command"
 	"github.com/bitrise-io/go-utils/log"
+	"github.com/bitrise-io/go-utils/pathutil"
 	"github.com/bitrise-io/go-utils/retry"
 	"github.com/bitrise-io/stepman/models"
 )
