@@ -6,7 +6,7 @@ import (
 
 	"path/filepath"
 
-	"github.com/bitrise-io/go-utils/command"
+	"github.com/bitrise-io/go-utils/git"
 	flog "github.com/bitrise-io/go-utils/log"
 	"github.com/bitrise-io/go-utils/pathutil"
 	"github.com/bitrise-io/stepman/models"
@@ -114,7 +114,7 @@ func stepInfo(c *cli.Context) error {
 			tagOrBranch = "master"
 		}
 
-		if err := command.GitCloneTagOrBranch(stepGitSourceURI, tmpStepDir, tagOrBranch); err != nil {
+		if err := git.CloneTagOrBranchCommand(stepGitSourceURI, tmpStepDir, tagOrBranch).Run(); err != nil {
 			return fmt.Errorf("failed to clone step from: %s, error: %s", stepGitSourceURI, err)
 		}
 

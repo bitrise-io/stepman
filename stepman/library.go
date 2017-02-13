@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/bitrise-io/go-utils/command"
+	"github.com/bitrise-io/go-utils/git"
 	"github.com/bitrise-io/go-utils/log"
 	"github.com/bitrise-io/go-utils/pathutil"
 	"github.com/bitrise-io/go-utils/retry"
@@ -45,7 +46,7 @@ func SetupLibrary(libraryURI string) error {
 	pth := GetLibraryBaseDirPath(route)
 	if !isLocalLibrary {
 		if err := retry.Times(2).Wait(3 * time.Second).Try(func(attempt uint) error {
-			return command.GitClone(libraryURI, pth)
+			return git.Clone(libraryURI, pth)
 		}); err != nil {
 			return fmt.Errorf("failed to clone library (%s), error: %s", libraryURI, err)
 		}
@@ -107,7 +108,7 @@ func UpdateLibrary(libraryURI string) (models.StepCollectionModel, error) {
 		}
 
 		if err := retry.Times(2).Wait(3 * time.Second).Try(func(attempt uint) error {
-			return command.GitPull(pth)
+			return git.Pull(pth)
 		}); err != nil {
 			return models.StepCollectionModel{}, fmt.Errorf("failed to pull library (%s), error: %s", libraryURI, err)
 		}

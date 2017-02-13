@@ -13,6 +13,7 @@ import (
 
 	"github.com/bitrise-io/go-utils/command"
 	"github.com/bitrise-io/go-utils/fileutil"
+	"github.com/bitrise-io/go-utils/git"
 	"github.com/bitrise-io/go-utils/log"
 	"github.com/bitrise-io/go-utils/pathutil"
 	"github.com/bitrise-io/go-utils/retry"
@@ -136,7 +137,7 @@ func DownloadStep(collectionURI string, collection models.StepCollectionModel, i
 			}
 		case "git":
 			err := retry.Times(2).Wait(3 * time.Second).Try(func(attempt uint) error {
-				return command.GitCloneTagOrBranchAndValidateCommitHash(downloadLocation.Src, stepPth, version, commithash)
+				return git.CloneTagOrBranchAndValidateCommitHash(downloadLocation.Src, stepPth, version, commithash)
 			})
 
 			if err != nil {

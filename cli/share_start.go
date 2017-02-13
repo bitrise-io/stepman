@@ -5,7 +5,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/bitrise-io/go-utils/colorstring"
-	"github.com/bitrise-io/go-utils/command"
+	"github.com/bitrise-io/go-utils/git"
 	"github.com/bitrise-io/goinp/goinp"
 	"github.com/bitrise-io/stepman/stepman"
 	"github.com/urfave/cli"
@@ -70,7 +70,7 @@ func start(c *cli.Context) error {
 	}
 
 	pth := stepman.GetLibraryBaseDirPath(route)
-	if err := command.GitClone(collectionURI, pth); err != nil {
+	if err := git.Clone(collectionURI, pth); err != nil {
 		log.Fatal("[STEPMAN] - Failed to setup step spec:", err)
 	}
 

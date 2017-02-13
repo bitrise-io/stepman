@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/bitrise-io/go-utils/command"
+	"github.com/bitrise-io/go-utils/git"
 	"github.com/bitrise-io/go-utils/pathutil"
 	"github.com/stretchr/testify/require"
 )
@@ -17,7 +18,7 @@ func TestSetup(t *testing.T) {
 		require.NoError(t, os.RemoveAll(tmpDir))
 	}()
 
-	require.NoError(t, command.GitClone(defaultLibraryURI, tmpDir))
+	require.NoError(t, git.Clone(defaultLibraryURI, tmpDir))
 
 	t.Log("remote library")
 	{
