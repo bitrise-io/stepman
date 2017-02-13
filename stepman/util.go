@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/bitrise-io/go-utils/command"
+	"github.com/bitrise-io/go-utils/command/git"
 	"github.com/bitrise-io/go-utils/fileutil"
-	"github.com/bitrise-io/go-utils/git"
 	"github.com/bitrise-io/go-utils/log"
 	"github.com/bitrise-io/go-utils/pathutil"
 	"github.com/bitrise-io/go-utils/retry"
@@ -23,22 +23,22 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-// ParseGlobalStepInfoYML ...
-func ParseGlobalStepInfoYML(pth string) (models.GlobalStepInfoModel, bool, error) {
+// ParseStepGroupInfoModel ...
+func ParseStepGroupInfoModel(pth string) (models.StepGroupInfoModel, bool, error) {
 	if exist, err := pathutil.IsPathExists(pth); err != nil {
-		return models.GlobalStepInfoModel{}, false, err
+		return models.StepGroupInfoModel{}, false, err
 	} else if !exist {
-		return models.GlobalStepInfoModel{}, false, nil
+		return models.StepGroupInfoModel{}, false, nil
 	}
 
 	bytes, err := fileutil.ReadBytesFromFile(pth)
 	if err != nil {
-		return models.GlobalStepInfoModel{}, true, err
+		return models.StepGroupInfoModel{}, true, err
 	}
 
-	var globalStepInfo models.GlobalStepInfoModel
+	var globalStepInfo models.StepGroupInfoModel
 	if err := yaml.Unmarshal(bytes, &globalStepInfo); err != nil {
-		return models.GlobalStepInfoModel{}, true, err
+		return models.StepGroupInfoModel{}, true, err
 	}
 
 	return globalStepInfo, true, nil
@@ -271,7 +271,7 @@ func generateStepLib(route SteplibRoute, templateCollection models.StepCollectio
 
 		return err
 	}); err != nil {
-		return models.StepCollectionModel{}, err
+		return models.StepCollectionModel{}, fmt.Errorf("Failed to walk through path, error: %s", err)
 	}
 
 	collection.Steps = stepHash

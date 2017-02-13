@@ -6,7 +6,7 @@ import (
 
 	"path/filepath"
 
-	"github.com/bitrise-io/go-utils/git"
+	"github.com/bitrise-io/go-utils/command/git"
 	flog "github.com/bitrise-io/go-utils/log"
 	"github.com/bitrise-io/go-utils/pathutil"
 	"github.com/bitrise-io/stepman/models"
@@ -64,14 +64,18 @@ func stepInfo(c *cli.Context) error {
 		collection := c.String(CollectionKey)
 		library = collection
 	}
-	if library == "" {
-		return fmt.Errorf("Missing required input: library")
-	}
 
 	id := c.String(IDKey)
 	if id == "" {
 		stepYMLPath := c.String(StepYMLKey)
-		id = stepYMLPath
+		if stepYMLPath != "" {
+			id = stepYMLPath
+			library = "path"
+		}
+	}
+
+	if library == "" {
+		return fmt.Errorf("Missing required input: library")
 	}
 	if id == "" {
 		return fmt.Errorf("Missing required input: id")
@@ -92,8 +96,6 @@ func stepInfo(c *cli.Context) error {
 	if format == OutputFormatJSON {
 		log = flog.NewDefaultJSONLoger()
 	}
-
-	// isShort := c.Bool(ShortKey)
 	// ---
 
 	stepInfo := models.StepInfoModel{
@@ -172,8 +174,7 @@ func stepInfo(c *cli.Context) error {
 		stepDir := stepman.GetStepCollectionDirPath(route, id, stepVersion.Version)
 		stepDefinitionPth := filepath.Join(stepDir, "step.yml")
 
-		step := stepVersion.Step
-		stepInfo.Step = step
+		stepInfo.Step = stepVersion.Step
 		stepInfo.Version = stepVersion.Version
 		stepInfo.LatestVersion = stepVersion.LatestAvailableVersion
 		stepInfo.DefinitionPth = stepDefinitionPth

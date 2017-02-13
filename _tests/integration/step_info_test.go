@@ -10,11 +10,11 @@ import (
 )
 
 func TestStepInfo(t *testing.T) {
+	out, err := command.New(binPath(), "setup", "-c", defaultLibraryURI).RunAndReturnTrimmedCombinedOutput()
+	require.NoError(t, err, out)
+
 	t.Log("library step")
 	{
-		out, err := command.New(binPath(), "setup", "-c", defaultLibraryURI).RunAndReturnTrimmedCombinedOutput()
-		require.NoError(t, err, out)
-
 		out, err = command.New(binPath(), "step-info", "--collection", defaultLibraryURI, "--id", "apk-info", "--version", "1.0.4").RunAndReturnTrimmedCombinedOutput()
 		require.NoError(t, err, out)
 		require.Equal(t, apkInfo104Defintiion, out)
@@ -22,9 +22,6 @@ func TestStepInfo(t *testing.T) {
 
 	t.Log("library step --format json")
 	{
-		out, err := command.New(binPath(), "setup", "-c", defaultLibraryURI).RunAndReturnTrimmedCombinedOutput()
-		require.NoError(t, err, out)
-
 		out, err = command.New(binPath(), "step-info", "--collection", defaultLibraryURI, "--id", "apk-info", "--version", "1.0.4", "--format", "json").RunAndReturnTrimmedCombinedOutput()
 		require.NoError(t, err, out)
 		require.Equal(t, true, strings.Contains(out, apkInfo104DefintiionJSON), out)
@@ -33,6 +30,13 @@ func TestStepInfo(t *testing.T) {
 	t.Log("local step")
 	{
 		out, err := command.New(binPath(), "step-info", "--collection", "path", "--id", "./test-step").RunAndReturnTrimmedCombinedOutput()
+		require.NoError(t, err, out)
+		require.Equal(t, localTestStepDefintion, out)
+	}
+
+	t.Log("local step - deprecated --step-yml flag")
+	{
+		out, err := command.New(binPath(), "step-info", "--step-yml", "./test-step").RunAndReturnTrimmedCombinedOutput()
 		require.NoError(t, err, out)
 		require.Equal(t, localTestStepDefintion, out)
 	}

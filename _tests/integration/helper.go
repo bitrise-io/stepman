@@ -13,11 +13,11 @@ func binPath() string {
 }
 
 func cleanupLibrary(libraryURI string) error {
-	cmd := command.New(binPath(), "delete", "--collection", defaultLibraryURI)
+	cmd := command.New(binPath(), "delete", "--collection", libraryURI)
 	return cmd.Run()
 }
 
 func setupLibrary(libraryURI string) error {
-	cmd := command.New(binPath(), "setup", "--collection", defaultLibraryURI)
+	cmd := command.New(binPath(), "setup", "--collection", libraryURI)
 	return cmd.Run()
 }

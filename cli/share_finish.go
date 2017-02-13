@@ -5,7 +5,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/bitrise-io/go-utils/colorstring"
-	"github.com/bitrise-io/go-utils/git"
+	"github.com/bitrise-io/go-utils/command/git"
 	"github.com/bitrise-io/stepman/stepman"
 	"github.com/urfave/cli"
 )

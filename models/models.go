@@ -6,12 +6,6 @@ import (
 	envmanModels "github.com/bitrise-io/envman/models"
 )
 
-// GlobalStepInfoModel ...
-type GlobalStepInfoModel struct {
-	RemovalDate    string `json:"removal_date,omitempty" yaml:"removal_date,omitempty"`
-	DeprecateNotes string `json:"deprecate_notes,omitempty" yaml:"deprecate_notes,omitempty"`
-}
-
 // StepSourceModel ...
 type StepSourceModel struct {
 	Git    string `json:"git,omitempty" yaml:"git,omitempty"`
