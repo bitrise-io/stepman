@@ -52,8 +52,11 @@ func (version VersionOutputModel) JSON() string {
 }
 
 func printVersionCmd(c *cli.Context) error {
-	format := c.String("format")
 	fullVersion := c.Bool("full")
+	format := c.String("format")
+	if format == "" {
+		format = "raw"
+	}
 
 	var log flog.Logger
 	if format == "raw" {

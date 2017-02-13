@@ -132,6 +132,7 @@ func stepInfo(c *cli.Context) error {
 
 		stepInfo.Version = tagOrBranch
 		stepInfo.Step = step
+		stepInfo.DefinitionPth = stepDefinitionPth
 	case "path":
 		stepDir := id
 		stepDefinitionPth := filepath.Join(stepDir, "step.yml")
