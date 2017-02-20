@@ -119,7 +119,7 @@ func stepInfo(c *cli.Context) error {
 		}
 
 		if err := retry.Times(2).Wait(3 * time.Second).Try(func(attempt uint) error {
-			return git.CloneTagOrBranch(stepGitSourceURI, tmpStepDir, tagOrBranch)
+			return git.CloneTagOrBranchCommand(stepGitSourceURI, tmpStepDir, tagOrBranch).Run()
 		}); err != nil {
 			return fmt.Errorf("failed to clone step from: %s, error: %s", stepGitSourceURI, err)
 		}
