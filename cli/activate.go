@@ -37,20 +37,22 @@ func activate(c *cli.Context) error {
 		log.Fatalln("[STEPMAN] - Failed to read steps spec (spec.json)")
 	}
 
-	_, stepFound := collection.GetStep(id, version)
+	_, stepFound, versionFound := collection.GetStep(id, version)
 	if !stepFound {
 		if !update {
-			if version == "" {
-				log.Fatalf("[STEPMAN] - Collection doesn't contain any version of step (id:%s)", id)
-			} else {
-				log.Fatalf("[STEPMAN] - Collection doesn't contain step (id:%s) (version:%s)", id, version)
+			if !stepFound {
+				log.Fatalf("[STEPMAN] - Collection doesn't contain step with id: %s", id)
+			}
+			if !versionFound {
+				log.Fatalf("[STEPMAN] - Collection doesn't contain step (%s) with version: %s", id, version)
 			}
 		}
 
-		if version == "" {
-			log.Infof("[STEPMAN] - Collection doesn't contain any version of step (id:%s) -- Updating StepLib", id)
-		} else {
-			log.Infof("[STEPMAN] - Collection doesn't contain step (id:%s) (version:%s) -- Updating StepLib", id, version)
+		if !stepFound {
+			log.Infof("[STEPMAN] - Collection doesn't contain step with id: %s -- Updating StepLib", id)
+		}
+		if !versionFound {
+			log.Infof("[STEPMAN] - Collection doesn't contain step (%s) with version: %s -- Updating StepLib", id, version)
 		}
 
 		collection, err = stepman.UpdateLibrary(collectionURI)
@@ -58,12 +60,13 @@ func activate(c *cli.Context) error {
 			log.Fatalf("Failed to update collection (%s), err: %s", collectionURI, err)
 		}
 
-		_, stepFound := collection.GetStep(id, version)
+		_, stepFound, versionFound := collection.GetStep(id, version)
 		if !stepFound {
-			if version != "" {
-				log.Fatalf("[STEPMAN] - Even the updated collection doesn't contain step (id:%s) (version:%s)", id, version)
-			} else {
-				log.Fatalf("[STEPMAN] - Even the updated collection doesn't contain any version of step (id:%s)", id)
+			if !stepFound {
+				log.Fatalf("[STEPMAN] - Collection doesn't contain step with id: %s", id)
+			}
+			if !versionFound {
+				log.Fatalf("[STEPMAN] - Collection doesn't contain step (%s) with version: %s", id, version)
 			}
 		}
 	}
@@ -81,9 +84,12 @@ func activate(c *cli.Context) error {
 	}
 
 	// Check step exist in local cache
-	step, found := collection.GetStep(id, version)
-	if !found {
-		log.Fatalf("[STEPMAN] - Collection doesn't contain step (id:%s) (version:%s)", id, version)
+	step, stepFound, versionFound := collection.GetStep(id, version)
+	if !stepFound {
+		log.Fatalf("[STEPMAN] - Collection doesn't contain step with id: %s", id)
+	}
+	if !versionFound {
+		log.Fatalf("[STEPMAN] - Collection doesn't contain step (%s) with version: %s", id, version)
 	}
 
 	if step.Source == nil {

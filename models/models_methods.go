@@ -232,45 +232,46 @@ func (step *StepModel) FillMissingDefaults() error {
 
 // IsStepExist ...
 func (collection StepCollectionModel) IsStepExist(id, version string) bool {
-	_, found := collection.GetStep(id, version)
-	return found
+	_, stepFound, versionFound := collection.GetStep(id, version)
+	return (stepFound && versionFound)
 }
 
 // GetStep ...
-func (collection StepCollectionModel) GetStep(id, version string) (StepModel, bool) {
-	stepVer, isFound := collection.GetStepVersion(id, version)
-	return stepVer.Step, isFound
+func (collection StepCollectionModel) GetStep(id, version string) (StepModel, bool, bool) {
+	stepVer, isStepFound, isVersionFound := collection.GetStepVersion(id, version)
+	return stepVer.Step, isStepFound, isVersionFound
 }
 
 // GetStepVersion ...
-func (collection StepCollectionModel) GetStepVersion(id, version string) (StepVersionModel, bool) {
+func (collection StepCollectionModel) GetStepVersion(id, version string) (StepVersionModel, bool, bool) {
 	stepHash := collection.Steps
-	stepVersions, found := stepHash[id]
-	if !found {
-		return StepVersionModel{}, false
-	}
+	stepVersions, stepFound := stepHash[id]
 
 	if version == "" {
 		version = stepVersions.LatestVersionNumber
 	}
 
-	step, found := stepVersions.Versions[version]
-	if !found {
-		return StepVersionModel{}, false
+	step, versionFound := stepVersions.Versions[version]
+
+	if !stepFound || !versionFound {
+		return StepVersionModel{}, stepFound, versionFound
 	}
 
 	return StepVersionModel{
 		Step:                   step,
 		Version:                version,
 		LatestAvailableVersion: stepVersions.LatestVersionNumber,
-	}, true
+	}, true, true
 }
 
 // GetDownloadLocations ...
 func (collection StepCollectionModel) GetDownloadLocations(id, version string) ([]DownloadLocationModel, error) {
-	step, found := collection.GetStep(id, version)
-	if found == false {
-		return []DownloadLocationModel{}, fmt.Errorf("Collection (%s) doesn't contains step %s (%s)", collection.SteplibSource, id, version)
+	step, stepFound, versionFound := collection.GetStep(id, version)
+	if stepFound == false {
+		return []DownloadLocationModel{}, fmt.Errorf("Collection (%s) doesn't contains step with id: %s", collection.SteplibSource, id)
+	}
+	if versionFound == false {
+		return []DownloadLocationModel{}, fmt.Errorf("Collection (%s) doesn't contains step (%s) with version: %s", collection.SteplibSource, id, version)
 	}
 
 	if step.Source == nil {
