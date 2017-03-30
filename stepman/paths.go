@@ -209,7 +209,7 @@ func GetLibraryBaseDirPath(route SteplibRoute) string {
 func GetAllStepCollectionPath() []string {
 	routes, err := readRouteMap()
 	if err != nil {
-		log.Error("[STEPMAN] - Failed to read step specs path:", err)
+		log.Error("Failed to read step specs path:", err)
 		return []string{}
 	}
 

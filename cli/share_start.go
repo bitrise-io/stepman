@@ -26,7 +26,7 @@ func start(c *cli.Context) error {
 
 	collectionURI := c.String(CollectionKey)
 	if collectionURI == "" {
-		log.Fatalln("[STEPMAN] - No step collection specified")
+		log.Fatalln("No step collection specified")
 	}
 
 	if route, found := stepman.ReadRoute(collectionURI); found {
@@ -75,29 +75,29 @@ func start(c *cli.Context) error {
 	if err := retry.Times(2).Wait(3 * time.Second).Try(func(attempt uint) error {
 		return git.Clone(collectionURI, pth)
 	}); err != nil {
-		log.Fatalf("[STEPMAN] - Failed to setup step spec (url: %s) version (%s), error: %s",
+		log.Fatalf("Failed to setup step spec (url: %s) version (%s), error: %s",
 			collectionURI, pth, err)
 	}
 
 	specPth := pth + "/steplib.yml"
 	collection, err := stepman.ParseStepCollection(specPth)
 	if err != nil {
-		log.Fatal("[STEPMAN] - Failed to read step spec:", err)
+		log.Fatal("Failed to read step spec:", err)
 	}
 
 	if err := stepman.WriteStepSpecToFile(collection, route); err != nil {
-		log.Fatal("[STEPMAN] - Failed to save step spec:", err)
+		log.Fatal("Failed to save step spec:", err)
 	}
 
 	if err := stepman.AddRoute(route); err != nil {
-		log.Fatal("[STEPMAN] - Failed to setup routing:", err)
+		log.Fatal("Failed to setup routing:", err)
 	}
 
 	share := ShareModel{
 		Collection: collectionURI,
 	}
 	if err := WriteShareSteplibToFile(share); err != nil {
-		log.Fatal("[STEPMAN] - Failed to save share steplib to file:", err)
+		log.Fatal("Failed to save share steplib to file:", err)
 	}
 
 	isSuccess = true

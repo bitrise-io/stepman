@@ -10,7 +10,7 @@ func download(c *cli.Context) error {
 	// Input validation
 	collectionURI := c.String(CollectionKey)
 	if collectionURI == "" {
-		log.Fatalln("[STEPMAN] - No step collection specified")
+		log.Fatalln("No step collection specified")
 	}
 	route, found := stepman.ReadRoute(collectionURI)
 	if !found {
@@ -19,23 +19,23 @@ func download(c *cli.Context) error {
 
 	id := c.String(IDKey)
 	if id == "" {
-		log.Fatal("[STEPMAN] - Missing step id")
+		log.Fatal("Missing step id")
 	}
 
 	collection, err := stepman.ReadStepSpec(collectionURI)
 	if err != nil {
-		log.Fatal("[STEPMAN] - Failed to read step spec:", err)
+		log.Fatal("Failed to read step spec:", err)
 	}
 
 	version := c.String(VersionKey)
 	if version == "" {
-		log.Debug("[STEPMAN] - Missing step version -- Use latest version")
+		log.Debug("Missing step version -- Use latest version")
 
 		latest, err := collection.GetLatestStepVersion(id)
 		if err != nil {
-			log.Fatal("[STEPMAN] - Failed to get step latest version: ", err)
+			log.Fatal("Failed to get step latest version: ", err)
 		}
-		log.Debug("[STEPMAN] - Latest version of step: ", latest)
+		log.Debug("Latest version of step: ", latest)
 		version = latest
 	}
 
@@ -46,30 +46,30 @@ func download(c *cli.Context) error {
 	if !stepFound || !versionFound {
 		if update {
 			if !stepFound {
-				log.Infof("[STEPMAN] - Collection doesn't contain step with id: %s -- Updating StepLib", id)
+				log.Infof("Collection doesn't contain step with id: %s -- Updating StepLib", id)
 			}
 			if !versionFound {
-				log.Infof("[STEPMAN] - Collection doesn't contain step (%s) with version: %s -- Updating StepLib", id, version)
+				log.Infof("Collection doesn't contain step (%s) with version: %s -- Updating StepLib", id, version)
 			}
 
 			if err := stepman.ReGenerateLibrarySpec(route); err != nil {
-				log.Fatalf("[STEPMAN] - Failed to update collection:%s error:%v", collectionURI, err)
+				log.Fatalf("Failed to update collection:%s error:%v", collectionURI, err)
 			}
 
 			if _, stepFound, versionFound := collection.GetStep(id, version); !stepFound || !versionFound {
 				if !stepFound {
-					log.Fatalf("[STEPMAN] - Even the updated collection doesn't contain step with id: %s", id)
+					log.Fatalf("Even the updated collection doesn't contain step with id: %s", id)
 				}
 				if !versionFound {
-					log.Fatalf("[STEPMAN] - Even the updated collection doesn't contain step (%s) with version: %s", id, version)
+					log.Fatalf("Even the updated collection doesn't contain step (%s) with version: %s", id, version)
 				}
 			}
 		} else {
 			if !stepFound {
-				log.Fatalf("[STEPMAN] - Collection doesn't contain step with id: %s -- Updating StepLib", id)
+				log.Fatalf("Collection doesn't contain step with id: %s -- Updating StepLib", id)
 			}
 			if !versionFound {
-				log.Fatalf("[STEPMAN] - Collection doesn't contain step (%s) with version: %s -- Updating StepLib", id, version)
+				log.Fatalf("Collection doesn't contain step (%s) with version: %s -- Updating StepLib", id, version)
 			}
 		}
 	}
@@ -79,7 +79,7 @@ func download(c *cli.Context) error {
 	}
 
 	if err := stepman.DownloadStep(collectionURI, collection, id, version, step.Source.Commit); err != nil {
-		log.Fatal("[STEPMAN] - Failed to download step")
+		log.Fatal("Failed to download step")
 	}
 
 	return nil

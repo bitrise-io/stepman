@@ -14,17 +14,17 @@ func activate(c *cli.Context) error {
 	// Input validation
 	collectionURI := c.String(CollectionKey)
 	if collectionURI == "" {
-		log.Fatalln("[STEPMAN] - No step collection specified")
+		log.Fatalln("No step collection specified")
 	}
 
 	id := c.String(IDKey)
 	if id == "" {
-		log.Fatal("[STEPMAN] - Missing step id")
+		log.Fatal("Missing step id")
 	}
 
 	path := c.String(PathKey)
 	if path == "" {
-		log.Fatal("[STEPMAN] - Missing destination path")
+		log.Fatal("Missing destination path")
 	}
 
 	version := c.String(VersionKey)
@@ -34,25 +34,25 @@ func activate(c *cli.Context) error {
 	// Check if step exist in collection
 	collection, err := stepman.ReadStepSpec(collectionURI)
 	if err != nil {
-		log.Fatalln("[STEPMAN] - Failed to read steps spec (spec.json)")
+		log.Fatalln("Failed to read steps spec (spec.json)")
 	}
 
 	_, stepFound, versionFound := collection.GetStep(id, version)
-	if !stepFound {
+	if !stepFound || !versionFound {
 		if !update {
 			if !stepFound {
-				log.Fatalf("[STEPMAN] - Collection doesn't contain step with id: %s", id)
+				log.Fatalf("Collection doesn't contain step with id: %s", id)
 			}
 			if !versionFound {
-				log.Fatalf("[STEPMAN] - Collection doesn't contain step (%s) with version: %s", id, version)
+				log.Fatalf("Collection doesn't contain step (%s) with version: %s", id, version)
 			}
 		}
 
 		if !stepFound {
-			log.Infof("[STEPMAN] - Collection doesn't contain step with id: %s -- Updating StepLib", id)
+			log.Infof("Collection doesn't contain step with id: %s -- Updating StepLib", id)
 		}
 		if !versionFound {
-			log.Infof("[STEPMAN] - Collection doesn't contain step (%s) with version: %s -- Updating StepLib", id, version)
+			log.Infof("Collection doesn't contain step (%s) with version: %s -- Updating StepLib", id, version)
 		}
 
 		collection, err = stepman.UpdateLibrary(collectionURI)
@@ -63,33 +63,33 @@ func activate(c *cli.Context) error {
 		_, stepFound, versionFound := collection.GetStep(id, version)
 		if !stepFound {
 			if !stepFound {
-				log.Fatalf("[STEPMAN] - Collection doesn't contain step with id: %s", id)
+				log.Fatalf("Collection doesn't contain step with id: %s", id)
 			}
 			if !versionFound {
-				log.Fatalf("[STEPMAN] - Collection doesn't contain step (%s) with version: %s", id, version)
+				log.Fatalf("Collection doesn't contain step (%s) with version: %s", id, version)
 			}
 		}
 	}
 
 	// If version doesn't provided use latest
 	if version == "" {
-		log.Debug("[STEPMAN] - Missing step version -- Use latest version")
+		log.Debug("Missing step version -- Use latest version")
 
 		latest, err := collection.GetLatestStepVersion(id)
 		if err != nil {
-			log.Fatal("[STEPMAN] - Failed to get step latest version: ", err)
+			log.Fatal("Failed to get step latest version: ", err)
 		}
-		log.Debug("[STEPMAN] - Latest version of step: ", latest)
+		log.Debug("Latest version of step: ", latest)
 		version = latest
 	}
 
 	// Check step exist in local cache
 	step, stepFound, versionFound := collection.GetStep(id, version)
 	if !stepFound {
-		log.Fatalf("[STEPMAN] - Collection doesn't contain step with id: %s", id)
+		log.Fatalf("Collection doesn't contain step with id: %s", id)
 	}
 	if !versionFound {
-		log.Fatalf("[STEPMAN] - Collection doesn't contain step (%s) with version: %s", id, version)
+		log.Fatalf("Collection doesn't contain step (%s) with version: %s", id, version)
 	}
 
 	if step.Source == nil {
@@ -103,11 +103,11 @@ func activate(c *cli.Context) error {
 
 	stepCacheDir := stepman.GetStepCacheDirPath(route, id, version)
 	if exist, err := pathutil.IsPathExists(stepCacheDir); err != nil {
-		log.Fatal("[STEPMAN] - Failed to check path:", err)
+		log.Fatal("Failed to check path:", err)
 	} else if !exist {
-		log.Debug("[STEPMAN] - Step does not exist, download it")
+		log.Debug("Step does not exist, download it")
 		if err := stepman.DownloadStep(collectionURI, collection, id, version, step.Source.Commit); err != nil {
-			log.Fatal("[STEPMAN] - Failed to download step:", err)
+			log.Fatal("Failed to download step:", err)
 		}
 	}
 
@@ -116,29 +116,29 @@ func activate(c *cli.Context) error {
 	destFolder := path
 
 	if exist, err := pathutil.IsPathExists(destFolder); err != nil {
-		log.Fatalln("[STEPMAN] - Failed to check path:", err)
+		log.Fatalln("Failed to check path:", err)
 	} else if !exist {
 		if err := os.MkdirAll(destFolder, 0777); err != nil {
-			log.Fatalln("[STEPMAN] - Failed to create path:", err)
+			log.Fatalln("Failed to create path:", err)
 		}
 	}
 
 	if err = command.CopyDir(srcFolder+"/", destFolder, true); err != nil {
-		log.Fatalln("[STEPMAN] - Failed to copy step:", err)
+		log.Fatalln("Failed to copy step:", err)
 	}
 
 	// Copy step.yml to specified path
 	if copyYML != "" {
 		if exist, err := pathutil.IsPathExists(copyYML); err != nil {
-			log.Fatalln("[STEPMAN] - Failed to check path:", err)
+			log.Fatalln("Failed to check path:", err)
 		} else if exist {
-			log.Fatalln("[STEPMAN] - Copy yml destination path exist")
+			log.Fatalln("Copy yml destination path exist")
 		}
 
 		stepCollectionDir := stepman.GetStepCollectionDirPath(route, id, version)
 		stepYMLSrc := stepCollectionDir + "/step.yml"
 		if err = command.CopyFile(stepYMLSrc, copyYML); err != nil {
-			log.Fatalln("[STEPMAN] - Failed to copy step.yml:", err)
+			log.Fatalln("Failed to copy step.yml:", err)
 		}
 	}
 

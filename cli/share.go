@@ -63,7 +63,7 @@ func WriteShareSteplibToFile(share ShareModel) error {
 	var bytes []byte
 	bytes, err := json.MarshalIndent(share, "", "\t")
 	if err != nil {
-		log.Error("[STEPMAN] - Failed to parse json:", err)
+		log.Error("Failed to parse json:", err)
 		return err
 	}
 

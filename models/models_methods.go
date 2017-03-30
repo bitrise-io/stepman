@@ -295,11 +295,11 @@ func (collection StepCollectionModel) GetDownloadLocations(id, version string) (
 			}
 			locations = append(locations, location)
 		default:
-			return []DownloadLocationModel{}, fmt.Errorf("[STEPMAN] - Invalid download location (%#v) for step (%#v)", downloadLocation, id)
+			return []DownloadLocationModel{}, fmt.Errorf("Invalid download location (%#v) for step (%#v)", downloadLocation, id)
 		}
 	}
 	if len(locations) < 1 {
-		return []DownloadLocationModel{}, fmt.Errorf("[STEPMAN] - No download location found for step (%#v)", id)
+		return []DownloadLocationModel{}, fmt.Errorf("No download location found for step (%#v)", id)
 	}
 	return locations, nil
 }
