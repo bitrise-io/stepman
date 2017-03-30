@@ -47,8 +47,7 @@ func download(c *cli.Context) error {
 		if update {
 			if !stepFound {
 				log.Infof("Collection doesn't contain step with id: %s -- Updating StepLib", id)
-			}
-			if !versionFound {
+			} else if !versionFound {
 				log.Infof("Collection doesn't contain step (%s) with version: %s -- Updating StepLib", id, version)
 			}
 
@@ -59,16 +58,14 @@ func download(c *cli.Context) error {
 			if _, stepFound, versionFound := collection.GetStep(id, version); !stepFound || !versionFound {
 				if !stepFound {
 					log.Fatalf("Even the updated collection doesn't contain step with id: %s", id)
-				}
-				if !versionFound {
+				} else if !versionFound {
 					log.Fatalf("Even the updated collection doesn't contain step (%s) with version: %s", id, version)
 				}
 			}
 		} else {
 			if !stepFound {
 				log.Fatalf("Collection doesn't contain step with id: %s -- Updating StepLib", id)
-			}
-			if !versionFound {
+			} else if !versionFound {
 				log.Fatalf("Collection doesn't contain step (%s) with version: %s -- Updating StepLib", id, version)
 			}
 		}

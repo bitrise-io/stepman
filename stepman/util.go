@@ -345,8 +345,7 @@ func ReadStepVersionInfo(collectionURI, stepID, stepVersionID string) (models.St
 	stepWithVersion, stepFound, versionFound := collection.GetStepVersion(stepID, stepVersionID)
 	if !stepFound {
 		return models.StepVersionModel{}, fmt.Errorf("Collection doesn't contain step with id: %s", stepID)
-	}
-	if !versionFound {
+	} else if !versionFound {
 		return models.StepVersionModel{}, fmt.Errorf("Collection doesn't contain step (%s) with version: %s", stepID, stepVersionID)
 	}
 

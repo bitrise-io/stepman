@@ -42,16 +42,14 @@ func activate(c *cli.Context) error {
 		if !update {
 			if !stepFound {
 				log.Fatalf("Collection doesn't contain step with id: %s", id)
-			}
-			if !versionFound {
+			} else if !versionFound {
 				log.Fatalf("Collection doesn't contain step (%s) with version: %s", id, version)
 			}
 		}
 
 		if !stepFound {
 			log.Infof("Collection doesn't contain step with id: %s -- Updating StepLib", id)
-		}
-		if !versionFound {
+		} else if !versionFound {
 			log.Infof("Collection doesn't contain step (%s) with version: %s -- Updating StepLib", id, version)
 		}
 
@@ -64,8 +62,7 @@ func activate(c *cli.Context) error {
 		if !stepFound {
 			if !stepFound {
 				log.Fatalf("Collection doesn't contain step with id: %s", id)
-			}
-			if !versionFound {
+			} else if !versionFound {
 				log.Fatalf("Collection doesn't contain step (%s) with version: %s", id, version)
 			}
 		}
@@ -87,8 +84,7 @@ func activate(c *cli.Context) error {
 	step, stepFound, versionFound := collection.GetStep(id, version)
 	if !stepFound {
 		log.Fatalf("Collection doesn't contain step with id: %s", id)
-	}
-	if !versionFound {
+	} else if !versionFound {
 		log.Fatalf("Collection doesn't contain step (%s) with version: %s", id, version)
 	}
 
