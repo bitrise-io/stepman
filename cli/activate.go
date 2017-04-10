@@ -14,7 +14,7 @@ func activate(c *cli.Context) error {
 	// Input validation
 	collectionURI := c.String(CollectionKey)
 	if collectionURI == "" {
-		log.Fatalln("No step collection specified")
+		log.Fatalf("No step collection specified")
 	}
 
 	id := c.String(IDKey)
@@ -34,7 +34,7 @@ func activate(c *cli.Context) error {
 	// Check if step exist in collection
 	collection, err := stepman.ReadStepSpec(collectionURI)
 	if err != nil {
-		log.Fatalln("Failed to read steps spec (spec.json), error: %s", err)
+		log.Fatalf("Failed to read steps spec (spec.json), error: %s", err)
 	}
 
 	_, stepFound, versionFound := collection.GetStep(id, version)
@@ -108,29 +108,29 @@ func activate(c *cli.Context) error {
 	destFolder := path
 
 	if exist, err := pathutil.IsPathExists(destFolder); err != nil {
-		log.Fatalln("Failed to check path:", err)
+		log.Fatalf("Failed to check path, error: %s", err)
 	} else if !exist {
 		if err := os.MkdirAll(destFolder, 0777); err != nil {
-			log.Fatalln("Failed to create path:", err)
+			log.Fatalf("Failed to create path, error: %s", err)
 		}
 	}
 
 	if err = command.CopyDir(srcFolder+"/", destFolder, true); err != nil {
-		log.Fatalln("Failed to copy step:", err)
+		log.Fatalf("Failed to copy step, error: %s", err)
 	}
 
 	// Copy step.yml to specified path
 	if copyYML != "" {
 		if exist, err := pathutil.IsPathExists(copyYML); err != nil {
-			log.Fatalln("Failed to check path:", err)
+			log.Fatalf("Failed to check path, error: %s", err)
 		} else if exist {
-			log.Fatalln("Copy yml destination path exist")
+			log.Fatalf("Copy yml destination path exist")
 		}
 
 		stepCollectionDir := stepman.GetStepCollectionDirPath(route, id, version)
 		stepYMLSrc := stepCollectionDir + "/step.yml"
 		if err = command.CopyFile(stepYMLSrc, copyYML); err != nil {
-			log.Fatalln("Failed to copy step.yml:", err)
+			log.Fatalf("Failed to copy step.yml, error: %s", err)
 		}
 	}
 

@@ -10,7 +10,7 @@ func download(c *cli.Context) error {
 	// Input validation
 	collectionURI := c.String(CollectionKey)
 	if collectionURI == "" {
-		log.Fatalln("No step collection specified")
+		log.Fatalf("No step collection specified")
 	}
 	route, found := stepman.ReadRoute(collectionURI)
 	if !found {
