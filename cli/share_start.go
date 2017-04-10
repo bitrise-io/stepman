@@ -26,7 +26,7 @@ func start(c *cli.Context) error {
 
 	collectionURI := c.String(CollectionKey)
 	if collectionURI == "" {
-		log.Fatalln("No step collection specified")
+		log.Fatalf("No step collection specified")
 	}
 
 	if route, found := stepman.ReadRoute(collectionURI); found {
@@ -34,11 +34,11 @@ func start(c *cli.Context) error {
 		log.Warnf("StepLib found locally at: %s", collLocalPth)
 		log.Info("For sharing it's required to work with a clean StepLib repository.")
 		if val, err := goinp.AskForBool("Would you like to remove the local version (your forked StepLib repository) and re-clone it?"); err != nil {
-			log.Fatalln(err)
+			log.Fatalf("Error: %s", err)
 		} else {
 			if !val {
-				log.Errorln("Unfortunately we can't continue with sharing without a clean StepLib repository.")
-				log.Fatalln("Please finish your changes, run this command again and allow it to remove the local StepLib folder!")
+				log.Errorf("Unfortunately we can't continue with sharing without a clean StepLib repository.")
+				log.Fatalf("Please finish your changes, run this command again and allow it to remove the local StepLib folder!")
 			}
 			if err := stepman.CleanupRoute(route); err != nil {
 				log.Errorf("Failed to cleanup route for uri: %s", collectionURI)
