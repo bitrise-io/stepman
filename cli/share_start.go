@@ -81,7 +81,7 @@ func start(c *cli.Context) error {
 	specPth := pth + "/steplib.yml"
 	collection, err := stepman.ParseStepCollection(specPth)
 	if err != nil {
-		log.Errorf("Failed to read step spec, error: %s", err)
+		log.Fatalf("Failed to read step spec, error: %s", err)
 	}
 
 	if err := stepman.WriteStepSpecToFile(collection, route); err != nil {
