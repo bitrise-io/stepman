@@ -29,13 +29,10 @@ func download(c *cli.Context) error {
 
 	version := c.String(VersionKey)
 	if version == "" {
-		log.Debug("Missing step version -- Use latest version")
-
 		latest, err := collection.GetLatestStepVersion(id)
 		if err != nil {
 			log.Fatal("Failed to get step latest version: ", err)
 		}
-		log.Debug("Latest version of step: ", latest)
 		version = latest
 	}
 

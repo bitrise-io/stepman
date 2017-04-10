@@ -19,12 +19,12 @@ func activate(c *cli.Context) error {
 
 	id := c.String(IDKey)
 	if id == "" {
-		log.Fatal("Missing step id")
+		log.Fatalf("Missing step id")
 	}
 
 	path := c.String(PathKey)
 	if path == "" {
-		log.Fatal("Missing destination path")
+		log.Fatalf("Missing destination path")
 	}
 
 	version := c.String(VersionKey)
@@ -34,7 +34,7 @@ func activate(c *cli.Context) error {
 	// Check if step exist in collection
 	collection, err := stepman.ReadStepSpec(collectionURI)
 	if err != nil {
-		log.Fatalln("Failed to read steps spec (spec.json)")
+		log.Fatalln("Failed to read steps spec (spec.json), error: %s", err)
 	}
 
 	_, stepFound, versionFound := collection.GetStep(id, version)
@@ -70,13 +70,10 @@ func activate(c *cli.Context) error {
 
 	// If version doesn't provided use latest
 	if version == "" {
-		log.Debug("Missing step version -- Use latest version")
-
 		latest, err := collection.GetLatestStepVersion(id)
 		if err != nil {
-			log.Fatal("Failed to get step latest version: ", err)
+			log.Fatalf("Failed to get step latest version, error: %s", err)
 		}
-		log.Debug("Latest version of step: ", latest)
 		version = latest
 	}
 
@@ -89,7 +86,7 @@ func activate(c *cli.Context) error {
 	}
 
 	if step.Source == nil {
-		log.Fatal("Invalid step, missing Source property")
+		log.Fatalf("Invalid step, missing Source property")
 	}
 
 	route, found := stepman.ReadRoute(collectionURI)
@@ -99,11 +96,10 @@ func activate(c *cli.Context) error {
 
 	stepCacheDir := stepman.GetStepCacheDirPath(route, id, version)
 	if exist, err := pathutil.IsPathExists(stepCacheDir); err != nil {
-		log.Fatal("Failed to check path:", err)
+		log.Fatalf("Failed to check path, error: %s", err)
 	} else if !exist {
-		log.Debug("Step does not exist, download it")
 		if err := stepman.DownloadStep(collectionURI, collection, id, version, step.Source.Commit); err != nil {
-			log.Fatal("Failed to download step:", err)
+			log.Fatalf("Failed to download step, error: %s", err)
 		}
 	}
 
