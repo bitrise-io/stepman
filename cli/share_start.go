@@ -34,7 +34,7 @@ func start(c *cli.Context) error {
 		log.Warnf("StepLib found locally at: %s", collLocalPth)
 		log.Info("For sharing it's required to work with a clean StepLib repository.")
 		if val, err := goinp.AskForBool("Would you like to remove the local version (your forked StepLib repository) and re-clone it?"); err != nil {
-			log.Fatalf("Error: %s", err)
+			log.Fatalf("Failed to ask for input, error: %s", err)
 		} else {
 			if !val {
 				log.Errorf("Unfortunately we can't continue with sharing without a clean StepLib repository.")
@@ -48,7 +48,7 @@ func start(c *cli.Context) error {
 
 	// cleanup
 	if err := DeleteShareSteplibFile(); err != nil {
-		log.Fatal(err)
+		log.Fatalf("Failed to delete share steplib file, error: %s", err)
 	}
 
 	var route stepman.SteplibRoute
@@ -59,7 +59,7 @@ func start(c *cli.Context) error {
 				log.Errorf("Failed to cleanup route for uri: %s", collectionURI)
 			}
 			if err := DeleteShareSteplibFile(); err != nil {
-				log.Fatal(err)
+				log.Fatalf("Failed to delete share steplib file, error: %s", err)
 			}
 		}
 	}()
@@ -75,29 +75,28 @@ func start(c *cli.Context) error {
 	if err := retry.Times(2).Wait(3 * time.Second).Try(func(attempt uint) error {
 		return git.Clone(collectionURI, pth)
 	}); err != nil {
-		log.Fatalf("Failed to setup step spec (url: %s) version (%s), error: %s",
-			collectionURI, pth, err)
+		log.Fatalf("Failed to setup step spec (url: %s) version (%s), error: %s", collectionURI, pth, err)
 	}
 
 	specPth := pth + "/steplib.yml"
 	collection, err := stepman.ParseStepCollection(specPth)
 	if err != nil {
-		log.Fatal("Failed to read step spec:", err)
+		log.Errorf("Failed to read step spec, error: %s", err)
 	}
 
 	if err := stepman.WriteStepSpecToFile(collection, route); err != nil {
-		log.Fatal("Failed to save step spec:", err)
+		log.Fatalf("Failed to save step spec, error: %s", err)
 	}
 
 	if err := stepman.AddRoute(route); err != nil {
-		log.Fatal("Failed to setup routing:", err)
+		log.Fatalf("Failed to setup routing, error: %s", err)
 	}
 
 	share := ShareModel{
 		Collection: collectionURI,
 	}
 	if err := WriteShareSteplibToFile(share); err != nil {
-		log.Fatal("Failed to save share steplib to file:", err)
+		log.Fatalf("Failed to save share steplib to file, error: %s", err)
 	}
 
 	isSuccess = true

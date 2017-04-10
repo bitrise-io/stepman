@@ -219,7 +219,7 @@ func init() {
 
   hook, err := logrus_syslog.NewSyslogHook("udp", "localhost:514", syslog.LOG_INFO, "")
   if err != nil {
-    log.Errorf("Unable to connect to local syslog daemon, error: %s",err)
+    log.Error("Unable to connect to local syslog daemon")
   } else {
     log.AddHook(hook)
   }

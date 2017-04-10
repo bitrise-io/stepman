@@ -14,7 +14,7 @@ func download(c *cli.Context) error {
 	}
 	route, found := stepman.ReadRoute(collectionURI)
 	if !found {
-		log.Fatal("No route found for lib: " + collectionURI)
+		log.Fatalf("No route found for lib: %s" + collectionURI)
 	}
 
 	id := c.String(IDKey)
@@ -24,14 +24,14 @@ func download(c *cli.Context) error {
 
 	collection, err := stepman.ReadStepSpec(collectionURI)
 	if err != nil {
-		log.Fatal("Failed to read step spec:", err)
+		log.Fatalf("Failed to read step spec, error: %s", err)
 	}
 
 	version := c.String(VersionKey)
 	if version == "" {
 		latest, err := collection.GetLatestStepVersion(id)
 		if err != nil {
-			log.Fatal("Failed to get step latest version: ", err)
+			log.Fatalf("Failed to get step latest version, error: %s", err)
 		}
 		version = latest
 	}
@@ -73,7 +73,7 @@ func download(c *cli.Context) error {
 	}
 
 	if err := stepman.DownloadStep(collectionURI, collection, id, version, step.Source.Commit); err != nil {
-		log.Fatal("Failed to download step")
+		log.Fatalf("Failed to download step, error: %s", err)
 	}
 
 	return nil
