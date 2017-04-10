@@ -14,12 +14,12 @@ func download(c *cli.Context) error {
 	}
 	route, found := stepman.ReadRoute(collectionURI)
 	if !found {
-		log.Fatalf("No route found for lib: %s" + collectionURI)
+		log.Fatalf("No route found for lib: %s", collectionURI)
 	}
 
 	id := c.String(IDKey)
 	if id == "" {
-		log.Fatal("Missing step id")
+		log.Fatalf("Missing step id")
 	}
 
 	collection, err := stepman.ReadStepSpec(collectionURI)

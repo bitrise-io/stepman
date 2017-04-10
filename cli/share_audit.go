@@ -21,7 +21,7 @@ func shareAudit(c *cli.Context) error {
 
 	share, err := ReadShareSteplibFromFile()
 	if err != nil {
-		log.Fatal(err)
+		log.Error(err)
 		log.Fatal("You have to start sharing with `stepman share start`, or you can read instructions with `stepman share`")
 	}
 

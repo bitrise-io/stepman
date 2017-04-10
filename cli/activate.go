@@ -124,7 +124,7 @@ func activate(c *cli.Context) error {
 		if exist, err := pathutil.IsPathExists(copyYML); err != nil {
 			log.Fatalf("Failed to check path, error: %s", err)
 		} else if exist {
-			log.Fatalf("Copy yml destination path exist")
+			log.Fatalf("Failed to copy step.yml, error: destination path exists")
 		}
 
 		stepCollectionDir := stepman.GetStepCollectionDirPath(route, id, version)
