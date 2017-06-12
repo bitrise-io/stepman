@@ -13,8 +13,8 @@
 		},
 		{
 			"ImportPath": "github.com/bitrise-io/envman/models",
-			"Comment": "1.1.3-3-ge9f05f9",
-			"Rev": "e9f05f94a5b9b8deb339ccda11ff55be2f30880f"
+			"Comment": "1.1.4-1-g4f0bef2",
+			"Rev": "4f0bef2c4d221a50ef51160e6dbbe6f7fdb0c679"
 		},
 		{
 			"ImportPath": "github.com/bitrise-io/go-utils/colorstring",
