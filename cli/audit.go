@@ -2,18 +2,135 @@ package cli
 
 import (
 	"fmt"
+	"path"
 	"strings"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/bitrise-io/go-utils/colorstring"
 	"github.com/bitrise-io/go-utils/command/git"
+	"github.com/bitrise-io/go-utils/fileutil"
 	"github.com/bitrise-io/go-utils/pathutil"
 	"github.com/bitrise-io/go-utils/retry"
 	"github.com/bitrise-io/stepman/models"
 	"github.com/bitrise-io/stepman/stepman"
+	"github.com/bitrise-io/stepman/validate"
 	"github.com/urfave/cli"
+	yaml "gopkg.in/yaml.v2"
 )
+
+var auditStepCommand = cli.Command{
+	Name:  "audit-step",
+	Usage: "Validates a Step and Step Share Params (id, version, uri).",
+	Flags: []cli.Flag{
+		cli.StringFlag{
+			Name:  "uri",
+			Usage: "The Step repository's git URI.",
+		},
+		cli.StringFlag{
+			Name:  "id",
+			Usage: "The Step ID.",
+		},
+		cli.StringFlag{
+			Name:  "version",
+			Usage: "The Step version.",
+		},
+		cli.StringFlag{
+			Name:  "dir",
+			Usage: "The Step's directory",
+		},
+	},
+	Action: func(c *cli.Context) error {
+		if err := auditStep(c); err != nil {
+			log.Fatal(err)
+		}
+		return nil
+	},
+}
+
+func auditStep(c *cli.Context) error {
+	uri := c.String("uri")
+	id := c.String("id")
+	version := c.String("version")
+	dir := c.String("dir")
+
+	if err := validate.StepParams(uri, id, version); err != nil {
+		return err
+	}
+
+	if err := validate.StepRepo(dir); err != nil {
+		return err
+	}
+
+	definitionPth := path.Join(dir, "step.yml")
+	bytes, err := fileutil.ReadBytesFromFile(definitionPth)
+	if err != nil {
+		return fmt.Errorf("Failed to read Step from file, err: %s", err)
+	}
+	var step models.StepModel
+	if err := yaml.Unmarshal(bytes, &step); err != nil {
+		return fmt.Errorf("Failed to unmarchal Step, err: %s", err)
+	}
+
+	if err := validate.Step(step, false); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+var auditStepLibraryCommand = cli.Command{
+	Name:  "audit-step-lib",
+	Usage: "Validates a StepLibrary.",
+	Flags: []cli.Flag{
+		cli.StringFlag{
+			Name:  "uri",
+			Usage: "The StepLibrary repository's git URI.",
+		},
+	},
+	Action: func(c *cli.Context) error {
+		if err := auditStep(c); err != nil {
+			log.Fatal(err)
+		}
+		return nil
+	},
+}
+
+func auditStepLibrary(c *cli.Context) error {
+	uri := c.String("uri")
+
+	if exist, err := stepman.RootExistForLibrary(uri); err != nil {
+		return err
+	} else if !exist {
+		return fmt.Errorf("missing routing for StepLib, call 'stepman setup -c %s' before audit", uri)
+	}
+
+	stepLib, err := stepman.ReadStepSpec(uri)
+	if err != nil {
+		return err
+	}
+
+	for stepID, stepGroup := range stepLib.Steps {
+		if err := validate.StepParamID(stepID); err != nil {
+			return err
+		}
+
+		for version, step := range stepGroup.Versions {
+			if err := validate.StepParamVersion(version); err != nil {
+				return err
+			}
+
+			if err := validate.Step(step, true); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+//
+// [DEPRECATED] Audit Command
 
 func auditStepBeforeShare(pth string) error {
 	stepModel, err := stepman.ParseStepDefinition(pth, false)
@@ -91,7 +208,7 @@ func auditStepModelBeforeSharePullRequest(step models.StepModel, stepID, version
 		return fmt.Errorf("Failed to get git-latest-commit-hash, error: %s", err)
 	}
 	if latestCommit != step.Source.Commit {
-		return fmt.Errorf("Step commit hash (%s) should be the  latest commit hash (%s) on git tag", step.Source.Commit, latestCommit)
+		return fmt.Errorf("Step commit hash (%s) should be the latest commit hash (%s) on git tag", step.Source.Commit, latestCommit)
 	}
 
 	return nil
@@ -121,6 +238,27 @@ func auditStepLibBeforeSharePullRequest(gitURI string) error {
 		}
 	}
 	return nil
+}
+
+var auditCommand = cli.Command{
+	Name:   "audit",
+	Usage:  "[DEPRECATED] Use audit-step or audit-step-library commands. Validates Step or Step Collection.",
+	Action: audit,
+	Flags: []cli.Flag{
+		cli.StringFlag{
+			Name:   CollectionKey + ", " + collectionKeyShort,
+			Usage:  "For validating Step Collection before share.",
+			EnvVar: CollectionPathEnvKey,
+		},
+		cli.StringFlag{
+			Name:  "step-yml",
+			Usage: "For validating Step before share or before share Pull Request.",
+		},
+		cli.BoolFlag{
+			Name:  "before-pr",
+			Usage: "If flag is set, Step Pull Request required fields will be checked to. Note: only for Step audit.",
+		},
+	},
 }
 
 func audit(c *cli.Context) error {
