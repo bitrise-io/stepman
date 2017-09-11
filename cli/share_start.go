@@ -27,7 +27,7 @@ func start(c *cli.Context) error {
 	toolMode := c.Bool(ToolMode)
 
 	collectionURI := c.String(CollectionKey)
-	if err := validate.Steplib(collectionURI); err != nil {
+	if err := validate.IfStepLibNotExistLocally(collectionURI); err != nil {
 		if strings.HasPrefix(err.Error(), "stepLib found locally at:") {
 			log.Warnf(err.Error())
 			log.Info("For sharing it's required to work with a clean StepLib repository.")

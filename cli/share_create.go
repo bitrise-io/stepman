@@ -61,7 +61,7 @@ func create(c *cli.Context) error {
 		log.Fatal(err.Error())
 	}
 
-	if err := validate.IfStepNotExist(stepID, tag, share.Collection); err != nil {
+	if err := validate.IfStepNotExistInSteplib(stepID, tag, share.Collection); err != nil {
 		if err.Error() == "step version already exist" {
 			log.Warn(err.Error())
 			if val, err := goinp.AskForBool("Would you like to overwrite local version of Step?"); err != nil {
@@ -114,8 +114,16 @@ func create(c *cli.Context) error {
 	}
 	stepModel.PublishedAt = pointers.NewTimePtr(time.Now())
 
-	if err := validate.Step(stepModel, true); err != nil {
-		log.Fatal(err.Error())
+	if err := validate.StepDefinition(stepModel); err != nil {
+		errorMessage := err.Error()
+		switch {
+		case errorMessage == "summary should be one line":
+			log.Warnf(" " + errorMessage)
+		case strings.Contains(errorMessage, "summary should contain maximum"):
+			log.Warnf(" " + errorMessage)
+		default:
+			log.Fatal(err.Error())
+		}
 	}
 
 	// Copy step.yml to steplib

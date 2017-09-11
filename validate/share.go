@@ -3,28 +3,11 @@ package validate
 import (
 	"errors"
 	"fmt"
-	"path"
 	"path/filepath"
 	"regexp"
 
 	"github.com/bitrise-io/go-utils/pathutil"
-	"github.com/bitrise-io/stepman/stepman"
 )
-
-// Steplib ...
-func Steplib(uri string) error {
-	if uri == "" {
-		return errors.New("stepLib git URI not specified")
-	}
-
-	// For sharing we need a clean StepLib
-	if route, found := stepman.ReadRoute(uri); found {
-		pth := stepman.GetLibraryBaseDirPath(route)
-		return fmt.Errorf("stepLib found locally at: %s", pth)
-	}
-
-	return nil
-}
 
 func stepParamURI(uri string) error {
 	if uri == "" {
@@ -71,24 +54,6 @@ func StepParams(uri, id, version string) error {
 	}
 	if err := StepParamVersion(version); err != nil {
 		return err
-	}
-
-	return nil
-}
-
-// IfStepNotExist ...
-func IfStepNotExist(id, version, steplibURI string) error {
-	route, found := stepman.ReadRoute(steplibURI)
-	if !found {
-		return fmt.Errorf("no route found for StepLib (%s)", steplibURI)
-	}
-
-	stepDir := stepman.GetStepCollectionDirPath(route, id, version)
-	stepYMLPth := path.Join(stepDir, "step.yml")
-	if exist, err := pathutil.IsPathExists(stepYMLPth); err != nil {
-		return fmt.Errorf("failed to check if step version exist, err: %s", err)
-	} else if exist {
-		return errors.New("step version already exist")
 	}
 
 	return nil
