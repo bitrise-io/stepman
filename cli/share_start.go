@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
@@ -10,6 +11,7 @@ import (
 	"github.com/bitrise-io/go-utils/retry"
 	"github.com/bitrise-io/goinp/goinp"
 	"github.com/bitrise-io/stepman/stepman"
+	"github.com/bitrise-io/stepman/validate"
 	"github.com/urfave/cli"
 )
 
@@ -25,24 +27,26 @@ func start(c *cli.Context) error {
 	toolMode := c.Bool(ToolMode)
 
 	collectionURI := c.String(CollectionKey)
-	if collectionURI == "" {
-		log.Fatalf("No step collection specified")
-	}
+	if err := validate.IfStepLibNotExistLocally(collectionURI); err != nil {
+		if strings.HasPrefix(err.Error(), "stepLib found locally at:") {
+			log.Warnf(err.Error())
+			log.Info("For sharing it's required to work with a clean StepLib repository.")
+			if val, err := goinp.AskForBool("Would you like to remove the local version (your forked StepLib repository) and re-clone it?"); err != nil {
+				log.Fatalf("Failed to ask for input, error: %s", err)
+			} else {
+				if !val {
+					log.Errorf("Unfortunately we can't continue with sharing without a clean StepLib repository.")
+					log.Fatalf("Please finish your changes, run this command again and allow it to remove the local StepLib folder!")
+				}
 
-	if route, found := stepman.ReadRoute(collectionURI); found {
-		collLocalPth := stepman.GetLibraryBaseDirPath(route)
-		log.Warnf("StepLib found locally at: %s", collLocalPth)
-		log.Info("For sharing it's required to work with a clean StepLib repository.")
-		if val, err := goinp.AskForBool("Would you like to remove the local version (your forked StepLib repository) and re-clone it?"); err != nil {
-			log.Fatalf("Failed to ask for input, error: %s", err)
+				if route, found := stepman.ReadRoute(collectionURI); found {
+					if err := stepman.CleanupRoute(route); err != nil {
+						log.Errorf("Failed to cleanup route for uri: %s", collectionURI)
+					}
+				}
+			}
 		} else {
-			if !val {
-				log.Errorf("Unfortunately we can't continue with sharing without a clean StepLib repository.")
-				log.Fatalf("Please finish your changes, run this command again and allow it to remove the local StepLib folder!")
-			}
-			if err := stepman.CleanupRoute(route); err != nil {
-				log.Errorf("Failed to cleanup route for uri: %s", collectionURI)
-			}
+			log.Fatal(err.Error())
 		}
 	}
 

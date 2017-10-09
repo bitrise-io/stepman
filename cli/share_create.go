@@ -4,10 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path"
-	"regexp"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"gopkg.in/yaml.v2"
 
@@ -21,6 +19,7 @@ import (
 	"github.com/bitrise-io/goinp/goinp"
 	"github.com/bitrise-io/stepman/models"
 	"github.com/bitrise-io/stepman/stepman"
+	"github.com/bitrise-io/stepman/validate"
 	"github.com/urfave/cli"
 )
 
@@ -52,43 +51,26 @@ func create(c *cli.Context) error {
 
 	// Input validation
 	tag := c.String(TagKey)
-	if tag == "" {
-		log.Fatalln("No Step tag specified")
-	}
-
 	gitURI := c.String(GitKey)
-	if gitURI == "" {
-		log.Fatalln("No Step url specified")
-	}
-
 	stepID := c.String(StepIDKEy)
 	if stepID == "" {
 		stepID = getStepIDFromGit(gitURI)
 	}
-	if stepID == "" {
-		log.Fatalln("No Step id specified")
-	}
-	r := regexp.MustCompile(`[a-z0-9-]+`)
-	if find := r.FindString(stepID); find != stepID {
-		log.Fatalln("StepID doesn't conforms to: [a-z0-9-]")
+
+	if err := validate.StepParams(gitURI, stepID, tag); err != nil {
+		log.Fatal(err.Error())
 	}
 
-	route, found := stepman.ReadRoute(share.Collection)
-	if !found {
-		log.Fatalf("No route found for collectionURI (%s)", share.Collection)
-	}
-	stepDirInSteplib := stepman.GetStepCollectionDirPath(route, stepID, tag)
-	stepYMLPathInSteplib := path.Join(stepDirInSteplib, "step.yml")
-	if exist, err := pathutil.IsPathExists(stepYMLPathInSteplib); err != nil {
-		log.Fatalf("Failed to check step.yml path in steplib, err: %s", err)
-	} else if exist {
-		log.Warnf("Step already exist in path: %s.", stepDirInSteplib)
-		if val, err := goinp.AskForBool("Would you like to overwrite local version of Step?"); err != nil {
-			log.Fatalf("Failed to get bool, err: %s", err)
-		} else {
-			if !val {
-				log.Errorln("Unfortunately we can't continue with sharing without an overwrite exist step.yml.")
-				log.Fatalln("Please finish your changes, run this command again and allow it to overwrite the exist step.yml!")
+	if err := validate.IfStepNotExistInSteplib(stepID, tag, share.Collection); err != nil {
+		if err.Error() == "step version already exist" {
+			log.Warn(err.Error())
+			if val, err := goinp.AskForBool("Would you like to overwrite local version of Step?"); err != nil {
+				log.Fatalf("Failed to get bool, err: %s", err)
+			} else {
+				if !val {
+					log.Errorln("Unfortunately we can't continue with sharing without an overwrite exist step.yml.")
+					log.Fatalln("Please finish your changes, run this command again and allow it to overwrite the exist step.yml!")
+				}
 			}
 		}
 	}
@@ -105,6 +87,10 @@ func create(c *cli.Context) error {
 	}); err != nil {
 		log.Fatalf("Failed to git-clone (url: %s) version (%s), error: %s",
 			gitURI, tag, err)
+	}
+
+	if err := validate.StepRepo(tmp); err != nil {
+		log.Fatal(err)
 	}
 
 	// Update step.yml
@@ -128,31 +114,16 @@ func create(c *cli.Context) error {
 	}
 	stepModel.PublishedAt = pointers.NewTimePtr(time.Now())
 
-	// Validate step-yml
-	if err := stepModel.Audit(); err != nil {
-		log.Fatalf("Failed to validate Step, err: %s", err)
-	}
-	for _, input := range stepModel.Inputs {
-		key, value, err := input.GetKeyValuePair()
-		if err != nil {
-			log.Fatalf("Failed to get Step input key-value pair, err: %s", err)
+	if err := validate.StepDefinition(stepModel); err != nil {
+		errorMessage := err.Error()
+		switch {
+		case errorMessage == "summary should be one line":
+			log.Warnf(" " + errorMessage)
+		case strings.Contains(errorMessage, "summary should contain maximum"):
+			log.Warnf(" " + errorMessage)
+		default:
+			log.Fatal(err.Error())
 		}
-
-		options, err := input.GetOptions()
-		if err != nil {
-			log.Fatalf("Failed to get Step input (%s) options, err: %s", key, err)
-		}
-
-		if len(options.ValueOptions) > 0 && value == "" {
-			log.Warn("Step input with 'value_options', should contain default value!")
-			log.Fatalf("Missing default value for Step input (%s).", key)
-		}
-	}
-	if strings.Contains(*stepModel.Summary, "\n") {
-		log.Warningln("Step summary should be one line!")
-	}
-	if utf8.RuneCountInString(*stepModel.Summary) > maxSummaryLength {
-		log.Warningf("Step summary should contains maximum (%d) characters, actual: (%d)!", maxSummaryLength, utf8.RuneCountInString(*stepModel.Summary))
 	}
 
 	// Copy step.yml to steplib
@@ -161,6 +132,13 @@ func create(c *cli.Context) error {
 	if err := WriteShareSteplibToFile(share); err != nil {
 		log.Fatalf("Failed to save share steplib to file, err: %s", err)
 	}
+
+	route, found := stepman.ReadRoute(share.Collection)
+	if !found {
+		log.Fatalf("No route found for collectionURI (%s)", share.Collection)
+	}
+	stepDirInSteplib := stepman.GetStepCollectionDirPath(route, stepID, tag)
+	stepYMLPathInSteplib := path.Join(stepDirInSteplib, "step.yml")
 
 	log.Info("Step dir in collection:", stepDirInSteplib)
 	if exist, err := pathutil.IsPathExists(stepDirInSteplib); err != nil {
