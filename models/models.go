@@ -126,12 +126,6 @@ type StepGroupModel struct {
 	Versions            map[string]StepModel `json:"versions,omitempty" yaml:"versions,omitempty"`
 }
 
-// SlimStepGroupModel ...
-type SlimStepGroupModel struct {
-	Info StepGroupInfoModel `json:"info,omitempty" yaml:"info,omitempty"`
-	Step StepModel          `json:"step,omitempty" yaml:"step,omitempty"`
-}
-
 // LatestVersion ...
 func (stepGroup StepGroupModel) LatestVersion() (StepModel, bool) {
 	step, found := stepGroup.Versions[stepGroup.LatestVersionNumber]
@@ -143,9 +137,6 @@ func (stepGroup StepGroupModel) LatestVersion() (StepModel, bool) {
 
 // StepHash ...
 type StepHash map[string]StepGroupModel
-
-// SlimStepHash ...
-type SlimStepHash map[string]SlimStepGroupModel
 
 // DownloadLocationModel ...
 type DownloadLocationModel struct {
@@ -161,16 +152,6 @@ type StepCollectionModel struct {
 	DownloadLocations     []DownloadLocationModel `json:"download_locations" yaml:"download_locations"`
 	AssetsDownloadBaseURI string                  `json:"assets_download_base_uri" yaml:"assets_download_base_uri"`
 	Steps                 StepHash                `json:"steps" yaml:"steps"`
-}
-
-// SlimStepCollectionModel ...
-type SlimStepCollectionModel struct {
-	FormatVersion         string                  `json:"format_version" yaml:"format_version"`
-	GeneratedAtTimeStamp  int64                   `json:"generated_at_timestamp" yaml:"generated_at_timestamp"`
-	SteplibSource         string                  `json:"steplib_source" yaml:"steplib_source"`
-	DownloadLocations     []DownloadLocationModel `json:"download_locations" yaml:"download_locations"`
-	AssetsDownloadBaseURI string                  `json:"assets_download_base_uri" yaml:"assets_download_base_uri"`
-	Steps                 SlimStepHash            `json:"steps,omitempty" yaml:"steps,omitempty"`
 }
 
 // EnvInfoModel ...

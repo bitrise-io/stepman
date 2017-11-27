@@ -279,21 +279,21 @@ func generateStepLib(route SteplibRoute, templateCollection models.StepCollectio
 	return collection, nil
 }
 
-func generateSlimStepLib(collection models.StepCollectionModel) models.SlimStepCollectionModel {
+func generateSlimStepLib(collection models.StepCollectionModel) models.StepCollectionModel {
 
-	slimCollection := models.SlimStepCollectionModel{
+	slimCollection := models.StepCollectionModel{
 		FormatVersion:         collection.FormatVersion,
 		GeneratedAtTimeStamp:  collection.GeneratedAtTimeStamp,
 		SteplibSource:         collection.SteplibSource,
 		DownloadLocations:     collection.DownloadLocations,
 		AssetsDownloadBaseURI: collection.AssetsDownloadBaseURI,
 	}
-	steps := models.SlimStepHash{}
+	steps := models.StepHash{}
 
 	for stepID, stepGroupModel := range collection.Steps {
-		steps[stepID] = models.SlimStepGroupModel{
-			Info: stepGroupModel.Info,
-			Step: stepGroupModel.Versions[stepGroupModel.LatestVersionNumber],
+		steps[stepID] = models.StepGroupModel{
+			Info:     stepGroupModel.Info,
+			Versions: map[string]models.StepModel{stepGroupModel.LatestVersionNumber: stepGroupModel.Versions[stepGroupModel.LatestVersionNumber]},
 		}
 	}
 
