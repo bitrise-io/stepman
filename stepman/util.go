@@ -279,6 +279,29 @@ func generateStepLib(route SteplibRoute, templateCollection models.StepCollectio
 	return collection, nil
 }
 
+func generateSlimStepLib(collection models.StepCollectionModel) models.SlimStepCollectionModel {
+
+	slimCollection := models.SlimStepCollectionModel{
+		FormatVersion:         collection.FormatVersion,
+		GeneratedAtTimeStamp:  collection.GeneratedAtTimeStamp,
+		SteplibSource:         collection.SteplibSource,
+		DownloadLocations:     collection.DownloadLocations,
+		AssetsDownloadBaseURI: collection.AssetsDownloadBaseURI,
+	}
+	steps := models.SlimStepHash{}
+
+	for stepID, stepGroupModel := range collection.Steps {
+		steps[stepID] = models.SlimStepGroupModel{
+			Info: stepGroupModel.Info,
+			Step: stepGroupModel.Versions[stepGroupModel.LatestVersionNumber],
+		}
+	}
+
+	slimCollection.Steps = steps
+
+	return slimCollection
+}
+
 // WriteStepSpecToFile ...
 func WriteStepSpecToFile(templateCollection models.StepCollectionModel, route SteplibRoute) error {
 	pth := GetStepSpecPath(route)
@@ -307,6 +330,22 @@ func WriteStepSpecToFile(templateCollection models.StepCollectionModel, route St
 	if err != nil {
 		return err
 	}
+
+	if err := fileutil.WriteBytesToFile(pth, bytes); err != nil {
+		return err
+	}
+
+	pth = GetSlimStepSpecPath(route)
+	slimCollection := generateSlimStepLib(collection)
+	if err != nil {
+		return err
+	}
+
+	bytes, err = json.MarshalIndent(slimCollection, "", "\t")
+	if err != nil {
+		return err
+	}
+
 	return fileutil.WriteBytesToFile(pth, bytes)
 }
 
