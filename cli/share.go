@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"path"
 
-	log "github.com/Sirupsen/logrus"
-	"github.com/bitrise-io/go-utils/colorstring"
 	"github.com/bitrise-io/go-utils/command"
 	"github.com/bitrise-io/go-utils/fileutil"
+	"github.com/bitrise-io/go-utils/log"
 	"github.com/bitrise-io/go-utils/pathutil"
 	"github.com/bitrise-io/stepman/stepman"
+	"github.com/bitrise-io/stepman/stringbuilder"
 	"github.com/urfave/cli"
 )
 
@@ -70,16 +70,25 @@ func WriteShareSteplibToFile(share ShareModel) error {
 	return fileutil.WriteBytesToFile(getShareFilePath(), bytes)
 }
 
+// GuideTextForStepAudit ...
+func GuideTextForStepAudit(toolMode bool) string {
+	name := "stepman"
+	if toolMode {
+		name = "bitrise"
+	}
+
+	b := stringbuilder.New()
+	b.Add("First, you need to ensure that your step is stored in a ").AddBlue("public git repository ").Add("and it matches our requirements.")
+	b.AddLn("To audit your step on your local machine call ").AddBlue("$ %s audit --step-yml path/to/your/step.yml", name)
+	return b.String()
+}
+
 // GuideTextForStart ...
 func GuideTextForStart() string {
-	guide := colorstring.Blue("Fork the StepLib repository") + " you want to share your Step in.\n" +
-		`   You can find the main ("official") StepLib repository at: ` + colorstring.Green("https://github.com/bitrise-io/bitrise-steplib") + `
-
-   ` + colorstring.Yellow("Note") + `: You can use any StepLib repository you like,
-     the StepLib system is decentralized, you don't have to work with the main StepLib repository
-     if you don't want to. Feel free to maintain and use your own (or your team's) Step Library.
-`
-	return guide
+	b := stringbuilder.New()
+	b.AddBlue("Fork the StepLib repository ").Add("you want to share your Step in.")
+	b.AddLn(`You can find the main ("official") StepLib repository at `).AddGreen("https://github.com/bitrise-io/bitrise-steplib")
+	return b.String()
 }
 
 // GuideTextForShareStart ...
@@ -89,13 +98,10 @@ func GuideTextForShareStart(toolMode bool) string {
 		name = "bitrise"
 	}
 
-	guide := "Call " + colorstring.Blue("'"+name+" share start -c STEPLIB_REPO_FORK_GIT_URL'") + ", with the " + colorstring.Yellow("git clone url") + " of " + colorstring.Yellow("your forked StepLib repository") + ".\n" +
-		`   This will prepare your forked StepLib locally for sharing.
-
-   For example, if you want to share your Step in the main StepLib repository you should call:
-     ` + colorstring.Green(""+name+" share start -c https://github.com/[your-username]/bitrise-steplib.git") + `
-	`
-	return guide
+	b := stringbuilder.New()
+	b.Add("Call ").AddBlue("$ %s share start -c https://github.com/[your-username]/bitrise-steplib.git", name).Add(", with the git clone URL of your forked StepLib repository.")
+	b.AddLn("This will prepare your forked StepLib locally for sharing.")
+	return b.String()
 }
 
 // GuideTextForShareCreate ...
@@ -105,21 +111,14 @@ func GuideTextForShareCreate(toolMode bool) string {
 		name = "bitrise"
 	}
 
-	guide := "Next, call " + colorstring.Blue("'"+name+" share create --tag STEP_VERSION_TAG --git STEP_GIT_URI --stepid STEP_ID'") + `,
-   to add your Step to your forked StepLib repository (locally).
-
-   This will copy the required step.yml file from your Step's repository.
-   This is all what's required to add your step (or a new version) to a StepLib.
-
-   ` + colorstring.Yellow("Important") + `: You have to add the (version) tag to your Step's repository before you would call this!
-     You can do that at: https://github.com/[your-username]/[step-repository]/tags
-
-   An example call:
-     ` + colorstring.Green(""+name+" share create --tag 1.0.0 --git https://github.com/[your-username]/[step-repository].git --stepid my-awesome-step") + `
-
-   ` + colorstring.Yellow("Note") + `: You'll still be able to modify the step.yml in the StepLib after this.
-	`
-	return guide
+	b := stringbuilder.New()
+	b.Add("Next, call ").AddBlue("$ %s share create --tag [step-version-tag] --git [step-git-uri] --stepid [step-id]", name).Add(",")
+	b.AddLn("to add your Step to your forked StepLib repository (locally).")
+	b.AddNewLine()
+	b.AddYellowLn("Important: ").Add("you have to add the (version) tag to your Step's repository.")
+	b.AddNewLine()
+	b.AddLn("An example call ").AddGreen("$ %s share create --tag 1.0.0 --git https://github.com/[your-username]/my-awesome-step.git --stepid my-awesome-step", name)
+	return b.String()
 }
 
 // GuideTextForAudit ...
@@ -129,11 +128,12 @@ func GuideTextForAudit(toolMode bool) string {
 		name = "bitrise"
 	}
 
-	guide := "You can call " + colorstring.Blue("'"+name+" audit'") + `,
-   to perform a complete health-check on your StepLib before submitting your Pull Request.
-   This can help you catch issues which might prevent your Step to be accepted.
-   `
-	return guide
+	b := stringbuilder.New()
+	b.Add("You can call ").AddBlue("$ %s audit -c https://github.com/[your-username]/bitrise-steplib.git ", name)
+	b.AddLn("to perform a complete health-check on your forked StepLib before submitting your Pull Request.")
+	b.AddNewLine()
+	b.AddLn("This can help you catch issues which might prevent your Step from being accepted.")
+	return b.String()
 }
 
 // GuideTextForShareFinish ...
@@ -143,41 +143,39 @@ func GuideTextForShareFinish(toolMode bool) string {
 		name = "bitrise"
 	}
 
-	guide := `Almost done! You should review your Step's step.yml file (the one added to the local StepLib),
-   and once you're happy with it call: ` + colorstring.Blue("'"+name+" share finish'") + `
-
-   This will commit & push the step.yml ` + colorstring.Yellow("into your forked StepLib repository") + `.
-		`
-	return guide
+	b := stringbuilder.New()
+	b.Add("Almost done! You should review your Step's step.yml file (the one added to the local StepLib),")
+	b.AddLn("and once you're happy with it call ").AddBlue("$ %s share finish", name)
+	b.AddNewLine()
+	b.Add("This will commit & push the step.yml into your forked StepLib repository.")
+	return b.String()
 }
 
 // GuideTextForFinish ...
 func GuideTextForFinish() string {
-	guide := "Everything is ready! The only remaning thing is to " + colorstring.Blue("create a Pull Request") + `.
-	`
-	return guide
+	b := stringbuilder.New()
+	b.Add("The only remaining thing is to ").AddBlue("create a Pull Request ").Add(" in the original StepLib repository. And you are done!")
+	return b.String()
 }
 
-func share(c *cli.Context) error {
+func share(c *cli.Context) {
 	toolMode := c.Bool(ToolMode)
 
-	guide := `
-Do you want to ` + colorstring.Green("share ") + colorstring.Yellow("your ") + colorstring.Magenta("own ") + colorstring.Blue("Step") + ` with the world? Awesome!!
-To get started you can find a template Step repository at: ` + colorstring.Green("https://github.com/bitrise-steplib/step-template") + `
-
-Once you have your Step in a ` + colorstring.Yellow("public git repository") + ` you can share it with others.
-
-To share your Step just follow these steps (pun intended ;) :
-
-1. ` + GuideTextForStart() + `
-2. ` + GuideTextForShareStart(toolMode) + `
-3. ` + GuideTextForShareCreate(toolMode) + `
-4. ` + GuideTextForAudit(toolMode) + `
-5. ` + GuideTextForShareFinish(toolMode) + `
-6. ` + GuideTextForFinish()
-	fmt.Println(guide)
-
-	return nil
+	b := stringbuilder.New()
+	b.AddNewLine()
+	b.Add("Do you want to share your own Step with the world? Awesome!")
+	b.AddNewLine()
+	b.AddLn("Just follow these steps:")
+	b.AddNewLine()
+	b.AddLn("0. ").Add(GuideTextForStepAudit(toolMode)).AddNewLine()
+	b.AddLn("1. ").Add(GuideTextForStart()).AddNewLine()
+	b.AddLn("2. ").Add(GuideTextForShareStart(toolMode)).AddNewLine()
+	b.AddLn("3. ").Add(GuideTextForShareCreate(toolMode)).AddNewLine()
+	b.AddLn("4. ").Add(GuideTextForAudit(toolMode)).AddNewLine()
+	b.AddLn("5. ").Add(GuideTextForShareFinish(toolMode)).AddNewLine()
+	b.AddLn("6. ").Add(GuideTextForFinish()).AddNewLine()
+	b.AddNewLine()
+	fmt.Printf(b.String())
 }
 
 func getShareFilePath() string {

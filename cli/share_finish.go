@@ -3,16 +3,16 @@ package cli
 import (
 	"fmt"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/bitrise-io/go-utils/colorstring"
 	"github.com/bitrise-io/go-utils/command/git"
+	"github.com/bitrise-io/go-utils/log"
 	"github.com/bitrise-io/stepman/stepman"
 	"github.com/urfave/cli"
 )
 
 func printFinishShare() {
 	fmt.Println()
-	log.Info(" * " + colorstring.Green("[OK] ") + "Yeah!! You rock!!")
+	log.Printf(" * " + colorstring.Green("[OK] ") + "Yeah!! You rock!!")
 	fmt.Println()
 	fmt.Println("   " + GuideTextForFinish())
 	fmt.Println()
@@ -29,48 +29,48 @@ func printFinishShare() {
 func finish(c *cli.Context) error {
 	share, err := ReadShareSteplibFromFile()
 	if err != nil {
-		log.Error(err)
-		log.Fatal("You have to start sharing with `stepman share start`, or you can read instructions with `stepman share`")
+		log.Errorf(err.Error())
+		fail("You have to start sharing with `stepman share start`, or you can read instructions with `stepman share`")
 	}
 
 	route, found := stepman.ReadRoute(share.Collection)
 	if !found {
-		log.Fatalln("No route found for collectionURI (%s)", share.Collection)
+		fail("No route found for collectionURI (%s)", share.Collection)
 	}
 
 	collectionDir := stepman.GetLibraryBaseDirPath(route)
 
 	repo, err := git.New(collectionDir)
 	if err != nil {
-		log.Fatal(err)
+		fail(err.Error())
 	}
 
 	out, err := repo.Status("--porcelain").RunAndReturnTrimmedCombinedOutput()
 	if err != nil {
-		log.Fatal(err)
+		fail(err.Error())
 	}
 	if out == "" {
-		log.Warn("No git changes!")
+		log.Warnf("No git changes!")
 		printFinishShare()
 		return nil
 	}
 
 	stepDirInSteplib := stepman.GetStepCollectionDirPath(route, share.StepID, share.StepTag)
 	stepYMLPathInSteplib := stepDirInSteplib + "/step.yml"
-	log.Info("New step.yml:", stepYMLPathInSteplib)
+	log.Infof("New step.yml:", stepYMLPathInSteplib)
 	if err := repo.Add(stepYMLPathInSteplib).Run(); err != nil {
-		log.Fatal(err)
+		fail(err.Error())
 	}
 
-	log.Info("Do commit")
+	log.Infof("Do commit")
 	msg := share.StepID + " " + share.StepTag
 	if err := repo.Commit(msg).Run(); err != nil {
-		log.Fatal(err)
+		fail(err.Error())
 	}
 
-	log.Info("Pushing to your fork: ", share.Collection)
+	log.Infof("Pushing to your fork: ", share.Collection)
 	if err := repo.Push(share.ShareBranchName()).Run(); err != nil {
-		log.Fatal(err)
+		fail(err.Error())
 	}
 	printFinishShare()
 
