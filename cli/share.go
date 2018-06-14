@@ -78,7 +78,9 @@ func GuideTextForStepAudit(toolMode bool) string {
 	}
 
 	b := stringbuilder.New()
-	b.Add("First, you need to ensure that your step is stored in a ").AddBlue("public git repository ").Add("and it matches our requirements.")
+	b.Add("First, you need to ensure that your step is stored in a ").AddBlue("public git repository")
+	b.AddLn("and it follows our ").AddBlue("step development guideline").Add(": https://github.com/bitrise-io/bitrise/blob/master/_docs/step-development-guideline.md.")
+	b.AddNewLine()
 	b.AddLn("To audit your step on your local machine call ").AddBlue("$ %s audit --step-yml path/to/your/step.yml", name)
 	return b.String()
 }
@@ -87,7 +89,7 @@ func GuideTextForStepAudit(toolMode bool) string {
 func GuideTextForStart() string {
 	b := stringbuilder.New()
 	b.AddBlue("Fork the StepLib repository ").Add("you want to share your Step in.")
-	b.AddLn(`You can find the main ("official") StepLib repository at `).AddGreen("https://github.com/bitrise-io/bitrise-steplib")
+	b.AddLn(`You can find the main ("official") StepLib repository at `).Add("https://github.com/bitrise-io/bitrise-steplib")
 	return b.String()
 }
 
@@ -112,12 +114,10 @@ func GuideTextForShareCreate(toolMode bool) string {
 	}
 
 	b := stringbuilder.New()
-	b.Add("Next, call ").AddBlue("$ %s share create --tag [step-version-tag] --git [step-git-uri] --stepid [step-id]", name).Add(",")
+	b.Add("Next, call ").AddBlue("$ %s share create --tag [step-version-tag] --git [step-git-uri].git --stepid [step-id]", name).Add(",")
 	b.AddLn("to add your Step to your forked StepLib repository (locally).")
 	b.AddNewLine()
 	b.AddYellowLn("Important: ").Add("you have to add the (version) tag to your Step's repository.")
-	b.AddNewLine()
-	b.AddLn("An example call ").AddGreen("$ %s share create --tag 1.0.0 --git https://github.com/[your-username]/my-awesome-step.git --stepid my-awesome-step", name)
 	return b.String()
 }
 
@@ -154,7 +154,7 @@ func GuideTextForShareFinish(toolMode bool) string {
 // GuideTextForFinish ...
 func GuideTextForFinish() string {
 	b := stringbuilder.New()
-	b.Add("The only remaining thing is to ").AddBlue("create a Pull Request ").Add(" in the original StepLib repository. And you are done!")
+	b.Add("The only remaining thing is to ").AddBlue("create a Pull Request").Add(" in the original StepLib repository. And you are done!")
 	return b.String()
 }
 
@@ -162,7 +162,6 @@ func share(c *cli.Context) {
 	toolMode := c.Bool(ToolMode)
 
 	b := stringbuilder.New()
-	b.AddNewLine()
 	b.Add("Do you want to share your own Step with the world? Awesome!")
 	b.AddNewLine()
 	b.AddLn("Just follow these steps:")

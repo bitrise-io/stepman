@@ -26,7 +26,6 @@ func showSubcommandHelp(c *cli.Context) {
 
 func start(c *cli.Context) error {
 	// Input validation
-	fmt.Println()
 	log.Infof("Validating Step share params...")
 
 	toolMode := c.Bool(ToolMode)
@@ -123,6 +122,7 @@ func start(c *cli.Context) error {
 
 	fmt.Println()
 	fmt.Println(GuideTextForShareCreate(toolMode))
+	fmt.Println()
 
 	return nil
 }

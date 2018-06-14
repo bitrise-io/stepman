@@ -3,28 +3,33 @@ package cli
 import (
 	"fmt"
 
-	"github.com/bitrise-io/go-utils/colorstring"
 	"github.com/bitrise-io/go-utils/log"
 	"github.com/bitrise-io/stepman/stepman"
+	"github.com/bitrise-io/stepman/stringbuilder"
 	"github.com/urfave/cli"
 )
 
 func printFinishAudit(share ShareModel, toolMode bool) {
-	fmt.Println()
-	log.Infof(" * "+colorstring.Green("[OK]")+" Your step (%s) (%s) is valid.", share.StepID, share.StepTag)
-	fmt.Println()
-	fmt.Println("   " + GuideTextForShareFinish(toolMode))
+	b := stringbuilder.New()
+	b.AddGreen("your step (%s@%s) is valid", share.StepID, share.StepTag)
+	b.AddNewLine()
+	b.AddLn(GuideTextForShareFinish(toolMode))
+	fmt.Println(b.String())
 }
 
 func shareAudit(c *cli.Context) error {
 	toolMode := c.Bool(ToolMode)
 
+	log.Infof("Validating Step share params...")
 	share, err := ReadShareSteplibFromFile()
 	if err != nil {
 		log.Errorf(err.Error())
 		fail("You have to start sharing with `stepman share start`, or you can read instructions with `stepman share`")
 	}
+	log.Donef("all inputs are valid")
 
+	fmt.Println()
+	log.Infof("Auditing the StepLib...")
 	_, found := stepman.ReadRoute(share.Collection)
 	if !found {
 		fail("No route found for collectionURI (%s)", share.Collection)
@@ -35,6 +40,7 @@ func shareAudit(c *cli.Context) error {
 	}
 
 	printFinishAudit(share, toolMode)
+	fmt.Println()
 
 	return nil
 }

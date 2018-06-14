@@ -35,6 +35,8 @@ func getStepIDFromGit(git string) string {
 func create(c *cli.Context) error {
 	toolMode := c.Bool(ToolMode)
 
+	log.Infof("Validating Step share params...")
+
 	share, err := ReadShareSteplibFromFile()
 	if err != nil {
 		log.Errorf(err.Error())
@@ -42,8 +44,6 @@ func create(c *cli.Context) error {
 	}
 
 	// Input validation
-	log.Infof("Validating Step share params...")
-
 	tag := c.String(TagKey)
 	if tag == "" {
 		fail("No Step tag specified")
@@ -90,7 +90,7 @@ func create(c *cli.Context) error {
 
 	// Clone Step to tmp dir
 	fmt.Println()
-	log.Infof("Validating the step...")
+	log.Infof("Validating the Step...")
 
 	tmp, err := pathutil.NormalizedOSTempDirPath("")
 	if err != nil {
@@ -163,7 +163,7 @@ func create(c *cli.Context) error {
 
 	// Copy step.yml to steplib
 	fmt.Println()
-	log.Infof("Integrating the Step to the Steplib...")
+	log.Infof("Integrating the Step into the Steplib...")
 
 	share.StepID = stepID
 	share.StepTag = tag
@@ -210,6 +210,7 @@ func create(c *cli.Context) error {
 
 	fmt.Println()
 	log.Printf(GuideTextForShareFinish(toolMode))
+	fmt.Println()
 
 	return nil
 }
