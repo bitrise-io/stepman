@@ -11,7 +11,7 @@ import (
 	"github.com/bitrise-io/go-utils/log"
 	"github.com/bitrise-io/go-utils/pathutil"
 	"github.com/bitrise-io/stepman/stepman"
-	"github.com/bitrise-io/stepman/stringbuilder"
+	"github.com/bitrise-tools/colorstring"
 	"github.com/urfave/cli"
 )
 
@@ -77,19 +77,19 @@ func GuideTextForStepAudit(toolMode bool) string {
 		name = "bitrise"
 	}
 
-	b := stringbuilder.New()
-	b.Add("First, you need to ensure that your step is stored in a ").AddBlue("public git repository")
-	b.AddLn("and it follows our ").AddBlue("step development guideline").Add(": https://github.com/bitrise-io/bitrise/blob/master/_docs/step-development-guideline.md.")
-	b.AddNewLine()
-	b.AddLn("To audit your step on your local machine call ").AddBlue("$ %s audit --step-yml path/to/your/step.yml", name)
+	b := colorstring.NewBuilder()
+	b.Plain("First, you need to ensure that your step is stored in a ").Blue("public git repository").NewLine()
+	b.Plain("and it follows our ").Blue("step development guideline").Plain(": https://github.com/bitrise-io/bitrise/blob/master/_docs/step-development-guideline.md.").NewLine()
+	b.NewLine()
+	b.Plain("To audit your step on your local machine call ").Blue("$ %s audit --step-yml path/to/your/step.yml", name)
 	return b.String()
 }
 
 // GuideTextForStart ...
 func GuideTextForStart() string {
-	b := stringbuilder.New()
-	b.AddBlue("Fork the StepLib repository ").Add("you want to share your Step in.")
-	b.AddLn(`You can find the main ("official") StepLib repository at `).Add("https://github.com/bitrise-io/bitrise-steplib")
+	b := colorstring.NewBuilder()
+	b.Blue("Fork the StepLib repository ").Plain("you want to share your Step in.").NewLine()
+	b.Plain(`You can find the main ("official") StepLib repository at `).Plain("https://github.com/bitrise-io/bitrise-steplib")
 	return b.String()
 }
 
@@ -100,9 +100,9 @@ func GuideTextForShareStart(toolMode bool) string {
 		name = "bitrise"
 	}
 
-	b := stringbuilder.New()
-	b.Add("Call ").AddBlue("$ %s share start -c https://github.com/[your-username]/bitrise-steplib.git", name).Add(", with the git clone URL of your forked StepLib repository.")
-	b.AddLn("This will prepare your forked StepLib locally for sharing.")
+	b := colorstring.NewBuilder()
+	b.Plain("Call ").Blue("$ %s share start -c https://github.com/[your-username]/bitrise-steplib.git", name).Plain(", with the git clone URL of your forked StepLib repository.").NewLine()
+	b.Plain("This will prepare your forked StepLib locally for sharing.")
 	return b.String()
 }
 
@@ -113,11 +113,11 @@ func GuideTextForShareCreate(toolMode bool) string {
 		name = "bitrise"
 	}
 
-	b := stringbuilder.New()
-	b.Add("Next, call ").AddBlue("$ %s share create --tag [step-version-tag] --git [step-git-uri].git --stepid [step-id]", name).Add(",")
-	b.AddLn("to add your Step to your forked StepLib repository (locally).")
-	b.AddNewLine()
-	b.AddYellowLn("Important: ").Add("you have to add the (version) tag to your Step's repository.")
+	b := colorstring.NewBuilder()
+	b.Plain("Next, call ").Blue("$ %s share create --tag [step-version-tag] --git [step-git-uri].git --stepid [step-id]", name).Plain(",").NewLine()
+	b.Plain("to add your Step to your forked StepLib repository (locally).").NewLine()
+	b.NewLine()
+	b.Yellow("Important: ").Plain("you have to add the (version) tag to your Step's repository.")
 	return b.String()
 }
 
@@ -128,11 +128,11 @@ func GuideTextForAudit(toolMode bool) string {
 		name = "bitrise"
 	}
 
-	b := stringbuilder.New()
-	b.Add("You can call ").AddBlue("$ %s audit -c https://github.com/[your-username]/bitrise-steplib.git ", name)
-	b.AddLn("to perform a complete health-check on your forked StepLib before submitting your Pull Request.")
-	b.AddNewLine()
-	b.AddLn("This can help you catch issues which might prevent your Step from being accepted.")
+	b := colorstring.NewBuilder()
+	b.Plain("You can call ").Blue("$ %s audit -c https://github.com/[your-username]/bitrise-steplib.git ", name).NewLine()
+	b.Plain("to perform a complete health-check on your forked StepLib before submitting your Pull Request.").NewLine()
+	b.NewLine()
+	b.Plain("This can help you catch issues which might prevent your Step from being accepted.")
 	return b.String()
 }
 
@@ -143,37 +143,43 @@ func GuideTextForShareFinish(toolMode bool) string {
 		name = "bitrise"
 	}
 
-	b := stringbuilder.New()
-	b.Add("Almost done! You should review your Step's step.yml file (the one added to the local StepLib),")
-	b.AddLn("and once you're happy with it call ").AddBlue("$ %s share finish", name)
-	b.AddNewLine()
-	b.Add("This will commit & push the step.yml into your forked StepLib repository.")
+	b := colorstring.NewBuilder()
+	b.Plain("Almost done! You should review your Step's step.yml file (the one added to the local StepLib),").NewLine()
+	b.Plain("and once you're happy with it call ").Blue("$ %s share finish", name).NewLine()
+	b.NewLine()
+	b.Plain("This will commit & push the step.yml into your forked StepLib repository.")
 	return b.String()
 }
 
 // GuideTextForFinish ...
 func GuideTextForFinish() string {
-	b := stringbuilder.New()
-	b.Add("The only remaining thing is to ").AddBlue("create a Pull Request").Add(" in the original StepLib repository. And you are done!")
+	b := colorstring.NewBuilder()
+	b.Plain("The only remaining thing is to ").Blue("create a Pull Request").Plain(" in the original StepLib repository. And you are done!")
 	return b.String()
 }
 
 func share(c *cli.Context) {
 	toolMode := c.Bool(ToolMode)
 
-	b := stringbuilder.New()
-	b.Add("Do you want to share your own Step with the world? Awesome!")
-	b.AddNewLine()
-	b.AddLn("Just follow these steps:")
-	b.AddNewLine()
-	b.AddLn("0. ").Add(GuideTextForStepAudit(toolMode)).AddNewLine()
-	b.AddLn("1. ").Add(GuideTextForStart()).AddNewLine()
-	b.AddLn("2. ").Add(GuideTextForShareStart(toolMode)).AddNewLine()
-	b.AddLn("3. ").Add(GuideTextForShareCreate(toolMode)).AddNewLine()
-	b.AddLn("4. ").Add(GuideTextForAudit(toolMode)).AddNewLine()
-	b.AddLn("5. ").Add(GuideTextForShareFinish(toolMode)).AddNewLine()
-	b.AddLn("6. ").Add(GuideTextForFinish()).AddNewLine()
-	b.AddNewLine()
+	b := colorstring.NewBuilder()
+	b.Plain("Do you want to share your own Step with the world? Awesome!").NewLine()
+	b.NewLine()
+	b.Plain("Just follow these steps:").NewLine()
+	b.NewLine()
+	b.Plain("0. ").Plain(GuideTextForStepAudit(toolMode)).NewLine()
+	b.NewLine()
+	b.Plain("1. ").Plain(GuideTextForStart()).NewLine()
+	b.NewLine()
+	b.Plain("2. ").Plain(GuideTextForShareStart(toolMode)).NewLine()
+	b.NewLine()
+	b.Plain("3. ").Plain(GuideTextForShareCreate(toolMode)).NewLine()
+	b.NewLine()
+	b.Plain("4. ").Plain(GuideTextForAudit(toolMode)).NewLine()
+	b.NewLine()
+	b.Plain("5. ").Plain(GuideTextForShareFinish(toolMode)).NewLine()
+	b.NewLine()
+	b.Plain("6. ").Plain(GuideTextForFinish()).NewLine()
+	b.NewLine()
 	fmt.Printf(b.String())
 }
 

@@ -5,15 +5,15 @@ import (
 
 	"github.com/bitrise-io/go-utils/log"
 	"github.com/bitrise-io/stepman/stepman"
-	"github.com/bitrise-io/stepman/stringbuilder"
+	"github.com/bitrise-tools/colorstring"
 	"github.com/urfave/cli"
 )
 
 func printFinishAudit(share ShareModel, toolMode bool) {
-	b := stringbuilder.New()
-	b.AddGreen("your step (%s@%s) is valid", share.StepID, share.StepTag)
-	b.AddNewLine()
-	b.AddLn(GuideTextForShareFinish(toolMode))
+	b := colorstring.NewBuilder()
+	b.Green("your step (%s@%s) is valid", share.StepID, share.StepTag).NewLine()
+	b.NewLine()
+	b.Plain(GuideTextForShareFinish(toolMode))
 	fmt.Println(b.String())
 }
 

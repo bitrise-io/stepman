@@ -6,16 +6,16 @@ import (
 	"github.com/bitrise-io/go-utils/command/git"
 	"github.com/bitrise-io/go-utils/log"
 	"github.com/bitrise-io/stepman/stepman"
-	"github.com/bitrise-io/stepman/stringbuilder"
+	"github.com/bitrise-tools/colorstring"
 	"github.com/urfave/cli"
 )
 
 func printFinishShare() {
-	b := stringbuilder.New()
-	b.Add(GuideTextForFinish())
-	b.AddNewLine()
-	b.AddLn("On GitHub you can find a ").AddBlue("Compare & pull request").Add(" button, in the section called ").AddBlue("Your recently pushed branches:").Add(",")
-	b.AddLn("which will bring you to the page to ").AddBlue("Open a pull request").Add(", where you can review and create your Pull Request.")
+	b := colorstring.NewBuilder()
+	b.Plain(GuideTextForFinish()).NewLine()
+	b.NewLine()
+	b.Plain("On GitHub you can find a ").Blue("Compare & pull request").Plain(" button, in the section called ").Blue("Your recently pushed branches:").Plain(",").NewLine()
+	b.Plain("which will bring you to the page to ").Blue("Open a pull request").Plain(", where you can review and create your Pull Request.")
 	fmt.Println(b.String())
 }
 
