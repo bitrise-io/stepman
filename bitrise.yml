@@ -32,11 +32,11 @@ workflows:
             #!/usr/bin/env bash
             set -ex
 
-            current_envman="$(pwd)/_tmp/test_envman"
-            go build -o "$current_envman"
+            current_stepman="$(pwd)/_tmp/test_stepman"
+            go build -o "$current_stepman"
 
             export PR="" PULL_REQUEST_ID=""
-            export INTEGRATION_TEST_BINARY_PATH="$current_envman"
+            export INTEGRATION_TEST_BINARY_PATH="$current_stepman"
             go test -v ./_tests/integration/...
 
   # ----------------------------------------------------------------
