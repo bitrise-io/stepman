@@ -5,6 +5,7 @@ import (
 	"os"
 	"path"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -32,6 +33,26 @@ func getStepIDFromGit(git string) string {
 	return splits[0]
 }
 
+func validateTag(tag string) error {
+	if tag == "" {
+		return fmt.Errorf("no Step tag specified")
+	}
+
+	parts := strings.Split(tag, ".")
+
+	if len(parts) != 3 {
+		return fmt.Errorf("invalid semver format %s; valid format is 'x.y.z'", tag)
+	}
+
+	for _, part := range parts {
+		if _, err := strconv.Atoi(part); err != nil {
+			return fmt.Errorf("invalid semver format %s; valid format is 'x.y.z'", tag)
+		}
+	}
+
+	return nil
+}
+
 func create(c *cli.Context) error {
 	toolMode := c.Bool(ToolMode)
 
@@ -45,8 +66,8 @@ func create(c *cli.Context) error {
 
 	// Input validation
 	tag := c.String(TagKey)
-	if tag == "" {
-		fail("No Step tag specified")
+	if err := validateTag(tag); err != nil {
+		fail("validate tag: %s", err)
 	}
 
 	gitURI := c.String(GitKey)
