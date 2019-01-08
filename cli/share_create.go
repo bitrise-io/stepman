@@ -39,14 +39,15 @@ func validateTag(tag string) error {
 	}
 
 	parts := strings.Split(tag, ".")
+	n := len(parts)
 
-	if len(parts) != 3 {
-		return fmt.Errorf("invalid semver format %s; valid format is 'x.y.z'", tag)
+	if n != 3 {
+		return fmt.Errorf("invalid semver format %s: %d parts instead of 3", tag, n)
 	}
 
 	for _, part := range parts {
 		if _, err := strconv.Atoi(part); err != nil {
-			return fmt.Errorf("invalid semver format %s; valid format is 'x.y.z'", tag)
+			return fmt.Errorf("invalid semver format %s: %s", tag, err)
 		}
 	}
 
