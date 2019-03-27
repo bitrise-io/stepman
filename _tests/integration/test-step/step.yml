@@ -27,6 +27,9 @@ type_tags:
 is_requires_admin_user: true
 is_always_run: false
 is_skippable: false
+meta:
+  bitrise.io.addons.required: [{addon_id:"addons-testing"}]
+  bitrise.io.addons.optional: [{addon_id:"addons-testing"}]
 deps:
   brew:
   - name: git
