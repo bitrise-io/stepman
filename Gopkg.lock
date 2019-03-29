@@ -2,12 +2,12 @@
 
 
 [[projects]]
-  branch = "master"
-  digest = "1:a5b446734aaae7f706e340647bd166788523ed5b334c3a9013beea523ab2bb08"
+  branch = "bugfix/logrus-name"
+  digest = "1:9e0922c0db1a224dd45500c894527e155d0eb528c15c107300f8a870ab1387ab"
   name = "github.com/bitrise-io/envman"
   packages = ["models"]
   pruneopts = ""
-  revision = "c6683c3e097216a80eb72092bf857c8a9591195e"
+  revision = "1bb45ea8b69e6b422b64416d9a66fa868d13b1e2"
 
 [[projects]]
   branch = "master"

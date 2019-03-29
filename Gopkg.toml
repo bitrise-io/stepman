@@ -4,7 +4,7 @@
 
 [[constraint]]
   name = "github.com/bitrise-io/envman"
-  branch = "master"
+  branch = "bugfix/logrus-name"
 
 [[constraint]]
   name = "github.com/bitrise-io/go-utils"
