@@ -11,6 +11,7 @@ import (
 	"github.com/bitrise-io/go-utils/colorstring"
 	"github.com/bitrise-io/go-utils/fileutil"
 	"github.com/bitrise-io/go-utils/pointers"
+	jsoniter "github.com/json-iterator/go"
 )
 
 const (
@@ -53,6 +54,8 @@ func (stepInfo StepInfoModel) String() string {
 
 // JSON ...
 func (stepInfo StepInfoModel) JSON() string {
+	// Using json-iter as it supports map[string]interface{}
+	var json = jsoniter.ConfigCompatibleWithStandardLibrary
 	bytes, err := json.Marshal(stepInfo)
 	if err != nil {
 		return fmt.Sprintf(`"Failed to marshal step info (%#v), err: %s"`, stepInfo, err)

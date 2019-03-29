@@ -69,12 +69,6 @@ type StepToolkitModel struct {
 	Go   *GoStepToolkitModel   `json:"go,omitempty" yaml:"go,omitempty"`
 }
 
-// metaModel contains arrays with addons' identifiers that are required or optional to be connected for the step to function correctly
-type metaModel struct {
-	RequiredAddons []addonReference `json:"bitrise.io.addons.required,omitempty" yaml:"bitrise.io.addons.required,omitempty"`
-	OptionalAddons []addonReference `json:"bitrise.io.addons.optional,omitempty" yaml:"bitrise.io.addons.optional,omitempty"`
-}
-
 type addonReference struct {
 	ID string `json:"addon_id" yaml:"addon_id"`
 }
@@ -108,9 +102,9 @@ type StepModel struct {
 	//  steps will run which are marked with IsAlwaysRun.
 	IsSkippable *bool `json:"is_skippable,omitempty" yaml:"is_skippable,omitempty"`
 	// RunIf : only run the step if the template example evaluates to true
-	RunIf   *string    `json:"run_if,omitempty" yaml:"run_if,omitempty"`
-	Timeout *int       `json:"timeout,omitempty" yaml:"timeout,omitempty"`
-	Meta    *metaModel `json:"meta,omitempty" yaml:"meta,omitempty"`
+	RunIf   *string                `json:"run_if,omitempty" yaml:"run_if,omitempty"`
+	Timeout *int                   `json:"timeout,omitempty" yaml:"timeout,omitempty"`
+	Meta    map[string]interface{} `json:"meta,omitempty" yaml:"meta,omitempty"`
 	//
 	Inputs  []envmanModels.EnvironmentItemModel `json:"inputs,omitempty" yaml:"inputs,omitempty"`
 	Outputs []envmanModels.EnvironmentItemModel `json:"outputs,omitempty" yaml:"outputs,omitempty"`
