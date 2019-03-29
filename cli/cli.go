@@ -5,9 +5,9 @@ import (
 	"os"
 	"path"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/bitrise-io/stepman/stepman"
 	"github.com/bitrise-io/stepman/version"
+	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 )
 

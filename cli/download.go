@@ -1,8 +1,8 @@
 package cli
 
 import (
-	log "github.com/Sirupsen/logrus"
 	"github.com/bitrise-io/stepman/stepman"
+	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 )
 

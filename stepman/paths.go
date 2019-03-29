@@ -8,10 +8,10 @@ import (
 	"path"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/bitrise-io/go-utils/command"
 	"github.com/bitrise-io/go-utils/fileutil"
 	"github.com/bitrise-io/go-utils/pathutil"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
