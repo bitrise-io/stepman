@@ -2,12 +2,12 @@
 
 
 [[projects]]
-  branch = "bugfix/logrus-name"
-  digest = "1:9e0922c0db1a224dd45500c894527e155d0eb528c15c107300f8a870ab1387ab"
+  branch = "master"
+  digest = "1:a5b446734aaae7f706e340647bd166788523ed5b334c3a9013beea523ab2bb08"
   name = "github.com/bitrise-io/envman"
   packages = ["models"]
   pruneopts = ""
-  revision = "1bb45ea8b69e6b422b64416d9a66fa868d13b1e2"
+  revision = "c6683c3e097216a80eb72092bf857c8a9591195e"
 
 [[projects]]
   branch = "master"
@@ -110,15 +110,12 @@
   version = "v1.0.0"
 
 [[projects]]
-  branch = "master"
-  digest = "1:cd6a2758154205d662184b90da889659cba5736501383f829441e5ccb5e992c7"
+  digest = "1:b73fe282e350b3ef2c71d8ff08e929e0b9670b1bb5b7fde1d3c1b4cd6e6dc8b1"
   name = "github.com/sirupsen/logrus"
-  packages = [
-    ".",
-    "terminal",
-  ]
+  packages = ["."]
   pruneopts = ""
-  revision = "aefd7ecb9095a92e92a5c904c347156869b303ec"
+  revision = "dae0fa8d5b0c810a8ab733fbd5510c7cae84eca4"
+  version = "v1.4.0"
 
 [[projects]]
   branch = "master"
@@ -141,9 +138,20 @@
 
 [[projects]]
   branch = "master"
+  digest = "1:36ef1d8645934b1744cc7d8726e00d3dd9d8d84c18617bf7367a3a6d532f3370"
+  name = "golang.org/x/crypto"
+  packages = ["ssh/terminal"]
+  pruneopts = ""
+  revision = "a5d413f7728c81fb97d96a2b722368945f651e78"
+
+[[projects]]
+  branch = "master"
   digest = "1:1b0de777d8ddd63356d5a4d76799ea8f47e811aa9dda85ddc72b2a061c799cc9"
   name = "golang.org/x/sys"
-  packages = ["unix"]
+  packages = [
+    "unix",
+    "windows",
+  ]
   pruneopts = ""
   revision = "9eb1bfa1ce65ae8a6ff3114b0aaf9a41a6cf3560"
 

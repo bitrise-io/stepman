@@ -6,7 +6,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	log "github.com/sirupsen/logrus"
+	log "github.com/Sirupsen/logrus"
 	"github.com/urfave/cli"
 )
 
