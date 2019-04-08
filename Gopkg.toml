@@ -1,6 +1,6 @@
 [[constraint]]
   name = "github.com/sirupsen/logrus"
-  tag = "v1.3.0"
+  branch = "master"
 
 [[constraint]]
   name = "github.com/bitrise-io/envman"
