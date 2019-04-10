@@ -102,7 +102,7 @@ func (step *StepModel) Normalize() error {
 		}
 	}
 
-	normalizedMeta, err := normalizeMapStringInterface(step.Meta)
+	normalizedMeta, err := JSONMarshallable(step.Meta)
 	if err != nil {
 		return err
 	}
