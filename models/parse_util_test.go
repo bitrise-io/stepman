@@ -27,33 +27,15 @@ func Test_castRecursiveToMapStringInterface(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "2 levels map[string]interface at top",
-			source:  map[string]interface{}{"aa": map[interface{}]interface{}{"aa": "bb"}, "b": "c"},
-			want:    map[string]interface{}{"aa": map[string]interface{}{"aa": "bb"}, "b": "c"},
-			wantErr: false,
-		},
-		{
 			name:    "2 levels",
 			source:  map[interface{}]interface{}{"aa": map[interface{}]interface{}{"aa": "bb"}, "b": "c"},
 			want:    map[string]interface{}{"aa": map[string]interface{}{"aa": "bb"}, "b": "c"},
 			wantErr: false,
 		},
 		{
-			name: "normal",
-			source: map[interface{}]interface{}{
-				"bitrise.io.addons.optional.2": []interface{}{
-					map[interface{}]interface{}{
-						"addon_id": "addons-testing",
-					},
-				},
-			},
-			want: map[string]interface{}{
-				"bitrise.io.addons.optional.2": []interface{}{
-					map[string]interface{}{
-						"addon_id": "addons-testing",
-					},
-				},
-			},
+			name:    "2 levels map[string]interface at top",
+			source:  map[string]interface{}{"aa": map[interface{}]interface{}{"aa": "bb"}, "b": "c"},
+			want:    map[string]interface{}{"aa": map[string]interface{}{"aa": "bb"}, "b": "c"},
 			wantErr: false,
 		},
 		{
