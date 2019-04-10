@@ -69,6 +69,25 @@ func (stepInfo StepInfoModel) CreateFromJSON(jsonStr string) (StepInfoModel, err
 	return info, nil
 }
 
+// ValidateSource ...
+func (source StepSourceModel) validateSource() error {
+	if source.Git == "" {
+		return errors.New("Invalid step: missing or empty required 'source.git' property")
+	}
+
+	if !strings.HasPrefix(source.Git, "http://") && !strings.HasPrefix(source.Git, "https://") {
+		return errors.New("Invalid step: step source should start with http:// or https://")
+	}
+	if !strings.HasSuffix(source.Git, ".git") {
+		return errors.New("Invalid step: step source should end with .git")
+	}
+
+	if source.Commit == "" {
+		return errors.New("Invalid step: missing or empty required 'source.commit' property")
+	}
+	return nil
+}
+
 // Normalize ...
 func (step *StepModel) Normalize() error {
 	for _, input := range step.Inputs {
@@ -92,27 +111,8 @@ func (step *StepModel) Normalize() error {
 	return nil
 }
 
-// ValidateSource ...
-func (source StepSourceModel) validateSource() error {
-	if source.Git == "" {
-		return errors.New("Invalid step: missing or empty required 'source.git' property")
-	}
-
-	if !strings.HasPrefix(source.Git, "http://") && !strings.HasPrefix(source.Git, "https://") {
-		return errors.New("Invalid step: step source should start with http:// or https://")
-	}
-	if !strings.HasSuffix(source.Git, ".git") {
-		return errors.New("Invalid step: step source should end with .git")
-	}
-
-	if source.Commit == "" {
-		return errors.New("Invalid step: missing or empty required 'source.commit' property")
-	}
-	return nil
-}
-
 // ValidateInputAndOutputEnvs ...
-func (step StepModel) ValidateInputAndOutputEnvs(checkRequiredFields bool) error {
+func (step *StepModel) ValidateInputAndOutputEnvs(checkRequiredFields bool) error {
 	validateEnvs := func(envs []envmanModels.EnvironmentItemModel) error {
 		for _, env := range envs {
 			key, _, err := env.GetKeyValuePair()
@@ -156,7 +156,7 @@ func (step StepModel) ValidateInputAndOutputEnvs(checkRequiredFields bool) error
 }
 
 // AuditBeforeShare ...
-func (step StepModel) AuditBeforeShare() error {
+func (step *StepModel) AuditBeforeShare() error {
 	if step.Title == nil || *step.Title == "" {
 		return errors.New("Invalid step: missing or empty required 'title' property")
 	}
@@ -175,7 +175,7 @@ func (step StepModel) AuditBeforeShare() error {
 }
 
 // Audit ...
-func (step StepModel) Audit() error {
+func (step *StepModel) Audit() error {
 	if err := step.AuditBeforeShare(); err != nil {
 		return err
 	}
