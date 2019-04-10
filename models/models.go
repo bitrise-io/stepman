@@ -69,10 +69,6 @@ type StepToolkitModel struct {
 	Go   *GoStepToolkitModel   `json:"go,omitempty" yaml:"go,omitempty"`
 }
 
-type addonReference struct {
-	ID string `json:"addon_id" yaml:"addon_id"`
-}
-
 // StepModel ...
 type StepModel struct {
 	Title       *string `json:"title,omitempty" yaml:"title,omitempty"`

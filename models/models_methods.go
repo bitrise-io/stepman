@@ -11,7 +11,6 @@ import (
 	"github.com/bitrise-io/go-utils/colorstring"
 	"github.com/bitrise-io/go-utils/fileutil"
 	"github.com/bitrise-io/go-utils/pointers"
-	jsoniter "github.com/json-iterator/go"
 )
 
 const (
@@ -54,8 +53,6 @@ func (stepInfo StepInfoModel) String() string {
 
 // JSON ...
 func (stepInfo StepInfoModel) JSON() string {
-	// Using json-iter as it supports map[string]interface{}
-	var json = jsoniter.ConfigCompatibleWithStandardLibrary
 	bytes, err := json.Marshal(stepInfo)
 	if err != nil {
 		return fmt.Sprintf(`"Failed to marshal step info (%#v), err: %s"`, stepInfo, err)
@@ -73,17 +70,25 @@ func (stepInfo StepInfoModel) CreateFromJSON(jsonStr string) (StepInfoModel, err
 }
 
 // Normalize ...
-func (step StepModel) Normalize() error {
+func (step *StepModel) Normalize() error {
 	for _, input := range step.Inputs {
 		if err := input.Normalize(); err != nil {
 			return err
 		}
 	}
+
 	for _, output := range step.Outputs {
 		if err := output.Normalize(); err != nil {
 			return err
 		}
 	}
+
+	normalizedMeta, err := normalizeMapStringInterface(step.Meta)
+	if err != nil {
+		return err
+	}
+	step.Meta = normalizedMeta
+
 	return nil
 }
 

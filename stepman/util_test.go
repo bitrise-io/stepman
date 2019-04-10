@@ -49,22 +49,22 @@ func Test_parseStepModel(t *testing.T) {
 				Title: &empty,
 				Meta: map[string]interface{}{
 					"bitrise.io.addons.optional.2": []interface{}{
-						map[interface{}]interface{}{
+						map[string]interface{}{
 							"addon_id": "addons-testing",
 						},
 					},
 					"bitrise.io.addons.required": []interface{}{
-						map[interface{}]interface{}{
+						map[string]interface{}{
 							"addon_id": "addons-testing",
-							"addon_options": map[interface{}]interface{}{
+							"addon_options": map[string]interface{}{
 								"required": true,
 								"title":    "Testing Addon",
 							},
 							"addon_params": "--token TOKEN",
 						},
-						map[interface{}]interface{}{
+						map[string]interface{}{
 							"addon_id": "addons-ship",
-							"addon_options": map[interface{}]interface{}{
+							"addon_options": map[string]interface{}{
 								"required": true,
 								"title":    "Ship Addon",
 							},
