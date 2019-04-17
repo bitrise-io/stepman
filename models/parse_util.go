@@ -13,7 +13,7 @@ func JSONMarshallable(source map[string]interface{}) (map[string]interface{}, er
 	}
 	castedTarget, ok := target.(map[string]interface{})
 	if !ok {
-		return nil, err
+		return nil, fmt.Errorf("could not cast to map[string]interface{}")
 	}
 	return castedTarget, nil
 }
@@ -32,7 +32,7 @@ func recursiveJSONMarshallable(source interface{}) (interface{}, error) {
 	}
 
 	if interfaceToInterfaceMap, ok := source.(map[interface{}]interface{}); ok {
-		target := make(map[string]interface{})
+		target := map[string]interface{}{}
 		for key, value := range interfaceToInterfaceMap {
 			strKey, ok := key.(string)
 			if !ok {
@@ -49,7 +49,7 @@ func recursiveJSONMarshallable(source interface{}) (interface{}, error) {
 	}
 
 	if stringToInterfaceMap, ok := source.(map[string]interface{}); ok {
-		target := make(map[string]interface{})
+		target := map[string]interface{}{}
 		for key, value := range stringToInterfaceMap {
 			convertedValue, err := recursiveJSONMarshallable(value)
 			if err != nil {
