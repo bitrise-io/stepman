@@ -11,6 +11,14 @@
 
 [[projects]]
   branch = "master"
+  digest = "1:eda2296387e3dae410b4ceb25e4db754d6bb552666584ef93ca1d98aa12920df"
+  name = "github.com/bitrise-io/colorstring"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "a8cd701151924e6beffb74a34a556b320e0cfcf7"
+
+[[projects]]
+  branch = "master"
   digest = "1:4e1c0cc22c53c5ebda9bd380afd5b56a2f1fc9e6fd2eed59ab8ba0c1522eee19"
   name = "github.com/bitrise-io/envman"
   packages = ["models"]
@@ -46,14 +54,6 @@
   packages = ["goinp"]
   pruneopts = "UT"
   revision = "f451b19ba4d087d8272d411ad91af5f4218fd517"
-
-[[projects]]
-  branch = "master"
-  digest = "1:eda2296387e3dae410b4ceb25e4db754d6bb552666584ef93ca1d98aa12920df"
-  name = "github.com/bitrise-tools/colorstring"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "a8cd701151924e6beffb74a34a556b320e0cfcf7"
 
 [[projects]]
   digest = "1:ffe9824d294da03b391f44e1ae8281281b4afc1bdaa9588c9097785e3af10cec"
@@ -113,11 +113,11 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:cf353a5a9ffb2d6f850e9c773e25388a425a70c270546480427ed069e87b136a"
+  digest = "1:28d862f4f9bf2d1976d1d320481bff661b7565eb876d4df2a981f79e7f40e4cd"
   name = "golang.org/x/sys"
   packages = ["unix"]
   pruneopts = "UT"
-  revision = "4b34438f7a67ee5f45cc6132e2bad873a20324e9"
+  revision = "12500544f89f9420afe9529ba8940bf72d294972"
 
 [[projects]]
   branch = "v2"
@@ -132,6 +132,7 @@
   analyzer-version = 1
   input-imports = [
     "github.com/Sirupsen/logrus",
+    "github.com/bitrise-io/colorstring",
     "github.com/bitrise-io/envman/models",
     "github.com/bitrise-io/go-utils/colorstring",
     "github.com/bitrise-io/go-utils/command",
@@ -145,7 +146,6 @@
     "github.com/bitrise-io/go-utils/urlutil",
     "github.com/bitrise-io/go-utils/versions",
     "github.com/bitrise-io/goinp/goinp",
-    "github.com/bitrise-tools/colorstring",
     "github.com/google/go-cmp/cmp",
     "github.com/stretchr/testify/require",
     "github.com/urfave/cli",
