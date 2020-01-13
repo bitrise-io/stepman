@@ -1,11 +1,13 @@
 package models
 
 import (
+	"reflect"
 	"testing"
 	"time"
 
 	envmanModels "github.com/bitrise-io/envman/models"
 	"github.com/bitrise-io/go-utils/pointers"
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 )
 
@@ -464,4 +466,150 @@ func Test_AptGetDepModel_GetBinaryName(t *testing.T) {
 	require.Equal(t, "", AptGetDepModel{}.GetBinaryName())
 	require.Equal(t, "awscli", AptGetDepModel{Name: "awscli"}.GetBinaryName())
 	require.Equal(t, "aws", AptGetDepModel{Name: "awscli", BinName: "aws"}.GetBinaryName())
+}
+
+func TestStepCollectionModel_GetStepVersion(t *testing.T) {
+	step := StepModel{
+		Title:         pointers.NewStringPtr("name 1"),
+		Description:   pointers.NewStringPtr("desc 1"),
+		Website:       pointers.NewStringPtr("web/1"),
+		SourceCodeURL: pointers.NewStringPtr("fork/1"),
+		Source: &StepSourceModel{
+			Git: "https://git.url",
+		},
+		HostOsTags:          []string{"osx"},
+		ProjectTypeTags:     []string{"ios"},
+		TypeTags:            []string{"test"},
+		IsRequiresAdminUser: pointers.NewBoolPtr(DefaultIsRequiresAdminUser),
+		Inputs: []envmanModels.EnvironmentItemModel{
+			envmanModels.EnvironmentItemModel{
+				"KEY_1": "Value 1",
+			},
+			envmanModels.EnvironmentItemModel{
+				"KEY_2": "Value 2",
+			},
+		},
+		Outputs: []envmanModels.EnvironmentItemModel{
+			envmanModels.EnvironmentItemModel{
+				"KEY_3": "Value 3",
+			},
+		},
+	}
+
+	collection := StepCollectionModel{
+		FormatVersion:        "1.0.0",
+		GeneratedAtTimeStamp: 0,
+		Steps: StepHash{
+			"step": StepGroupModel{
+				Versions: map[string]StepModel{
+					"1.0.0": step,
+					"1.1.0": step,
+					"1.1.1": step,
+					"1.2.0": step,
+					"2.0.0": step,
+				},
+				LatestVersionNumber: "2.0.0",
+			},
+		},
+		SteplibSource: "source",
+		DownloadLocations: []DownloadLocationModel{
+			DownloadLocationModel{
+				Type: "zip",
+				Src:  "amazon/",
+			},
+			DownloadLocationModel{
+				Type: "git",
+				Src:  "step.git",
+			},
+		},
+	}
+
+	type fields struct {
+		FormatVersion         string
+		GeneratedAtTimeStamp  int64
+		SteplibSource         string
+		DownloadLocations     []DownloadLocationModel
+		AssetsDownloadBaseURI string
+		Steps                 StepHash
+	}
+	type args struct {
+		id      string
+		version string
+	}
+	tests := []struct {
+		name   string
+		fields StepCollectionModel
+		args   args
+		want   StepVersionModel
+		want1  bool
+		want2  bool
+	}{
+		{
+			name:   "Fix version",
+			fields: collection,
+			args: args{
+				id:      "step",
+				version: "1.0.0",
+			},
+			want: StepVersionModel{
+				Step:                   step,
+				Version:                "1.0.0",
+				LatestAvailableVersion: "2.0.0",
+			},
+			want1: true,
+			want2: true,
+		},
+		{
+			name:   "Lock Minor version",
+			fields: collection,
+			args: args{
+				id:      "step",
+				version: "1.1",
+			},
+			want: StepVersionModel{
+				Step:                   step,
+				Version:                "1.1.1",
+				LatestAvailableVersion: "2.0.0",
+			},
+			want1: true,
+			want2: true,
+		},
+		{
+			name:   "Lock Major ersion",
+			fields: collection,
+			args: args{
+				id:      "step",
+				version: "1",
+			},
+			want: StepVersionModel{
+				Step:                   step,
+				Version:                "1.2.0",
+				LatestAvailableVersion: "2.0.0",
+			},
+			want1: true,
+			want2: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			collection := StepCollectionModel{
+				FormatVersion:         tt.fields.FormatVersion,
+				GeneratedAtTimeStamp:  tt.fields.GeneratedAtTimeStamp,
+				SteplibSource:         tt.fields.SteplibSource,
+				DownloadLocations:     tt.fields.DownloadLocations,
+				AssetsDownloadBaseURI: tt.fields.AssetsDownloadBaseURI,
+				Steps:                 tt.fields.Steps,
+			}
+			got, got1, got2 := collection.GetStepVersion(tt.args.id, tt.args.version)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("StepCollectionModel.GetStepVersion() got = %+v, want %+v, \n Diff: %s", got, tt.want, cmp.Diff(tt.want, got))
+			}
+			if got1 != tt.want1 {
+				t.Errorf("StepCollectionModel.GetStepVersion() got1 = %v, want %v", got1, tt.want1)
+			}
+			if got2 != tt.want2 {
+				t.Errorf("StepCollectionModel.GetStepVersion() got2 = %v, want %v", got2, tt.want2)
+			}
+		})
+	}
 }
