@@ -98,8 +98,19 @@ func stepInfo(c *cli.Context) error {
 	if format == OutputFormatJSON {
 		log = flog.NewDefaultJSONLoger()
 	}
-	// ---
 
+	stepInfo, err := QueryStepInfo(library, id, version)
+	if err != nil {
+		return err
+	}
+
+	log.Print(stepInfo)
+	return nil
+}
+
+// QueryStepInfo returns a matching step info.
+// In cases of git and path sources the step.yml is read, otherwise the step is looked up in a step library.
+func QueryStepInfo(library, id, version string) (models.StepInfoModel, error) {
 	stepInfo := models.StepInfoModel{
 		Library: library,
 		ID:      id,
@@ -111,7 +122,7 @@ func stepInfo(c *cli.Context) error {
 		stepGitSourceURI := id
 		tmpStepDir, err := pathutil.NormalizedOSTempDirPath("__step__")
 		if err != nil {
-			return fmt.Errorf("failed to create tmp dir, error: %s", err)
+			return models.StepInfoModel{}, fmt.Errorf("failed to create tmp dir, error: %s", err)
 		}
 
 		tagOrBranch := version
@@ -126,19 +137,19 @@ func stepInfo(c *cli.Context) error {
 			}
 			return repo.CloneTagOrBranch(stepGitSourceURI, tagOrBranch).Run()
 		}); err != nil {
-			return fmt.Errorf("failed to clone step from: %s, error: %s", stepGitSourceURI, err)
+			return models.StepInfoModel{}, fmt.Errorf("failed to clone step from: %s, error: %s", stepGitSourceURI, err)
 		}
 
 		stepDefinitionPth := filepath.Join(tmpStepDir, "step.yml")
 		if exist, err := pathutil.IsPathExists(stepDefinitionPth); err != nil {
-			return fmt.Errorf("failed to check if step definition (step.yml) exist at: %s, error: %s", stepDefinitionPth, err)
+			return models.StepInfoModel{}, fmt.Errorf("failed to check if step definition (step.yml) exist at: %s, error: %s", stepDefinitionPth, err)
 		} else if !exist {
-			return fmt.Errorf("step definition (step.yml) does not exist at: %s", stepDefinitionPth)
+			return models.StepInfoModel{}, fmt.Errorf("step definition (step.yml) does not exist at: %s", stepDefinitionPth)
 		}
 
 		step, err := stepman.ParseStepDefinition(stepDefinitionPth, false)
 		if err != nil {
-			return fmt.Errorf("failed to parse step definition at: %s, error: %s", stepDefinitionPth, err)
+			return models.StepInfoModel{}, fmt.Errorf("failed to parse step definition at: %s, error: %s", stepDefinitionPth, err)
 		}
 
 		stepInfo.Version = tagOrBranch
@@ -148,14 +159,14 @@ func stepInfo(c *cli.Context) error {
 		stepDir := id
 		stepDefinitionPth := filepath.Join(stepDir, "step.yml")
 		if exist, err := pathutil.IsPathExists(stepDefinitionPth); err != nil {
-			return fmt.Errorf("failed to check if step definition (step.yml) exist at: %s, error: %s", stepDefinitionPth, err)
+			return models.StepInfoModel{}, fmt.Errorf("failed to check if step definition (step.yml) exist at: %s, error: %s", stepDefinitionPth, err)
 		} else if !exist {
-			return fmt.Errorf("step definition (step.yml) does not exist at: %s", stepDefinitionPth)
+			return models.StepInfoModel{}, fmt.Errorf("step definition (step.yml) does not exist at: %s", stepDefinitionPth)
 		}
 
 		step, err := stepman.ParseStepDefinition(stepDefinitionPth, false)
 		if err != nil {
-			return fmt.Errorf("failed to parse step definition at: %s, error: %s", stepDefinitionPth, err)
+			return models.StepInfoModel{}, fmt.Errorf("failed to parse step definition at: %s, error: %s", stepDefinitionPth, err)
 		}
 
 		stepInfo.Step = step
@@ -163,21 +174,21 @@ func stepInfo(c *cli.Context) error {
 	default: // library step
 		// Check if setup was done for collection
 		if exist, err := stepman.RootExistForLibrary(library); err != nil {
-			return fmt.Errorf("Failed to check if setup was done for steplib (%s), error: %s", library, err)
+			return models.StepInfoModel{}, fmt.Errorf("Failed to check if setup was done for steplib (%s), error: %s", library, err)
 		} else if !exist {
 			if err := stepman.SetupLibrary(library); err != nil {
-				return fmt.Errorf("Failed to setup steplib (%s), error: %s", library, err)
+				return models.StepInfoModel{}, fmt.Errorf("Failed to setup steplib (%s), error: %s", library, err)
 			}
 		}
 
 		stepVersion, err := stepman.ReadStepVersionInfo(library, id, version)
 		if err != nil {
-			return fmt.Errorf("Failed to read Step information, error: %s", err)
+			return models.StepInfoModel{}, fmt.Errorf("Failed to read Step information, error: %s", err)
 		}
 
 		route, found := stepman.ReadRoute(library)
 		if !found {
-			return fmt.Errorf("No route found for library: %s", library)
+			return models.StepInfoModel{}, fmt.Errorf("No route found for library: %s", library)
 		}
 
 		stepDir := stepman.GetStepCollectionDirPath(route, id, stepVersion.Version)
@@ -189,6 +200,5 @@ func stepInfo(c *cli.Context) error {
 		stepInfo.DefinitionPth = stepDefinitionPth
 	}
 
-	log.Print(stepInfo)
-	return nil
+	return stepInfo, nil
 }
