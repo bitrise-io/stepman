@@ -470,35 +470,10 @@ func Test_AptGetDepModel_GetBinaryName(t *testing.T) {
 
 func TestStepCollectionModel_GetStepVersion(t *testing.T) {
 	step := StepModel{
-		Title:         pointers.NewStringPtr("name 1"),
-		Description:   pointers.NewStringPtr("desc 1"),
-		Website:       pointers.NewStringPtr("web/1"),
-		SourceCodeURL: pointers.NewStringPtr("fork/1"),
-		Source: &StepSourceModel{
-			Git: "https://git.url",
-		},
-		HostOsTags:          []string{"osx"},
-		ProjectTypeTags:     []string{"ios"},
-		TypeTags:            []string{"test"},
-		IsRequiresAdminUser: pointers.NewBoolPtr(DefaultIsRequiresAdminUser),
-		Inputs: []envmanModels.EnvironmentItemModel{
-			envmanModels.EnvironmentItemModel{
-				"KEY_1": "Value 1",
-			},
-			envmanModels.EnvironmentItemModel{
-				"KEY_2": "Value 2",
-			},
-		},
-		Outputs: []envmanModels.EnvironmentItemModel{
-			envmanModels.EnvironmentItemModel{
-				"KEY_3": "Value 3",
-			},
-		},
+		Title: pointers.NewStringPtr("name 1"),
 	}
 
 	collection := StepCollectionModel{
-		FormatVersion:        "1.0.0",
-		GeneratedAtTimeStamp: 0,
 		Steps: StepHash{
 			"step": StepGroupModel{
 				Versions: map[string]StepModel{
@@ -511,42 +486,23 @@ func TestStepCollectionModel_GetStepVersion(t *testing.T) {
 				LatestVersionNumber: "2.0.0",
 			},
 		},
-		SteplibSource: "source",
-		DownloadLocations: []DownloadLocationModel{
-			DownloadLocationModel{
-				Type: "zip",
-				Src:  "amazon/",
-			},
-			DownloadLocationModel{
-				Type: "git",
-				Src:  "step.git",
-			},
-		},
 	}
 
-	type fields struct {
-		FormatVersion         string
-		GeneratedAtTimeStamp  int64
-		SteplibSource         string
-		DownloadLocations     []DownloadLocationModel
-		AssetsDownloadBaseURI string
-		Steps                 StepHash
-	}
 	type args struct {
 		id      string
 		version string
 	}
 	tests := []struct {
-		name   string
-		fields StepCollectionModel
-		args   args
-		want   StepVersionModel
-		want1  bool
-		want2  bool
+		name       string
+		collection StepCollectionModel
+		args       args
+		want       StepVersionModel
+		want1      bool
+		want2      bool
 	}{
 		{
-			name:   "Fix version",
-			fields: collection,
+			name:       "Fix version",
+			collection: collection,
 			args: args{
 				id:      "step",
 				version: "1.0.0",
@@ -560,8 +516,8 @@ func TestStepCollectionModel_GetStepVersion(t *testing.T) {
 			want2: true,
 		},
 		{
-			name:   "Lock Minor version",
-			fields: collection,
+			name:       "Lock Minor version",
+			collection: collection,
 			args: args{
 				id:      "step",
 				version: "1.1",
@@ -575,8 +531,8 @@ func TestStepCollectionModel_GetStepVersion(t *testing.T) {
 			want2: true,
 		},
 		{
-			name:   "Lock Major ersion",
-			fields: collection,
+			name:       "Lock Major ersion",
+			collection: collection,
 			args: args{
 				id:      "step",
 				version: "1",
@@ -592,14 +548,7 @@ func TestStepCollectionModel_GetStepVersion(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			collection := StepCollectionModel{
-				FormatVersion:         tt.fields.FormatVersion,
-				GeneratedAtTimeStamp:  tt.fields.GeneratedAtTimeStamp,
-				SteplibSource:         tt.fields.SteplibSource,
-				DownloadLocations:     tt.fields.DownloadLocations,
-				AssetsDownloadBaseURI: tt.fields.AssetsDownloadBaseURI,
-				Steps:                 tt.fields.Steps,
-			}
+			collection := tt.collection
 			got, got1, got2 := collection.GetStepVersion(tt.args.id, tt.args.version)
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("StepCollectionModel.GetStepVersion() got = %+v, want %+v, \n Diff: %s", got, tt.want, cmp.Diff(tt.want, got))

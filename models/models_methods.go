@@ -10,7 +10,6 @@ import (
 	envmanModels "github.com/bitrise-io/envman/models"
 	"github.com/bitrise-io/go-utils/colorstring"
 	"github.com/bitrise-io/go-utils/fileutil"
-	"github.com/bitrise-io/go-utils/log"
 	"github.com/bitrise-io/go-utils/pointers"
 )
 
@@ -254,7 +253,7 @@ func (collection StepCollectionModel) GetStep(id, version string) (StepModel, bo
 }
 
 // GetStepVersion ...
-func (collection StepCollectionModel) GetStepVersion(id, version string) (StepVersionModel, bool, bool) {
+func (collection StepCollectionModel) GetStepVersion(id, version string) (stepVersion StepVersionModel, stepFound bool, versionFound bool) {
 	stepHash := collection.Steps
 	stepVersions, stepFound := stepHash[id]
 
@@ -268,11 +267,10 @@ func (collection StepCollectionModel) GetStepVersion(id, version string) (StepVe
 
 	requiredVersion, err := parseRequiredVersion(version)
 	if err != nil {
-		log.Warnf("Invalid required version format: %s, error: %s", version, err)
 		return StepVersionModel{}, true, false
 	}
 
-	stepVersionModel, versionFound := latestMatchingRequiredVersion(requiredVersion, stepVersions)
+	stepVersionModel, versionFound := latestMatchingStepVersion(requiredVersion, stepVersions)
 	return stepVersionModel, true, versionFound
 }
 
