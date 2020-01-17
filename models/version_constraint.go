@@ -21,20 +21,20 @@ func (v *Semver) String() string {
 func parseSemver(version string) (Semver, error) {
 	versionParts := strings.Split(version, ".")
 	if len(versionParts) != 3 {
-		return Semver{}, fmt.Errorf("invalid semver version: %s", version)
+		return Semver{}, fmt.Errorf("parse %s: should consist by 3 components", version)
 	}
 
 	major, err := strconv.ParseUint(versionParts[0], 10, 0)
 	if err != nil {
-		return Semver{}, fmt.Errorf("invalid major version (%s): %s", version, err)
+		return Semver{}, fmt.Errorf("parse %s: invalid major version: %s", version, err)
 	}
 	minor, err := strconv.ParseUint(versionParts[1], 10, 0)
 	if err != nil {
-		return Semver{}, fmt.Errorf("invalid minor version (%s): %s", version, err)
+		return Semver{}, fmt.Errorf("parse %s: invalid minor version: %s", version, err)
 	}
 	patch, err := strconv.ParseUint(versionParts[2], 10, 0)
 	if err != nil {
-		return Semver{}, fmt.Errorf("invalid patch version (%s): %s", version, err)
+		return Semver{}, fmt.Errorf("parse %s: invalid patch version: %s", version, err)
 	}
 
 	return Semver{
@@ -67,12 +67,12 @@ type VersionConstraint struct {
 func parseRequiredVersion(version string) (VersionConstraint, error) {
 	parts := strings.Split(version, ".")
 	if len(parts) == 0 || len(parts) > 3 {
-		return VersionConstraint{}, fmt.Errorf("invalid required version format: %s", version)
+		return VersionConstraint{}, fmt.Errorf("parse %s: should have more than 0 and not more than 3 components", version)
 	}
 
 	major, err := strconv.ParseUint(parts[0], 10, 0)
 	if err != nil {
-		return VersionConstraint{}, fmt.Errorf("invalid major version: %s", version)
+		return VersionConstraint{}, fmt.Errorf("parse %s: invalid major version: %s", version, err)
 	}
 
 	if len(parts) == 1 ||
@@ -88,7 +88,7 @@ func parseRequiredVersion(version string) (VersionConstraint, error) {
 
 	minor, err := strconv.ParseUint(parts[1], 10, 0)
 	if err != nil {
-		return VersionConstraint{}, fmt.Errorf("invalid minor version: %s", version)
+		return VersionConstraint{}, fmt.Errorf("parse %s: invalid minor version: %s", version, err)
 	}
 
 	if len(parts) == 2 ||
@@ -104,7 +104,7 @@ func parseRequiredVersion(version string) (VersionConstraint, error) {
 
 	patch, err := strconv.ParseUint(parts[2], 10, 0)
 	if err != nil {
-		return VersionConstraint{}, fmt.Errorf("invalid patch version: %s", version)
+		return VersionConstraint{}, fmt.Errorf("parse %s: invalid patch version: %s", version, err)
 	}
 
 	return VersionConstraint{
@@ -117,11 +117,11 @@ func parseRequiredVersion(version string) (VersionConstraint, error) {
 	}, nil
 }
 
-func latestMatchingStepVersion(version VersionConstraint, stepVersions StepGroupModel) (StepVersionModel, bool) {
-	switch version.VersionLockType {
+func latestMatchingStepVersion(constraint VersionConstraint, stepVersions StepGroupModel) (StepVersionModel, bool) {
+	switch constraint.VersionLockType {
 	case Fixed:
 		{
-			version := version.Version.String()
+			version := constraint.Version.String()
 			latestStep, versionFound := stepVersions.Versions[version]
 
 			if !versionFound {
@@ -137,8 +137,8 @@ func latestMatchingStepVersion(version VersionConstraint, stepVersions StepGroup
 	case MinorLocked:
 		{
 			latestVersion := Semver{
-				Major: version.Version.Major,
-				Minor: version.Version.Minor,
+				Major: constraint.Version.Major,
+				Minor: constraint.Version.Minor,
 			}
 			latestStep := StepModel{}
 
@@ -148,8 +148,8 @@ func latestMatchingStepVersion(version VersionConstraint, stepVersions StepGroup
 					log.Warnf("Invalid step (%s) version: %s", step.Source, fullVersion)
 					continue
 				}
-				if stepVersion.Major != version.Version.Major &&
-					stepVersion.Minor != version.Version.Minor {
+				if stepVersion.Major != constraint.Version.Major &&
+					stepVersion.Minor != constraint.Version.Minor {
 					continue
 				}
 
@@ -168,7 +168,7 @@ func latestMatchingStepVersion(version VersionConstraint, stepVersions StepGroup
 	case MajorLocked:
 		{
 			latestStepVersion := Semver{
-				Major: version.Version.Major,
+				Major: constraint.Version.Major,
 			}
 			latestStep := StepModel{}
 
@@ -178,7 +178,7 @@ func latestMatchingStepVersion(version VersionConstraint, stepVersions StepGroup
 					log.Warnf("Invalid step (%s) version: %s", step.Source, fullVersion)
 					continue
 				}
-				if stepVersion.Major != version.Version.Major {
+				if stepVersion.Major != constraint.Version.Major {
 					continue
 				}
 
