@@ -181,7 +181,7 @@ func copyStepYML(libraryURL, id, version, dest string) error {
 	}
 
 	stepCollectionDir := stepman.GetStepCollectionDirPath(route, id, version)
-	stepYMLSrc := filepath.Join(stepCollectionDir, "/step.yml")
+	stepYMLSrc := filepath.Join(stepCollectionDir, "step.yml")
 	if err := command.CopyFile(stepYMLSrc, dest); err != nil {
 		return fmt.Errorf("copy command failed: %s", err)
 	}
