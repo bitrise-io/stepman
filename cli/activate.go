@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/bitrise-io/go-utils/command"
@@ -35,7 +36,7 @@ var activateCommand = cli.Command{
 		},
 		cli.StringFlag{
 			Name:  CopyYMLKey + ", " + copyYMLKeyShort,
-			Usage: "Path where the selected/activated step's step.yml will be copied.",
+			Usage: "Path where the activated step's step.yml will be copied.",
 		},
 		cli.BoolFlag{
 			Name:  UpdateKey + ", " + updateKeyShort,
@@ -53,17 +54,17 @@ var activateCommand = cli.Command{
 func activate(c *cli.Context) error {
 	collectionURI := c.String(CollectionKey)
 	if collectionURI == "" {
-		return fmt.Errorf("activate: no steplib specified")
+		return fmt.Errorf("no steplib specified")
 	}
 
 	id := c.String(IDKey)
 	if id == "" {
-		return fmt.Errorf("activate: no step ID specified")
+		return fmt.Errorf("no step ID specified")
 	}
 
 	path := c.String(PathKey)
 	if path == "" {
-		return fmt.Errorf("activate: no destination path specified")
+		return fmt.Errorf("no destination path specified")
 	}
 
 	version := c.String(VersionKey)
@@ -77,26 +78,26 @@ func activate(c *cli.Context) error {
 func Activate(libraryURL, id, version, destination, destinationStepYML string, updateLibrary bool) error {
 	library, err := stepman.ReadStepSpec(libraryURL)
 	if err != nil {
-		return fmt.Errorf("activate: failed to read %s steplib: %s", libraryURL, err)
+		return fmt.Errorf("failed to read %s steplib: %s", libraryURL, err)
 	}
 
 	step, version, err := queryStep(library, id, version, updateLibrary)
 	if err != nil {
-		return fmt.Errorf("activate: failed to find step: %s", err)
+		return fmt.Errorf("failed to find step: %s", err)
 	}
 
 	srcFolder, err := downloadStep(library, id, version, step)
 	if err != nil {
-		return fmt.Errorf("activate: failed to download step: %s", err)
+		return fmt.Errorf("failed to download step: %s", err)
 	}
 
 	if err := copyStep(srcFolder, destination); err != nil {
-		return fmt.Errorf("activate: copy step failed: %s", err)
+		return fmt.Errorf("copy step failed: %s", err)
 	}
 
 	if destinationStepYML != "" {
 		if err := copyStepYML(libraryURL, id, version, destinationStepYML); err != nil {
-			return fmt.Errorf("activate: copy step.yml failed: %s", err)
+			return fmt.Errorf("copy step.yml failed: %s", err)
 		}
 	}
 
@@ -111,22 +112,22 @@ func queryStep(library models.StepCollectionModel, id, version string, updateLib
 		var err error
 		library, err = stepman.UpdateLibrary(library.SteplibSource)
 		if err != nil {
-			return models.StepModel{}, "", fmt.Errorf("query step: failed to update %s steplib: %s", library.SteplibSource, err)
+			return models.StepModel{}, "", fmt.Errorf("failed to update %s steplib: %s", library.SteplibSource, err)
 		}
 
 		step, stepFound, versionFound = library.GetStep(id, version)
 	}
 	if !stepFound {
-		return models.StepModel{}, "", fmt.Errorf("query step: %s steplib does not contain %s step", library.SteplibSource, id)
+		return models.StepModel{}, "", fmt.Errorf("%s steplib does not contain %s step", library.SteplibSource, id)
 	}
 	if !versionFound {
-		return models.StepModel{}, "", fmt.Errorf("query step: %s steplib does not contain %s step %s version", library.SteplibSource, id, version)
+		return models.StepModel{}, "", fmt.Errorf("%s steplib does not contain %s step %s version", library.SteplibSource, id, version)
 	}
 
 	if version == "" {
 		latest, err := library.GetLatestStepVersion(id)
 		if err != nil {
-			return models.StepModel{}, "", fmt.Errorf("query step: failed to find latest version of %s step", id)
+			return models.StepModel{}, "", fmt.Errorf("failed to find latest version of %s step", id)
 		}
 		version = latest
 	}
@@ -137,15 +138,15 @@ func queryStep(library models.StepCollectionModel, id, version string, updateLib
 func downloadStep(library models.StepCollectionModel, id, version string, step models.StepModel) (string, error) {
 	route, found := stepman.ReadRoute(library.SteplibSource)
 	if !found {
-		return "", fmt.Errorf("download step: no route found for %s steplib", library.SteplibSource)
+		return "", fmt.Errorf("no route found for %s steplib", library.SteplibSource)
 	}
 
 	stepCacheDir := stepman.GetStepCacheDirPath(route, id, version)
 	if exist, err := pathutil.IsPathExists(stepCacheDir); err != nil {
-		return "", fmt.Errorf("download step: failed to check if %s path exist: %s", stepCacheDir, err)
+		return "", fmt.Errorf("failed to check if %s path exist: %s", stepCacheDir, err)
 	} else if !exist {
 		if err := stepman.DownloadStep(library.SteplibSource, library, id, version, step.Source.Commit); err != nil {
-			return "", fmt.Errorf("download step: download failed: %s", err)
+			return "", fmt.Errorf("download failed: %s", err)
 		}
 	}
 
@@ -154,15 +155,15 @@ func downloadStep(library models.StepCollectionModel, id, version string, step m
 
 func copyStep(src, dst string) error {
 	if exist, err := pathutil.IsPathExists(dst); err != nil {
-		return fmt.Errorf("copy step: failed to check if %s path exist: %s", dst, err)
+		return fmt.Errorf("failed to check if %s path exist: %s", dst, err)
 	} else if !exist {
 		if err := os.MkdirAll(dst, 0777); err != nil {
-			return fmt.Errorf("copy step: failed to create dir for %s path: %s", dst, err)
+			return fmt.Errorf("failed to create dir for %s path: %s", dst, err)
 		}
 	}
 
 	if err := command.CopyDir(src+"/", dst, true); err != nil {
-		return fmt.Errorf("copy step: copy command failed: %s", err)
+		return fmt.Errorf("copy command failed: %s", err)
 	}
 	return nil
 }
@@ -170,19 +171,19 @@ func copyStep(src, dst string) error {
 func copyStepYML(libraryURL, id, version, dest string) error {
 	route, found := stepman.ReadRoute(libraryURL)
 	if !found {
-		return fmt.Errorf("copy step.yml: no route found for %s steplib", libraryURL)
+		return fmt.Errorf("no route found for %s steplib", libraryURL)
 	}
 
 	if exist, err := pathutil.IsPathExists(dest); err != nil {
-		return fmt.Errorf("copy step.yml: failed to check if %s path exist: %s", dest, err)
+		return fmt.Errorf("failed to check if %s path exist: %s", dest, err)
 	} else if exist {
-		return fmt.Errorf("copy step.yml: %s already exist", dest)
+		return fmt.Errorf("%s already exist", dest)
 	}
 
 	stepCollectionDir := stepman.GetStepCollectionDirPath(route, id, version)
-	stepYMLSrc := stepCollectionDir + "/step.yml"
+	stepYMLSrc := filepath.Join(stepCollectionDir, "/step.yml")
 	if err := command.CopyFile(stepYMLSrc, dest); err != nil {
-		return fmt.Errorf("copy step.yml: copy command failed: %s", err)
+		return fmt.Errorf("copy command failed: %s", err)
 	}
 	return nil
 }
