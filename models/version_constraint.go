@@ -18,6 +18,7 @@ func (v *Semver) String() string {
 	return fmt.Sprintf("%d.%d.%d", v.Major, v.Minor, v.Patch)
 }
 
+// ParseSemver returns Semver model from raw version string
 func ParseSemver(version string) (Semver, error) {
 	versionParts := strings.Split(version, ".")
 	if len(versionParts) != 3 {
