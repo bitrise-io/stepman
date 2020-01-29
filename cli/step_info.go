@@ -211,7 +211,8 @@ func QueryStepInfoFromLibrary(library, id, version string) (models.StepInfoModel
 	stepDefinitionPth := filepath.Join(stepDir, "step.yml")
 
 	infoPath := stepman.GetStepGlobalInfoPath(route, id)
-	groupInfo, err := stepman.ParseStepGroupInfo(infoPath)
+
+	groupInfo, _, err := stepman.ParseStepGroupInfoModel(infoPath)
 	if err != nil {
 		return models.StepInfoModel{}, err
 	}
