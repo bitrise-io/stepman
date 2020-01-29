@@ -27,6 +27,7 @@ const (
 // String ...
 func (stepInfo StepInfoModel) String() string {
 	str := ""
+	fmt.Println(stepInfo.GroupInfo)
 	if stepInfo.GroupInfo.DeprecateNotes != "" {
 		str += colorstring.Red("This step is deprecated")
 
@@ -34,6 +35,9 @@ func (stepInfo StepInfoModel) String() string {
 			str += colorstring.Redf(" and will be removed: %s", stepInfo.GroupInfo.RemovalDate)
 		}
 		str += "\n"
+	}
+	if len(stepInfo.GroupInfo.Maintainer) > 0 {
+		str += fmt.Sprintf("%s %s\n", colorstring.Blue("Maintainer:"), stepInfo.GroupInfo.Maintainer)
 	}
 	str += fmt.Sprintf("%s %s\n", colorstring.Blue("Library:"), stepInfo.Library)
 	str += fmt.Sprintf("%s %s\n", colorstring.Blue("ID:"), stepInfo.ID)
