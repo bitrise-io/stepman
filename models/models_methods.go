@@ -271,7 +271,7 @@ func (collection StepCollectionModel) GetStepVersion(id, version string) (stepVe
 		version = stepVersions.LatestVersionNumber
 	}
 
-	requiredVersion, err := parseRequiredVersion(version)
+	requiredVersion, err := ParseRequiredVersion(version)
 	if err != nil {
 		return StepVersionModel{}, true, false
 	}
