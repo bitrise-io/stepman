@@ -48,6 +48,7 @@ func parseSemver(version string) (Semver, error) {
 type VersionLockType int
 
 const (
+	// InvalidVersionConstraint is the value assigned to a VersionLockType if not explicitly initialized
 	InvalidVersionConstraint VersionLockType = iota
 	// Fixed is an exact version, e.g. 1.2.5
 	Fixed
