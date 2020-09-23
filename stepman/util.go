@@ -422,7 +422,7 @@ func ReGenerateLibrarySpec(route SteplibRoute) error {
 		return errors.New("Not initialized")
 	}
 
-	specPth := pth + "/steplib.yml"
+	specPth := GetStepCollectionSpecPath(route)
 	collection, err := ParseStepCollection(specPth)
 	if err != nil {
 		return err

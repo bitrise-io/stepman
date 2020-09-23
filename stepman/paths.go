@@ -200,6 +200,10 @@ func GetLibraryBaseDirPath(route SteplibRoute) string {
 	return path.Join(GetCollectionsDirPath(), route.FolderAlias, "collection")
 }
 
+func GetStepCollectionSpecPath(route SteplibRoute) string {
+	return path.Join(GetLibraryBaseDirPath(route), "steplib.yml")
+}
+
 // GetAllStepCollectionPath ...
 func GetAllStepCollectionPath() []string {
 	routes, err := readRouteMap()

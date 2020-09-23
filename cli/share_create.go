@@ -54,6 +54,19 @@ func validateTag(tag string) error {
 	return nil
 }
 
+func createDefaultStepGroupSpec(stepDirInSteplib string) error {
+	model := models.StepGroupInfoModel{}
+	model.Maintainer = "community"
+
+	marshalled, err := yaml.Marshal(model)
+	if err != nil {
+		return err
+	}
+
+	pth := path.Join(stepDirInSteplib, "step-info.yml")
+	return fileutil.WriteBytesToFile(pth, marshalled)
+}
+
 func create(c *cli.Context) error {
 	toolMode := c.Bool(ToolMode)
 
@@ -92,6 +105,7 @@ func create(c *cli.Context) error {
 	if !found {
 		fail("No route found for collectionURI (%s)", share.Collection)
 	}
+
 	stepDirInSteplib := stepman.GetStepCollectionDirPath(route, stepID, tag)
 	stepYMLPathInSteplib := path.Join(stepDirInSteplib, "step.yml")
 	if exist, err := pathutil.IsPathExists(stepYMLPathInSteplib); err != nil {
@@ -109,6 +123,17 @@ func create(c *cli.Context) error {
 		}
 	}
 	log.Donef("all inputs are valid")
+
+	collectionSpecPath := stepman.GetStepCollectionSpecPath(route)
+	collection, err := stepman.ParseStepCollection(collectionSpecPath)
+	if err != nil {
+		fail("Failed to read step spec, error: %s", err)
+	}
+	if !collection.IsAnyStepVersionExist(stepID) {
+		if err := createDefaultStepGroupSpec(stepDirInSteplib); err != nil {
+			fail("Failed to create step group spec for new step: %s", err)
+		}
+	}
 
 	// Clone Step to tmp dir
 	fmt.Println()
