@@ -194,7 +194,7 @@ func addStepVersionToStepGroup(step models.StepModel, version string, stepGroup 
 	return stepGroup, nil
 }
 
-func generateStepLibCollection(route SteplibRoute, templateCollection models.StepCollectionModel) (models.StepCollectionModel, error) {
+func parseStepCollection(route SteplibRoute, templateCollection models.StepCollectionModel) (models.StepCollectionModel, error) {
 	collection := models.StepCollectionModel{
 		FormatVersion:         templateCollection.FormatVersion,
 		GeneratedAtTimeStamp:  time.Now().Unix(),
@@ -301,7 +301,7 @@ func generateStepLibCollection(route SteplibRoute, templateCollection models.Ste
 	return collection, nil
 }
 
-func generateSlimStepLibModel(collection models.StepCollectionModel) models.StepCollectionModel {
+func generateSlimStepModel(collection models.StepCollectionModel) models.StepCollectionModel {
 
 	slimCollection := models.StepCollectionModel{
 		FormatVersion:         collection.FormatVersion,
@@ -343,7 +343,7 @@ func WriteStepSpecToFile(templateCollection models.StepCollectionModel, route St
 		}
 	}
 
-	collection, err := generateStepLibCollection(route, templateCollection)
+	collection, err := parseStepCollection(route, templateCollection)
 	if err != nil {
 		return err
 	}
@@ -358,7 +358,7 @@ func WriteStepSpecToFile(templateCollection models.StepCollectionModel, route St
 	}
 
 	pth = GetSlimStepSpecPath(route)
-	slimCollection := generateSlimStepLibModel(collection)
+	slimCollection := generateSlimStepModel(collection)
 	if err != nil {
 		return err
 	}
