@@ -2,10 +2,13 @@ package cli
 
 import (
 	"fmt"
+	"path"
+	"strings"
 
 	"github.com/bitrise-io/colorstring"
 	"github.com/bitrise-io/go-utils/command/git"
 	"github.com/bitrise-io/go-utils/log"
+	"github.com/bitrise-io/go-utils/pathutil"
 	"github.com/bitrise-io/stepman/stepman"
 	"github.com/urfave/cli"
 )
@@ -43,11 +46,11 @@ func finish(c *cli.Context) error {
 		fail(err.Error())
 	}
 
-	out, err := repo.Status("--porcelain").RunAndReturnTrimmedCombinedOutput()
+	gitstatus, err := repo.Status("--porcelain").RunAndReturnTrimmedCombinedOutput()
 	if err != nil {
 		fail(err.Error())
 	}
-	if out == "" {
+	if gitstatus == "" {
 		log.Warnf("No git changes, it seems you already called this command")
 		fmt.Println()
 		printFinishShare()
@@ -55,9 +58,21 @@ func finish(c *cli.Context) error {
 	}
 
 	stepDirInSteplib := stepman.GetStepCollectionDirPath(route, share.StepID, share.StepTag)
-	stepYMLPathInSteplib := stepDirInSteplib + "/step.yml"
+	stepYMLPathInSteplib := path.Join(stepDirInSteplib, "/step.yml")
 	log.Printf("new step.yml: %s", stepYMLPathInSteplib)
 	if err := repo.Add(stepYMLPathInSteplib).Run(); err != nil {
+		fail(err.Error())
+	}
+	// add auto generated step-info.yml for new steps
+	stepInfoYMLPathInSteplib := stepman.GetStepGlobalInfoPath(route, share.StepID)
+	if exists, err := pathutil.IsPathExists(stepInfoYMLPathInSteplib); err == nil {
+		if exists && strings.Contains(gitstatus, path.Base(stepInfoYMLPathInSteplib)) {
+			log.Printf("new step-info.yml: %s", stepInfoYMLPathInSteplib)
+			if err := repo.Add(stepYMLPathInSteplib).Run(); err != nil {
+				fail(err.Error())
+			}
+		}
+	} else {
 		fail(err.Error())
 	}
 
