@@ -76,7 +76,7 @@ func create(c *cli.Context) error {
 		fail("No Step url specified")
 	}
 
-	stepID := c.String(StepIDKEy)
+	stepID := c.String(StepIDKey)
 	if stepID == "" {
 		stepID = getStepIDFromGit(gitURI)
 	}
@@ -85,7 +85,7 @@ func create(c *cli.Context) error {
 	}
 	r := regexp.MustCompile(`[a-z0-9-]+`)
 	if find := r.FindString(stepID); find != stepID {
-		fail("StepID doesn't conforms to: [a-z0-9-]")
+		fail("StepID doesn't conform to: [a-z0-9-]+")
 	}
 
 	route, found := stepman.ReadRoute(share.Collection)
@@ -97,14 +97,14 @@ func create(c *cli.Context) error {
 	if exist, err := pathutil.IsPathExists(stepYMLPathInSteplib); err != nil {
 		fail("Failed to check step.yml path in steplib, err: %s", err)
 	} else if exist {
-		log.Printf("Step already exist in path: %s", stepDirInSteplib)
-		log.Warnf("For sharing it's required to work with a clean Step repository.")
-		if val, err := goinp.AskForBool("Would you like to overwrite local version of Step?"); err != nil {
+		log.Printf("Step already exists in path: %s", stepDirInSteplib)
+		log.Warnf("Sharing requires to work in a clean Step repository.")
+		if val, err := goinp.AskForBool("Would you like to overwrite the local version of the Step?"); err != nil {
 			fail("Failed to get bool, err: %s", err)
 		} else {
 			if !val {
-				log.Errorf("Unfortunately we can't continue with sharing without an overwrite exist step.yml.")
-				fail("Please finish your changes, run this command again and allow it to overwrite the exist step.yml!")
+				log.Errorf("Unfortunately, we can't continue with sharing without overwriting the existing step.yml.")
+				fail("Please finish your changes, run this command again, and allow it to overwrite the existing step.yml!")
 			}
 		}
 	}
@@ -141,7 +141,7 @@ func create(c *cli.Context) error {
 	}
 	var stepModel models.StepModel
 	if err := yaml.Unmarshal(bytes, &stepModel); err != nil {
-		fail("Failed to unmarchal Step, err: %s", err)
+		fail("Failed to unmarshal Step, err: %s", err)
 	}
 
 	commit, err := repo.RevParse("HEAD").RunAndReturnTrimmedCombinedOutput()
@@ -171,7 +171,7 @@ func create(c *cli.Context) error {
 		}
 
 		if len(options.ValueOptions) > 0 && value == "" {
-			log.Warnf("Step input with 'value_options', should contain default value!")
+			log.Warnf("Step input with 'value_options' should contain a default value!")
 			fail("Missing default value for Step input (%s).", key)
 		}
 	}
@@ -179,7 +179,7 @@ func create(c *cli.Context) error {
 		log.Warnf("Step summary should be one line!")
 	}
 	if utf8.RuneCountInString(*stepModel.Summary) > maxSummaryLength {
-		log.Warnf("Step summary should contains maximum (%d) characters, actual: (%d)!", maxSummaryLength, utf8.RuneCountInString(*stepModel.Summary))
+		log.Warnf("Step summary should contain maximum (%d) characters, actual: (%d)!", maxSummaryLength, utf8.RuneCountInString(*stepModel.Summary))
 	}
 	log.Donef("step is valid")
 
@@ -205,7 +205,7 @@ func create(c *cli.Context) error {
 	collectionDir := stepman.GetLibraryBaseDirPath(route)
 	steplibRepo, err := git.New(collectionDir)
 	if err != nil {
-		fail("Failed to init setplib repo: %s", err)
+		fail("Failed to init steplib repo: %s", err)
 	}
 	if err := steplibRepo.Checkout(share.ShareBranchName()).Run(); err != nil {
 		if err := steplibRepo.NewBranch(share.ShareBranchName()).Run(); err != nil {
@@ -215,20 +215,20 @@ func create(c *cli.Context) error {
 
 	stepBytes, err := yaml.Marshal(stepModel)
 	if err != nil {
-		fail("Failed to marcshal Step model, err: %s", err)
+		fail("Failed to marshal Step model, err: %s", err)
 	}
 	if err := fileutil.WriteBytesToFile(stepYMLPathInSteplib, stepBytes); err != nil {
 		fail("Failed to write Step to file, err: %s", err)
 	}
 
-	log.Printf("your Step (%s@%s) added to the local StepLib (%s).", share.StepID, share.StepTag, stepDirInSteplib)
+	log.Printf("your Step (%s@%s) has been added to the local StepLib (%s).", share.StepID, share.StepTag, stepDirInSteplib)
 
 	// Update spec.json
 	if err := stepman.ReGenerateLibrarySpec(route); err != nil {
 		fail("Failed to re-create steplib, err: %s", err)
 	}
 
-	log.Donef("the StepLib changes prepared on branch: %s", share.ShareBranchName())
+	log.Donef("the StepLib changes are now prepared on branch: %s", share.ShareBranchName())
 
 	fmt.Println()
 	log.Printf(GuideTextForShareFinish(toolMode))
