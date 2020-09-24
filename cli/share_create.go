@@ -54,7 +54,7 @@ func validateTag(tag string) error {
 	return nil
 }
 
-func createDefaultStepGroupSpec(stepDirInSteplib string) error {
+func createDefaultStepGroupSpec(route stepman.SteplibRoute, id string) error {
 	model := models.StepGroupInfoModel{}
 	model.Maintainer = "community"
 
@@ -63,7 +63,7 @@ func createDefaultStepGroupSpec(stepDirInSteplib string) error {
 		return err
 	}
 
-	pth := path.Join(stepDirInSteplib, "step-info.yml")
+	pth := stepman.GetStepGlobalInfoPath(route, id)
 	return fileutil.WriteBytesToFile(pth, marshalled)
 }
 
@@ -128,11 +128,6 @@ func create(c *cli.Context) error {
 	collection, err := stepman.ParseStepCollection(collectionSpecPath)
 	if err != nil {
 		fail("Failed to read step spec, error: %s", err)
-	}
-	if !collection.IsAnyStepVersionExist(stepID) {
-		if err := createDefaultStepGroupSpec(stepDirInSteplib); err != nil {
-			fail("Failed to create step group spec for new step: %s", err)
-		}
 	}
 
 	// Clone Step to tmp dir
@@ -244,6 +239,12 @@ func create(c *cli.Context) error {
 	}
 	if err := fileutil.WriteBytesToFile(stepYMLPathInSteplib, stepBytes); err != nil {
 		fail("Failed to write Step to file, err: %s", err)
+	}
+
+	if !collection.IsAnyStepVersionExist(stepID) {
+		if err := createDefaultStepGroupSpec(route, stepID); err != nil {
+			fail("Failed to create step group spec for new step: %s", err)
+		}
 	}
 
 	log.Printf("your Step (%s@%s) has been added to the local StepLib (%s).", share.StepID, share.StepTag, stepDirInSteplib)
