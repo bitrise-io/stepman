@@ -54,11 +54,14 @@ func validateTag(tag string) error {
 	return nil
 }
 
-func createDefaultStepGroupSpec(route stepman.SteplibRoute, id string) error {
+func getDefaultStepGroupSpec() models.StepGroupInfoModel {
 	model := models.StepGroupInfoModel{}
 	model.Maintainer = "community"
+	return model
+}
 
-	marshalled, err := yaml.Marshal(model)
+func createDefaultStepGroupSpec(route stepman.SteplibRoute, id string) error {
+	marshalled, err := yaml.Marshal(getDefaultStepGroupSpec())
 	if err != nil {
 		return err
 	}
