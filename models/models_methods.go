@@ -252,12 +252,6 @@ func (collection StepCollectionModel) IsStepExist(id, version string) bool {
 	return (stepFound && versionFound)
 }
 
-func (collection StepCollectionModel) IsAnyStepVersionExist(id string) bool {
-	stepHash := collection.Steps
-	_, found := stepHash[id]
-	return found
-}
-
 // GetStep ...
 func (collection StepCollectionModel) GetStep(id, version string) (StepModel, bool, bool) {
 	stepVer, isStepFound, isVersionFound := collection.GetStepVersion(id, version)
