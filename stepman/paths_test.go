@@ -2,6 +2,7 @@ package stepman
 
 import (
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"os"
 	"path"
 	"testing"
@@ -24,7 +25,8 @@ func GivenRoute() SteplibRoute {
 
 func Test_GivenHomeDir_WhenGetStepmanDirPathCalled_ThenGoodPathReturned(t *testing.T) {
 	// Given
-	os.Setenv("HOME", GivenHomePath)
+	err := os.Setenv("HOME", GivenHomePath)
+	require.NoError(t, err)
 	expected := path.Join(GivenHomePath, ".stepman")
 
 	// When
@@ -36,7 +38,8 @@ func Test_GivenHomeDir_WhenGetStepmanDirPathCalled_ThenGoodPathReturned(t *testi
 
 func Test_GivenStepmanDir_WhenGetCollectionDirPathCalled_ThenGoodPathReturned(t *testing.T) {
 	// Given
-	os.Setenv("HOME", GivenHomePath)
+	err := os.Setenv("HOME", GivenHomePath)
+	require.NoError(t, err)
 	expected := path.Join(GetStepmanDirPath(), "step_collections")
 
 	// When
