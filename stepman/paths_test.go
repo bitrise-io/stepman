@@ -8,16 +8,16 @@ import (
 )
 
 const (
-	GivenSteplibUri  = "https://github.com/bitrise-io/steplib"
+	GivenSteplibURI  = "https://github.com/bitrise-io/steplib"
 	GivenFolderAlias = "12334556"
 	GivenHomePath    = "/usr/testeruser/"
-	GivenStepId      = "test-custom-step"
+	GivenStepID      = "test-custom-step"
 	GivenStepVersion = "0.5.6"
 )
 
 func GivenRoute() SteplibRoute {
 	return SteplibRoute{
-		SteplibURI:  GivenSteplibUri,
+		SteplibURI:  GivenSteplibURI,
 		FolderAlias: GivenFolderAlias,
 	}
 }
@@ -61,7 +61,7 @@ func Test_GivenRoute_WhenGetLibraryBaseDirPathCalled_ThenGoodPathReturned(t *tes
 func Test_GivenRouteAndStepId_WhenGetStepCollectionDirPath_ThenGoodPathReturned(t *testing.T) {
 	// Given
 	route := GivenRoute()
-	step := GivenStepId
+	step := GivenStepID
 	version := GivenStepVersion
 	expected := path.Join(GetLibraryBaseDirPath(route), "steps", step, version)
 
@@ -75,7 +75,7 @@ func Test_GivenRouteAndStepId_WhenGetStepCollectionDirPath_ThenGoodPathReturned(
 func Test_GivenRouteAndStepId_WhenGetStepGlobalInfoPathCalled_ThenGoodPathReturned(t *testing.T) {
 	// Given
 	route := GivenRoute()
-	step := GivenStepId
+	step := GivenStepID
 	expected := path.Join(GetLibraryBaseDirPath(route), "steps", step, "step-info.yml")
 
 	// When
