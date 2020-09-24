@@ -67,6 +67,15 @@ func createDefaultStepGroupSpec(route stepman.SteplibRoute, id string) error {
 	return fileutil.WriteBytesToFile(pth, marshalled)
 }
 
+func isStepNew(route stepman.SteplibRoute, id string) (bool, error) {
+	stepRootDir := path.Dir(stepman.GetStepGlobalInfoPath(route, id))
+	exists, err := pathutil.IsDirExists(stepRootDir)
+	if err != nil {
+		return false, err
+	}
+	return !exists, nil
+}
+
 func create(c *cli.Context) error {
 	toolMode := c.Bool(ToolMode)
 
@@ -123,12 +132,6 @@ func create(c *cli.Context) error {
 		}
 	}
 	log.Donef("all inputs are valid")
-
-	collectionSpecPath := stepman.GetStepCollectionSpecPath(route)
-	collection, err := stepman.ParseStepCollection(collectionSpecPath)
-	if err != nil {
-		fail("Failed to read step spec, error: %s", err)
-	}
 
 	// Clone Step to tmp dir
 	fmt.Println()
@@ -207,6 +210,11 @@ func create(c *cli.Context) error {
 	fmt.Println()
 	log.Infof("Integrating the Step into the Steplib...")
 
+	isStepNew, err := isStepNew(route, stepID)
+	if err != nil {
+		fail("Failed to check if step is new, err: %s", err)
+	}
+
 	share.StepID = stepID
 	share.StepTag = tag
 	if err := WriteShareSteplibToFile(share); err != nil {
@@ -241,7 +249,7 @@ func create(c *cli.Context) error {
 		fail("Failed to write Step to file, err: %s", err)
 	}
 
-	if !collection.IsAnyStepVersionExist(stepID) {
+	if isStepNew {
 		if err := createDefaultStepGroupSpec(route, stepID); err != nil {
 			fail("Failed to create step group spec for new step: %s", err)
 		}
