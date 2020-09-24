@@ -46,7 +46,7 @@ func finish(c *cli.Context) error {
 		fail(err.Error())
 	}
 
-	gitstatus, err := repo.Status("--porcelain").RunAndReturnTrimmedCombinedOutput()
+	gitstatus, err := repo.Status("-u", "--porcelain").RunAndReturnTrimmedCombinedOutput()
 	if err != nil {
 		fail(err.Error())
 	}
