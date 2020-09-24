@@ -68,7 +68,7 @@ func finish(c *cli.Context) error {
 	if exists, err := pathutil.IsPathExists(stepInfoYMLPathInSteplib); err == nil {
 		if exists && strings.Contains(gitstatus, path.Base(stepInfoYMLPathInSteplib)) {
 			log.Printf("new step-info.yml: %s", stepInfoYMLPathInSteplib)
-			if err := repo.Add(stepYMLPathInSteplib).Run(); err != nil {
+			if err := repo.Add(stepInfoYMLPathInSteplib).Run(); err != nil {
 				fail(err.Error())
 			}
 		}
