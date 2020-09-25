@@ -23,6 +23,22 @@ func printFinishShare() {
 	fmt.Println(b.String())
 }
 
+func addStepGroupSpecIfExists(route stepman.SteplibRoute, stepID, gitstatus string, repo git.Git) error {
+	stepInfoYMLPathInSteplib := stepman.GetStepGlobalInfoPath(route, stepID)
+	if exists, err := pathutil.IsPathExists(stepInfoYMLPathInSteplib); err == nil {
+		if exists && strings.Contains(gitstatus, path.Base(stepInfoYMLPathInSteplib)) {
+			log.Printf("new step-info.yml: %s", stepInfoYMLPathInSteplib)
+			if err := repo.Add(stepInfoYMLPathInSteplib).Run(); err != nil {
+				return fmt.Errorf("add step-info.yml: %w", err)
+			}
+		}
+	} else {
+		return fmt.Errorf("add step-info.yml: %w", err)
+	}
+
+	return nil
+}
+
 func finish(c *cli.Context) error {
 	log.Infof("Validating Step share params...")
 
@@ -65,15 +81,7 @@ func finish(c *cli.Context) error {
 		fail(err.Error())
 	}
 	// add auto generated step-info.yml for new steps
-	stepInfoYMLPathInSteplib := stepman.GetStepGlobalInfoPath(route, share.StepID)
-	if exists, err := pathutil.IsPathExists(stepInfoYMLPathInSteplib); err == nil {
-		if exists && strings.Contains(gitstatus, path.Base(stepInfoYMLPathInSteplib)) {
-			log.Printf("new step-info.yml: %s", stepInfoYMLPathInSteplib)
-			if err := repo.Add(stepInfoYMLPathInSteplib).Run(); err != nil {
-				fail(err.Error())
-			}
-		}
-	} else {
+	if err := addStepGroupSpecIfExists(route, share.StepID, gitstatus, repo); err != nil {
 		fail(err.Error())
 	}
 
