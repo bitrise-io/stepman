@@ -27,7 +27,10 @@ func Test_GivenHomeDir_WhenGetStepmanDirPathCalled_ThenGoodPathReturned(t *testi
 	// Given
 	oldhome := os.Getenv("HOME")
 	err := os.Setenv("HOME", givenHomePath)
-	defer os.Setenv("HOME", oldhome)
+	defer func() {
+		err := os.Setenv("HOME", oldhome)
+		require.NoError(t, err)
+	}()
 	require.NoError(t, err)
 
 	expected := filepath.Join(givenHomePath, ".stepman")
@@ -43,7 +46,10 @@ func Test_GivenStepmanDir_WhenGetCollectionDirPathCalled_ThenGoodPathReturned(t 
 	// Given
 	oldhome := os.Getenv("HOME")
 	err := os.Setenv("HOME", givenHomePath)
-	defer os.Setenv("HOME", oldhome)
+	defer func() {
+		err := os.Setenv("HOME", oldhome)
+		require.NoError(t, err)
+	}()
 	require.NoError(t, err)
 
 	expected := filepath.Join(GetStepmanDirPath(), "step_collections")
