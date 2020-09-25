@@ -36,7 +36,7 @@ func Test_GivenHomeDir_WhenGetStepmanDirPathCalled_ThenGoodPathReturned(t *testi
 	actual := GetStepmanDirPath()
 
 	// Then
-	assert.Equal(t, actual, expected)
+	assert.Equal(t, expected, actual)
 }
 
 func Test_GivenStepmanDir_WhenGetCollectionDirPathCalled_ThenGoodPathReturned(t *testing.T) {
@@ -52,7 +52,7 @@ func Test_GivenStepmanDir_WhenGetCollectionDirPathCalled_ThenGoodPathReturned(t 
 	actual := GetCollectionsDirPath()
 
 	// Then
-	assert.Equal(t, actual, expected)
+	assert.Equal(t, expected, actual)
 }
 
 func Test_GivenRoute_WhenGetLibraryBaseDirPathCalled_ThenGoodPathReturned(t *testing.T) {
