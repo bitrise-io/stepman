@@ -25,8 +25,11 @@ func GivenRoute() SteplibRoute {
 
 func Test_GivenHomeDir_WhenGetStepmanDirPathCalled_ThenGoodPathReturned(t *testing.T) {
 	// Given
+	oldhome := os.Getenv("HOME")
 	err := os.Setenv("HOME", givenHomePath)
+	defer os.Setenv("HOME", oldhome)
 	require.NoError(t, err)
+
 	expected := filepath.Join(givenHomePath, ".stepman")
 
 	// When
@@ -38,8 +41,11 @@ func Test_GivenHomeDir_WhenGetStepmanDirPathCalled_ThenGoodPathReturned(t *testi
 
 func Test_GivenStepmanDir_WhenGetCollectionDirPathCalled_ThenGoodPathReturned(t *testing.T) {
 	// Given
-	os.Setenv("HOME", givenHomePath)
-	// require.NoError(t, err)
+	oldhome := os.Getenv("HOME")
+	err := os.Setenv("HOME", givenHomePath)
+	defer os.Setenv("HOME", oldhome)
+	require.NoError(t, err)
+
 	expected := filepath.Join(GetStepmanDirPath(), "step_collections")
 
 	// When
