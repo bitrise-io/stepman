@@ -4,7 +4,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"os"
-	"path"
+	"path/filepath"
 	"testing"
 )
 
@@ -27,7 +27,7 @@ func Test_GivenHomeDir_WhenGetStepmanDirPathCalled_ThenGoodPathReturned(t *testi
 	// Given
 	err := os.Setenv("HOME", GivenHomePath)
 	require.NoError(t, err)
-	expected := path.Join(GivenHomePath, ".stepman")
+	expected := filepath.Join(GivenHomePath, ".stepman")
 
 	// When
 	actual := GetStepmanDirPath()
@@ -38,9 +38,9 @@ func Test_GivenHomeDir_WhenGetStepmanDirPathCalled_ThenGoodPathReturned(t *testi
 
 func Test_GivenStepmanDir_WhenGetCollectionDirPathCalled_ThenGoodPathReturned(t *testing.T) {
 	// Given
-	err := os.Setenv("HOME", GivenHomePath)
-	require.NoError(t, err)
-	expected := path.Join(GetStepmanDirPath(), "step_collections")
+	os.Setenv("HOME", GivenHomePath)
+	// require.NoError(t, err)
+	expected := filepath.Join(GetStepmanDirPath(), "step_collections")
 
 	// When
 	actual := GetCollectionsDirPath()
@@ -52,7 +52,7 @@ func Test_GivenStepmanDir_WhenGetCollectionDirPathCalled_ThenGoodPathReturned(t 
 func Test_GivenRoute_WhenGetLibraryBaseDirPathCalled_ThenGoodPathReturned(t *testing.T) {
 	// Given
 	route := GivenRoute()
-	expected := path.Join(GetCollectionsDirPath(), route.FolderAlias, "collection")
+	expected := filepath.Join(GetCollectionsDirPath(), route.FolderAlias, "collection")
 
 	// When
 	actual := GetLibraryBaseDirPath(route)
@@ -66,7 +66,7 @@ func Test_GivenRouteAndStepId_WhenGetStepCollectionDirPath_ThenGoodPathReturned(
 	route := GivenRoute()
 	step := GivenStepID
 	version := GivenStepVersion
-	expected := path.Join(GetLibraryBaseDirPath(route), "steps", step, version)
+	expected := filepath.Join(GetLibraryBaseDirPath(route), "steps", step, version)
 
 	// When
 	actual := GetStepCollectionDirPath(route, step, version)
@@ -79,7 +79,7 @@ func Test_GivenRouteAndStepId_WhenGetStepGlobalInfoPathCalled_ThenGoodPathReturn
 	// Given
 	route := GivenRoute()
 	step := GivenStepID
-	expected := path.Join(GetLibraryBaseDirPath(route), "steps", step, "step-info.yml")
+	expected := filepath.Join(GetLibraryBaseDirPath(route), "steps", step, "step-info.yml")
 
 	// When
 	actual := GetStepGlobalInfoPath(route, step)

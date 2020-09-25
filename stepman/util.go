@@ -244,7 +244,7 @@ func parseStepCollection(route SteplibRoute, templateCollection models.StepColle
 
 				// Check for assets - STEP_SPEC_DIR/steps/step-id/assets
 				if collection.AssetsDownloadBaseURI != "" {
-					assetsFolderPth := path.Join(stepsCollectionDirPth, stepsDirName, stepID, "assets")
+					assetsFolderPth := filepath.Join(stepsCollectionDirPth, stepsDirName, stepID, "assets")
 					exist, err := pathutil.IsPathExists(assetsFolderPth)
 					if err != nil {
 						return err

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -55,9 +56,9 @@ func validateTag(tag string) error {
 }
 
 func getDefaultStepGroupSpec() models.StepGroupInfoModel {
-	model := models.StepGroupInfoModel{}
-	model.Maintainer = "community"
-	return model
+	return models.StepGroupInfoModel{
+		Maintainer: "community",
+	}
 }
 
 func createDefaultStepGroupSpec(route stepman.SteplibRoute, id string) error {
@@ -87,7 +88,7 @@ func create(c *cli.Context) error {
 	share, err := ReadShareSteplibFromFile()
 	if err != nil {
 		log.Errorf(err.Error())
-		fail("You have to start sharing with `stepman share start`, or you can read instructions with `stepman share`")
+		fail("You need to start sharing with `stepman share start`, you can read instructions with `stepman share`")
 	}
 
 	// Input validation
@@ -119,7 +120,7 @@ func create(c *cli.Context) error {
 	}
 
 	stepDirInSteplib := stepman.GetStepCollectionDirPath(route, stepID, tag)
-	stepYMLPathInSteplib := path.Join(stepDirInSteplib, "step.yml")
+	stepYMLPathInSteplib := filepath.Join(stepDirInSteplib, "step.yml")
 	if exist, err := pathutil.IsPathExists(stepYMLPathInSteplib); err != nil {
 		fail("Failed to check step.yml path in steplib, err: %s", err)
 	} else if exist {
@@ -160,7 +161,7 @@ func create(c *cli.Context) error {
 	}
 
 	// Update step.yml
-	tmpStepYMLPath := path.Join(tmp, "step.yml")
+	tmpStepYMLPath := filepath.Join(tmp, "step.yml")
 	bytes, err := fileutil.ReadBytesFromFile(tmpStepYMLPath)
 	if err != nil {
 		fail("Failed to read Step from file, err: %s", err)

@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/bitrise-io/colorstring"
@@ -58,7 +59,7 @@ func finish(c *cli.Context) error {
 	}
 
 	stepDirInSteplib := stepman.GetStepCollectionDirPath(route, share.StepID, share.StepTag)
-	stepYMLPathInSteplib := path.Join(stepDirInSteplib, "step.yml")
+	stepYMLPathInSteplib := filepath.Join(stepDirInSteplib, "step.yml")
 	log.Printf("new step.yml: %s", stepYMLPathInSteplib)
 	if err := repo.Add(stepYMLPathInSteplib).Run(); err != nil {
 		fail(err.Error())
