@@ -9,25 +9,25 @@ import (
 )
 
 const (
-	GivenSteplibURI  = "https://github.com/bitrise-io/steplib"
-	GivenFolderAlias = "12334556"
-	GivenHomePath    = "/usr/testeruser/"
-	GivenStepID      = "test-custom-step"
-	GivenStepVersion = "0.5.6"
+	givenSteplibURI  = "https://github.com/bitrise-io/steplib"
+	givenFolderAlias = "12334556"
+	givenHomePath    = "/usr/testeruser/"
+	givenStepID      = "test-custom-step"
+	givenStepVersion = "0.5.6"
 )
 
 func GivenRoute() SteplibRoute {
 	return SteplibRoute{
-		SteplibURI:  GivenSteplibURI,
-		FolderAlias: GivenFolderAlias,
+		SteplibURI:  givenSteplibURI,
+		FolderAlias: givenFolderAlias,
 	}
 }
 
 func Test_GivenHomeDir_WhenGetStepmanDirPathCalled_ThenGoodPathReturned(t *testing.T) {
 	// Given
-	err := os.Setenv("HOME", GivenHomePath)
+	err := os.Setenv("HOME", givenHomePath)
 	require.NoError(t, err)
-	expected := filepath.Join(GivenHomePath, ".stepman")
+	expected := filepath.Join(givenHomePath, ".stepman")
 
 	// When
 	actual := GetStepmanDirPath()
@@ -38,7 +38,7 @@ func Test_GivenHomeDir_WhenGetStepmanDirPathCalled_ThenGoodPathReturned(t *testi
 
 func Test_GivenStepmanDir_WhenGetCollectionDirPathCalled_ThenGoodPathReturned(t *testing.T) {
 	// Given
-	os.Setenv("HOME", GivenHomePath)
+	os.Setenv("HOME", givenHomePath)
 	// require.NoError(t, err)
 	expected := filepath.Join(GetStepmanDirPath(), "step_collections")
 
@@ -64,8 +64,8 @@ func Test_GivenRoute_WhenGetLibraryBaseDirPathCalled_ThenGoodPathReturned(t *tes
 func Test_GivenRouteAndStepId_WhenGetStepCollectionDirPath_ThenGoodPathReturned(t *testing.T) {
 	// Given
 	route := GivenRoute()
-	step := GivenStepID
-	version := GivenStepVersion
+	step := givenStepID
+	version := givenStepVersion
 	expected := filepath.Join(GetLibraryBaseDirPath(route), "steps", step, version)
 
 	// When
@@ -78,7 +78,7 @@ func Test_GivenRouteAndStepId_WhenGetStepCollectionDirPath_ThenGoodPathReturned(
 func Test_GivenRouteAndStepId_WhenGetStepGlobalInfoPathCalled_ThenGoodPathReturned(t *testing.T) {
 	// Given
 	route := GivenRoute()
-	step := GivenStepID
+	step := givenStepID
 	expected := filepath.Join(GetLibraryBaseDirPath(route), "steps", step, "step-info.yml")
 
 	// When

@@ -200,8 +200,7 @@ func GetLibraryBaseDirPath(route SteplibRoute) string {
 	return filepath.Join(GetCollectionsDirPath(), route.FolderAlias, "collection")
 }
 
-// GetStepCollectionSpecPath ...
-// Location of steplib.yml of the collection marked by this route
+// GetStepCollectionSpecPath Location of steplib.yml of the collection marked by this route
 func GetStepCollectionSpecPath(route SteplibRoute) string {
 	return filepath.Join(GetLibraryBaseDirPath(route), "steplib.yml")
 }
