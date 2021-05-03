@@ -39,7 +39,7 @@ workflows:
     title: creates binary for specified platform
     steps:
     - script:
-        title: Create D binary
+        title: Create binary
         inputs:
         - content: |
             #!/bin/bash
@@ -61,7 +61,7 @@ workflows:
             echo "  Copy binary to: $BITRISE_DEPLOY_DIR/$BIN_NAME-$OS-$ARCH"
 
   create-x86-darwin-binary:
-    before_run:
+    after_run:
     - _create-binary
     envs:
     - DESCRIPTION: "x86 Darwin"
@@ -71,7 +71,7 @@ workflows:
     - GOOS: "darwin"
 
   create-arm-darwin-binary:
-    before_run:
+    after_run:
     - _create-binary
     envs:
     - DESCRIPTION: "ARM Darwin"
@@ -81,7 +81,7 @@ workflows:
     - GOOS: "darwin"
 
   create-x86-linux-binary:
-    before_run:
+    after_run:
     - _create-binary
     envs:
     - DESCRIPTION: "x86 Linux"
