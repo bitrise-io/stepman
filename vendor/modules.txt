@@ -9,6 +9,7 @@ github.com/bitrise-io/envman/models
 github.com/bitrise-io/go-utils/colorstring
 github.com/bitrise-io/go-utils/command
 github.com/bitrise-io/go-utils/command/git
+github.com/bitrise-io/go-utils/errorutil
 github.com/bitrise-io/go-utils/fileutil
 github.com/bitrise-io/go-utils/log
 github.com/bitrise-io/go-utils/parseutil
@@ -51,10 +52,10 @@ github.com/stretchr/testify/require
 # github.com/urfave/cli v1.22.5
 ## explicit
 github.com/urfave/cli
-# golang.org/x/crypto v0.0.0-20211209193657-4570a0811e8b
+# golang.org/x/crypto v0.0.0-20211215153901-e495a2d5b3d3
 ## explicit
 golang.org/x/crypto/ssh/terminal
-# golang.org/x/sys v0.0.0-20211209171907-798191bca915
+# golang.org/x/sys v0.0.0-20211216021012-1d35b9e2eb4e
 ## explicit
 golang.org/x/sys/internal/unsafeheader
 golang.org/x/sys/plan9
