@@ -1,14 +1,15 @@
 package integration
 
 import (
+	"os"
+
 	"github.com/bitrise-io/go-utils/command"
 )
 
 const defaultLibraryURI = "https://github.com/bitrise-io/bitrise-steplib.git"
 
 func binPath() string {
-	return "stepman"
-	// return os.Getenv("INTEGRATION_TEST_BINARY_PATH")
+	return os.Getenv("INTEGRATION_TEST_BINARY_PATH")
 }
 
 func cleanupLibrary(libraryURI string) error {
