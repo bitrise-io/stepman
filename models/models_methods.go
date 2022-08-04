@@ -22,6 +22,8 @@ const (
 	DefaultIsSkippable = false
 	// DefaultTimeout ...
 	DefaultTimeout = 0
+	// DefaultNoOutputTimeout ...
+	DefaultNoOutputTimeout = -1
 )
 
 // String ...
@@ -176,6 +178,9 @@ func (step *StepModel) AuditBeforeShare() error {
 	if step.Timeout != nil && *step.Timeout < 0 {
 		return errors.New("Invalid step: timeout less then 0")
 	}
+	if step.NoOutputTimeout != nil && *step.NoOutputTimeout < 0 {
+		return errors.New("Invalid step: no output timeout less then 0")
+	}
 
 	return step.ValidateInputAndOutputEnvs(true)
 }
@@ -229,6 +234,9 @@ func (step *StepModel) FillMissingDefaults() error {
 	}
 	if step.Timeout == nil {
 		step.Timeout = pointers.NewIntPtr(DefaultTimeout)
+	}
+	if step.NoOutputTimeout == nil {
+		step.NoOutputTimeout = pointers.NewInt64Ptr(DefaultNoOutputTimeout)
 	}
 
 	for _, input := range step.Inputs {
