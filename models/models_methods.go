@@ -177,8 +177,8 @@ func (step *StepModel) AuditBeforeShare() error {
 		return errors.New("Invalid step: timeout less then 0")
 	}
 
-	if step.NoOutputTimeout != nil && *step.NoOutputTimeout < -1 {
-		return errors.New("Invalid step: 'no_output_timeout' is less then -1")
+	if step.NoOutputTimeout != nil && *step.NoOutputTimeout < 0 {
+		return errors.New("Invalid step: 'no_output_timeout' is less then 0")
 	}
 
 	return step.ValidateInputAndOutputEnvs(true)
