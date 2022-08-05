@@ -34,7 +34,7 @@ func Test_parseStepModel(t *testing.T) {
 	empty := ""
 	falseBool := false
 	zero := 0
-	minusOne := int64(-1)
+	minusOne := -1
 	tests := []struct {
 		name     string
 		bytes    []byte

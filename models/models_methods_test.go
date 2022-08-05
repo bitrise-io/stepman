@@ -65,9 +65,9 @@ func TestValidate(t *testing.T) {
 	require.EqualError(t, step.Audit(), "Invalid step: missing or empty required 'source.commit' property")
 	step.Source.Commit = "1e1482141079fc12def64d88cb7825b8f1cb1dc3"
 
-	step.NoOutputTimeout = new(int64)
-	*step.NoOutputTimeout = -1
-	require.EqualError(t, step.Audit(), "Invalid step: no output timeout less then 0")
+	step.NoOutputTimeout = new(int)
+	*step.NoOutputTimeout = -2
+	require.EqualError(t, step.Audit(), "Invalid step: 'no_output_timeout' is less then -1")
 
 	step.Timeout = new(int)
 	*step.Timeout = -1
