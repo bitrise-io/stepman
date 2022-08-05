@@ -82,7 +82,6 @@ func Test_parseStepModel(t *testing.T) {
 				IsSkippable:         &falseBool,
 				RunIf:               &empty,
 				Timeout:             &zero,
-				NoOutputTimeout:     &zero,
 			},
 			wantErr: false,
 		},

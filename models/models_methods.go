@@ -22,8 +22,6 @@ const (
 	DefaultIsSkippable = false
 	// DefaultTimeout ...
 	DefaultTimeout = 0
-	// DefaultNoOutputTimeout ...
-	DefaultNoOutputTimeout = 0
 )
 
 // String ...
@@ -236,9 +234,7 @@ func (step *StepModel) FillMissingDefaults() error {
 	if step.Timeout == nil {
 		step.Timeout = pointers.NewIntPtr(DefaultTimeout)
 	}
-	if step.NoOutputTimeout == nil {
-		step.NoOutputTimeout = pointers.NewIntPtr(DefaultNoOutputTimeout)
-	}
+	// NoOutputTimeout is left as is, so we can tell when it is nil (unset) vs set to 0 (disabled).
 
 	for _, input := range step.Inputs {
 		err := input.FillMissingDefaults()

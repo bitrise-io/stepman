@@ -108,7 +108,7 @@ type StepModel struct {
 	RunIf   *string `json:"run_if,omitempty" yaml:"run_if,omitempty"`
 	Timeout *int    `json:"timeout,omitempty" yaml:"timeout,omitempty"`
 	// The timeout (in seconds) until a Step with no output (stdout/stderr) is aborted
-	// Default: 0; Timeout disabled: -1
+	// 0 means timeout is disabled.
 	NoOutputTimeout *int                   `json:"no_output_timeout,omitempty" yaml:"no_output_timeout,omitempty"`
 	Meta            map[string]interface{} `json:"meta,omitempty" yaml:"meta,omitempty"`
 	//

@@ -254,8 +254,8 @@ func TestFillMissingDefaults(t *testing.T) {
 	if step.Timeout == nil || *step.Timeout != 0 {
 		t.Fatal("Timeout missing")
 	}
-	if step.NoOutputTimeout == nil || *step.NoOutputTimeout != 0 {
-		t.Fatalf("No output timeout missing")
+	if step.NoOutputTimeout != nil {
+		t.Fatalf("No output timeout has a default value")
 	}
 }
 
