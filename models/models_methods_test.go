@@ -214,10 +214,8 @@ func TestValidateStepInputOutputModel(t *testing.T) {
 
 func TestFillMissingDefaults(t *testing.T) {
 	title := "name 1"
-	// "desc 1" := ""desc 1" 1"
 	website := "web/1"
 	git := "https://git.url"
-	// fork := "fork/1"
 
 	step := StepModel{
 		Title:   pointers.NewStringPtr(title),
@@ -256,7 +254,7 @@ func TestFillMissingDefaults(t *testing.T) {
 	if step.Timeout == nil || *step.Timeout != 0 {
 		t.Fatal("Timeout missing")
 	}
-	if step.NoOutputTimeout == nil || *step.NoOutputTimeout != -1 {
+	if step.NoOutputTimeout == nil || *step.NoOutputTimeout != 0 {
 		t.Fatalf("No output timeout missing")
 	}
 }

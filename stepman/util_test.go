@@ -34,7 +34,6 @@ func Test_parseStepModel(t *testing.T) {
 	empty := ""
 	falseBool := false
 	zero := 0
-	minusOne := -1
 	tests := []struct {
 		name     string
 		bytes    []byte
@@ -83,7 +82,7 @@ func Test_parseStepModel(t *testing.T) {
 				IsSkippable:         &falseBool,
 				RunIf:               &empty,
 				Timeout:             &zero,
-				NoOutputTimeout:     &minusOne,
+				NoOutputTimeout:     &zero,
 			},
 			wantErr: false,
 		},
