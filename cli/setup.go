@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/bitrise-io/go-utils/command"
 	"github.com/bitrise-io/stepman/stepman"
+	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 )
 
@@ -34,23 +34,29 @@ func setup(c *cli.Context) error {
 		}
 	}
 
+	return Setup(steplibURI, copySpecJSONPath)
+}
+
+func Setup(steplibURI, copySpecJSONPath string) error {
+	if steplibURI == "" {
+		return fmt.Errorf("no step library specified")
+	}
+
 	// Setup
 	if err := stepman.SetupLibrary(steplibURI); err != nil {
-		log.Fatalf("Setup failed, error: %s", err)
+		return fmt.Errorf("setup failed: %s", err)
 	}
 
 	// Copy spec.json
 	if copySpecJSONPath != "" {
-		log.Infof("Copying spec YML to path: %s", copySpecJSONPath)
-
 		route, found := stepman.ReadRoute(steplibURI)
 		if !found {
-			log.Fatalf("No route found for steplib (%s)", steplibURI)
+			return fmt.Errorf("no route found for steplib (%s)", steplibURI)
 		}
 
 		sourceSpecJSONPth := stepman.GetStepSpecPath(route)
 		if err := command.CopyFile(sourceSpecJSONPth, copySpecJSONPath); err != nil {
-			log.Fatalf("Failed to copy spec.json from (%s) to (%s), error: %s", sourceSpecJSONPth, copySpecJSONPath, err)
+			return fmt.Errorf("failed to copy spec.json from (%s) to (%s): %s", sourceSpecJSONPth, copySpecJSONPath, err)
 		}
 	}
 
