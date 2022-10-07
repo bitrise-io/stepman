@@ -2,11 +2,12 @@ package cli
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/bitrise-io/go-utils/command"
+	"github.com/bitrise-io/go-utils/log"
 	"github.com/bitrise-io/stepman/stepman"
-	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 )
 
@@ -14,14 +15,15 @@ func setup(c *cli.Context) error {
 	// Input validation
 	steplibURI := c.String(CollectionKey)
 	if steplibURI == "" {
-		log.Fatal("No step collection specified")
+		log.Errorf("No step collection specified")
+		os.Exit(1)
 	}
 
 	copySpecJSONPath := c.String(CopySpecJSONKey)
 
 	if c.IsSet(LocalCollectionKey) {
-		log.Warn("'local' flag is deprecated")
-		log.Warn("use 'file://' prefix in steplib path instead")
+		log.Warnf("'local' flag is deprecated")
+		log.Warnf("use 'file://' prefix in steplib path instead")
 		fmt.Println()
 	}
 
@@ -34,16 +36,17 @@ func setup(c *cli.Context) error {
 		}
 	}
 
-	return Setup(steplibURI, copySpecJSONPath)
+	return Setup(steplibURI, copySpecJSONPath, log.NewDefaultLogger(false))
 }
 
-func Setup(steplibURI, copySpecJSONPath string) error {
+// Setup ...
+func Setup(steplibURI, copySpecJSONPath string, log stepman.Logger) error {
 	if steplibURI == "" {
 		return fmt.Errorf("no step library specified")
 	}
 
 	// Setup
-	if err := stepman.SetupLibrary(steplibURI); err != nil {
+	if err := stepman.SetupLibrary(steplibURI, log); err != nil {
 		return fmt.Errorf("setup failed: %s", err)
 	}
 
