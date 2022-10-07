@@ -26,10 +26,16 @@ func update(c *cli.Context) error {
 
 	for _, URI := range collectionURIs {
 		log.Infof("Update StepLib (%s)...", URI)
-		if _, err := stepman.UpdateLibrary(URI, log.NewDefaultLogger(false)); err != nil {
+		if err := UpdateLibrary(URI, log.NewDefaultLogger(false)); err != nil {
 			return fmt.Errorf("Failed to update StepLib (%s), error: %s", URI, err)
 		}
 	}
 
 	return nil
+}
+
+// UpdateLibrary ...
+func UpdateLibrary(uri string, log stepman.Logger) error {
+	_, err := stepman.UpdateLibrary(uri, log)
+	return err
 }
