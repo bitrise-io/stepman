@@ -4,7 +4,7 @@ go 1.16
 
 require (
 	github.com/bitrise-io/colorstring v0.0.0-20180614154802-a8cd70115192
-	github.com/bitrise-io/envman v0.0.0-20211026063720-03283f9c3f32
+	github.com/bitrise-io/envman v0.0.0-20221010094751-a03ce30a5316
 	github.com/bitrise-io/go-utils v1.0.3
 	github.com/bitrise-io/goinp v0.0.0-20211005113137-305e91b481f4
 	github.com/cpuguy83/go-md2man/v2 v2.0.1 // indirect
