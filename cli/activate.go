@@ -194,7 +194,7 @@ func activateStep(stepLib models.StepCollectionModel, stepLibURI, id, version st
 
 		err := getExecutableFromCache(executablePath, checkSumPath)
 		if err == nil {
-			return models.ActivatedStep{ExecutablePath: executablePath}, nil
+			return models.NewActivatedStepFromExecutable(executablePath), nil
 		}
 		log.Warnf("[Stepman] %s", err)
 
@@ -205,7 +205,7 @@ func activateStep(stepLib models.StepCollectionModel, stepLibURI, id, version st
 
 		err = uncompressStepFromCache(fromPatchExecutablePath, binaryPatchPath, executablePath, checkSumPath)
 		if err == nil {
-			return models.ActivatedStep{ExecutablePath: executablePath}, nil
+			return models.NewActivatedStepFromExecutable(executablePath), nil
 		}
 		log.Warnf("[Stepman] %s", err)
 	}
@@ -214,7 +214,7 @@ func activateStep(stepLib models.StepCollectionModel, stepLibURI, id, version st
 	if exist, err := pathutil.IsPathExists(stepCacheDir); err != nil {
 		return models.ActivatedStep{}, fmt.Errorf("failed to check if %s path exist: %s", stepCacheDir, err)
 	} else if exist { // version specific source cache exists
-		return models.ActivatedStep{SourceAbsDirPath: stepCacheDir}, nil
+		return models.NewActivatedStepFromSourceDir(stepCacheDir), nil
 	}
 
 	// version specific source cache not exists
@@ -226,7 +226,7 @@ func activateStep(stepLib models.StepCollectionModel, stepLibURI, id, version st
 		return models.ActivatedStep{}, fmt.Errorf("download failed: %s", err)
 	}
 
-	return models.ActivatedStep{SourceAbsDirPath: stepCacheDir}, nil
+	return models.NewActivatedStepFromSourceDir(stepCacheDir), nil
 }
 
 func listCachedStepVersion(log stepman.Logger, stepLib models.StepCollectionModel, stepLibURI, stepID string) []string {
