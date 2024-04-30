@@ -16,26 +16,26 @@ const (
 	bitriseStepLibURL = "https://github.com/bitrise-io/bitrise-steplib.git"
 	bitriseMaintainer = "bitrise"
 	workers           = 10
-	MonthDuration     = 24 * time.Hour * 31
+	monthDuration     = 24 * time.Hour * 31
 )
 
 type PreloadOpts struct {
-	NumMajor            uint
-	NumMinor            uint
-	LatestMinorsSince   time.Duration
-	PatchesSince        time.Duration
-	UseBinaryExecutable bool
+	NumMajor                uint
+	NumMinor                uint
+	LatestMinorsSinceMonths int
+	PatchesSinceMonths      int
+	UseBinaryExecutable     bool
 }
 
 type GoBuilder func(stepSourceAbsPath, packageName, targetExecutablePath string) error
 
 func DefaultPreloadOpts() PreloadOpts {
 	return PreloadOpts{
-		NumMajor:            2,
-		NumMinor:            1,
-		LatestMinorsSince:   2 * MonthDuration,
-		PatchesSince:        1 * MonthDuration,
-		UseBinaryExecutable: false,
+		NumMajor:                2,
+		NumMinor:                1,
+		LatestMinorsSinceMonths: 2,
+		PatchesSinceMonths:      1,
+		UseBinaryExecutable:     false,
 	}
 }
 
