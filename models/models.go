@@ -177,6 +177,12 @@ type EnvInfoModel struct {
 	IsSensitive  bool     `json:"is_sensitive" yaml:"is_sensitive"`
 }
 
+type ActivatedStep struct {
+	SourceAbsDirPath string `json:"source_abs_dir_path,omitempty" yaml:"source_abs_dir_path,omitempty"`
+	ExecutablePath   string `json:"executable_path,omitempty" yaml:"executable_path,omitempty"`
+	StepYMLPath      string `json:"step_yml_path,omitempty" yaml:"step_yml_path,omitempty"`
+}
+
 // StepInfoModel ...
 type StepInfoModel struct {
 	Library         string             `json:"library,omitempty" yaml:"library,omitempty"`
