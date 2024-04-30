@@ -13,6 +13,8 @@ import (
 	"github.com/urfave/cli"
 )
 
+var stepNotAvailableOfflineModeErr error
+
 var activateCommand = cli.Command{
 	Name:  "activate",
 	Usage: "Copy the step with specified --id, and --version, into provided path. If --version flag is not set, the latest version of the step will be used. If --copyyml flag is set, step.yml will be copied to the given path.",
@@ -99,6 +101,18 @@ func Activate(stepLibURI, id, version, destination, destinationStepYML string, u
 
 	activatedStep, err := activateStep(stepLib, stepLibURI, id, version, step, log, isOfflineMode)
 	if err != nil {
+		if err == stepNotAvailableOfflineModeErr {
+			versionList := "Other versions available in the local cache:"
+			for version := range stepLib.Steps[id].Versions {
+				if _, err := activateStep(stepLib, stepLibURI, id, version, step, nil, true); err != nil {
+					versionList = versionList + fmt.Sprintf("\n- %s", version)
+				}
+			}
+
+			errMsg := fmt.Sprintf("step %s@%s is not available in the local cache and $BITRISE_BETA_OFFLINE_MODE is set. %s", id, version, versionList)
+			return models.ActivatedStep{}, fmt.Errorf("failed to download step: %s", errMsg)
+		}
+
 		return output, fmt.Errorf("failed to download step: %s", err)
 	}
 
@@ -206,7 +220,7 @@ func activateStep(stepLib models.StepCollectionModel, stepLibURI, id, version st
 
 	// version specific source cache not exists
 	if isOfflineMode {
-		return models.ActivatedStep{}, fmt.Errorf("step not found in cache, and offline mode is enabled")
+		return models.ActivatedStep{}, stepNotAvailableOfflineModeErr
 	}
 
 	if err := stepman.DownloadStep(stepLibURI, stepLib, id, version, step.Source.Commit, log); err != nil {
