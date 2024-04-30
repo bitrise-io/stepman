@@ -13,7 +13,7 @@ import (
 	"github.com/urfave/cli"
 )
 
-var stepNotAvailableOfflineModeErr error
+var errStepNotAvailableOfflineMode error = fmt.Errorf("step not available in offline mode")
 
 var activateCommand = cli.Command{
 	Name:  "activate",
@@ -101,15 +101,14 @@ func Activate(stepLibURI, id, version, destination, destinationStepYML string, u
 
 	activatedStep, err := activateStep(stepLib, stepLibURI, id, version, step, log, isOfflineMode)
 	if err != nil {
-		if err == stepNotAvailableOfflineModeErr {
+		if err == errStepNotAvailableOfflineMode {
+			availableVersions := listCachedStepVersion(log, stepLib, stepLibURI, id)
 			versionList := "Other versions available in the local cache:"
-			for version := range stepLib.Steps[id].Versions {
-				if _, err := activateStep(stepLib, stepLibURI, id, version, step, nil, true); err != nil {
-					versionList = versionList + fmt.Sprintf("\n- %s", version)
-				}
+			for _, version := range availableVersions {
+				versionList = versionList + fmt.Sprintf("\n- %s", version)
 			}
 
-			errMsg := fmt.Sprintf("step %s@%s is not available in the local cache and $BITRISE_BETA_OFFLINE_MODE is set. %s", id, version, versionList)
+			errMsg := fmt.Sprintf("version is not available in the local cache and $BITRISE_BETA_OFFLINE_MODE is set. %s", versionList)
 			return models.ActivatedStep{}, fmt.Errorf("failed to download step: %s", errMsg)
 		}
 
@@ -220,7 +219,7 @@ func activateStep(stepLib models.StepCollectionModel, stepLibURI, id, version st
 
 	// version specific source cache not exists
 	if isOfflineMode {
-		return models.ActivatedStep{}, stepNotAvailableOfflineModeErr
+		return models.ActivatedStep{}, errStepNotAvailableOfflineMode
 	}
 
 	if err := stepman.DownloadStep(stepLibURI, stepLib, id, version, step.Source.Commit, log); err != nil {
@@ -228,6 +227,18 @@ func activateStep(stepLib models.StepCollectionModel, stepLibURI, id, version st
 	}
 
 	return models.ActivatedStep{SourceAbsDirPath: stepCacheDir}, nil
+}
+
+func listCachedStepVersion(log stepman.Logger, stepLib models.StepCollectionModel, stepLibURI, stepID string) []string {
+	versions := []string{}
+	for version, step := range stepLib.Steps[stepID].Versions {
+		_, err := activateStep(stepLib, stepLibURI, stepID, version, step, log, true)
+		if err == nil {
+			versions = append(versions, version)
+		}
+	}
+
+	return versions
 }
 
 func copyStep(src, dst string) error {
