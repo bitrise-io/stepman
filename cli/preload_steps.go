@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bitrise-io/bitrise/toolkits"
 	"github.com/bitrise-io/go-utils/colorstring"
 	"github.com/bitrise-io/go-utils/pathutil"
 	"github.com/bitrise-io/stepman/models"
@@ -44,7 +45,7 @@ type preloadResult struct {
 }
 
 // PreloadBitriseSteps preloads the cache with Bitrise owned steps
-func PreloadBitriseSteps(log stepman.Logger, compiler Compiler, opts PreloadOpts) error {
+func PreloadBitriseSteps(log stepman.Logger, opts PreloadOpts) error {
 	// Check if setup was done for collection
 	if exist, err := stepman.RootExistForLibrary(bitriseStepLibURL); err != nil {
 		return err
@@ -69,7 +70,7 @@ func PreloadBitriseSteps(log stepman.Logger, compiler Compiler, opts PreloadOpts
 		workersWaitGroup.Add(1)
 		go func() {
 			for s := range preloadQueue {
-				results, err := preloadStepVersions(log, compiler, stepLib, s.stepID, s.step, opts)
+				results, err := preloadStepVersions(log, stepLib, s.stepID, s.step, opts)
 				if err != nil {
 					log.Debugf("Failed to preload step %s: %s", s.stepID, err)
 					errC <- err
@@ -145,7 +146,7 @@ func PreloadBitriseSteps(log stepman.Logger, compiler Compiler, opts PreloadOpts
 	return nil
 }
 
-func preloadStepVersions(log stepman.Logger, compiler Compiler, stepLib models.StepCollectionModel, stepID string, step models.StepGroupModel, opts PreloadOpts) ([]preloadResult, error) {
+func preloadStepVersions(log stepman.Logger, stepLib models.StepCollectionModel, stepID string, step models.StepGroupModel, opts PreloadOpts) ([]preloadResult, error) {
 	results := []preloadResult{}
 
 	route, found := stepman.ReadRoute(bitriseStepLibURL)
@@ -160,7 +161,7 @@ func preloadStepVersions(log stepman.Logger, compiler Compiler, stepLib models.S
 	}
 
 	log.Infof("Preloading step %s", stepID)
-	targetExecutablePathLatest, err := preloadStepExecutable(log, stepLib, bitriseStepLibURL, compiler, stepID, step.LatestVersionNumber, latestVersion, opts.UseBinaryExecutable)
+	targetExecutablePathLatest, err := preloadStepExecutable(log, stepLib, bitriseStepLibURL, stepID, step.LatestVersionNumber, latestVersion, opts.UseBinaryExecutable)
 	if err != nil {
 		return results, fmt.Errorf("failed to preload step %s@%s: %w", stepID, latestVersionNumber, err)
 	}
@@ -183,7 +184,7 @@ func preloadStepVersions(log stepman.Logger, compiler Compiler, stepLib models.S
 		}
 
 		log.Debugf("Preloading step %s@%s", stepID, version)
-		targetExecutablePath, err := preloadStepExecutable(log, stepLib, bitriseStepLibURL, compiler, stepID, version, step, opts.UseBinaryExecutable)
+		targetExecutablePath, err := preloadStepExecutable(log, stepLib, bitriseStepLibURL, stepID, version, step, opts.UseBinaryExecutable)
 		if err != nil {
 			results = append(results, preloadResult{
 				stepID:  stepID,
@@ -246,7 +247,7 @@ func cleanStepSourceDir(route stepman.SteplibRoute, id, version string) (string,
 	return stepSourceDir, nil
 }
 
-func preloadStepExecutable(log stepman.Logger, stepLib models.StepCollectionModel, stepLibURI string, compiler Compiler, id, version string, step models.StepModel, useBinaryExecutable bool) (string, error) {
+func preloadStepExecutable(log stepman.Logger, stepLib models.StepCollectionModel, stepLibURI string, id, version string, step models.StepModel, useBinaryExecutable bool) (string, error) {
 	route, found := stepman.ReadRoute(stepLibURI)
 	if !found {
 		return "", fmt.Errorf("no route found for %s steplib", stepLibURI)
@@ -283,6 +284,7 @@ func preloadStepExecutable(log stepman.Logger, stepLib models.StepCollectionMode
 	}
 
 	log.Debugf("Building step %s@%s", id, version)
+	compiler := toolkits.ToolkitForStep(step)
 	_, err = compiler.CompileStepExecutable(models.ActivatedStep{SourceAbsDirPath: stepSourceDir}, step.Toolkit.Go.PackageName, targetExecutablePath)
 	if err != nil {
 		return "", fmt.Errorf("failed to build step: %s", err)
