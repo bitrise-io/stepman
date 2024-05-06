@@ -14,7 +14,7 @@ func Test_VersionOutput(t *testing.T) {
 	{
 		out, err := command.RunCommandAndReturnCombinedStdoutAndStderr(binPath(), "version")
 		require.NoError(t, err, out)
-		require.Equal(t, "0.0.0-development", out)
+		require.Equal(t, "0.16.3", out)
 	}
 
 	t.Log("Version --full")
