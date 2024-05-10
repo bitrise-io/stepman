@@ -3,8 +3,6 @@ package toolkits
 import (
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
