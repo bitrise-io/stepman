@@ -73,7 +73,7 @@ func Test_parseGoVersionFromGoVersionOutput(t *testing.T) {
 	t.Log("Empty")
 	{
 		verStr, err := parseGoVersionFromGoVersionOutput("")
-		require.EqualError(t, err, "Failed to parse Go version, error: version call output was empty")
+		require.EqualError(t, err, "parse Go version: version call output was empty")
 		require.Equal(t, "", verStr)
 	}
 
@@ -82,14 +82,14 @@ func Test_parseGoVersionFromGoVersionOutput(t *testing.T) {
 		verStr, err := parseGoVersionFromGoVersionOutput(`
 
 `)
-		require.EqualError(t, err, "Failed to parse Go version, error: version call output was empty")
+		require.EqualError(t, err, "parse Go version: version call output was empty")
 		require.Equal(t, "", verStr)
 	}
 
 	t.Log("Invalid")
 	{
 		verStr, err := parseGoVersionFromGoVersionOutput("go version REMOVED darwin/amd64")
-		require.EqualError(t, err, "Failed to parse Go version, error: failed to find version in input: go version REMOVED darwin/amd64")
+		require.EqualError(t, err, "parse Go version, error: failed to find version in input: go version REMOVED darwin/amd64")
 		require.Equal(t, "", verStr)
 	}
 }
