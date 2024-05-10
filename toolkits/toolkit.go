@@ -81,12 +81,12 @@ func AllSupportedToolkits() []Toolkit {
 	return []Toolkit{GoToolkit{}, BashToolkit{}, SwiftToolkit{}}
 }
 
-func toolkitDir() string {
+func toolkitDir(toolkitName string) string {
 	userHome, err := os.UserHomeDir()
 	if err != nil {
-		return filepath.Join(os.TempDir(), "bitrise-toolkits")
+		return filepath.Join(os.TempDir(), "bitrise-toolkits", toolkitName)
 	}
-	return filepath.Join(userHome, ".bitrise", "toolkits")
+	return filepath.Join(userHome, ".bitrise", "toolkits", toolkitName)
 }
 
 func downloadFile(url string, targetPath string) error {

@@ -319,7 +319,7 @@ func (toolkit GoToolkit) StepRunCommandArguments(_ models.StepModel, sIDData mod
 // === Toolkit path utility function ===
 
 func goToolkitRootPath() string {
-	return filepath.Join(toolkitDir(), "go")
+	return toolkitDir("go")
 }
 
 func goToolkitTmpDirPath() string {
