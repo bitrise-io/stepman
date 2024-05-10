@@ -180,6 +180,11 @@ func GetCacheBaseDir(route SteplibRoute) string {
 	return filepath.Join(GetCollectionsDirPath(), route.FolderAlias, "cache")
 }
 
+// GetLocalCacheBaseDir ...
+func GetLocalCacheBaseDir() string {
+	return filepath.Join(GetCollectionsDirPath(), "localcache")
+}
+
 // GetLibraryBaseDirPath ...
 func GetLibraryBaseDirPath(route SteplibRoute) string {
 	return filepath.Join(GetCollectionsDirPath(), route.FolderAlias, "collection")

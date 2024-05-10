@@ -174,32 +174,3 @@ type SteplibInfoModel struct {
 	URI      string `json:"uri,omitempty" yaml:"uri,omitempty"`
 	SpecPath string `json:"spec_path,omitempty" yaml:"spec_path,omitempty"`
 }
-
-type ActivatedStepType string
-
-const (
-	ActivatedStepTypeUnknown    ActivatedStepType = "unknown"
-	ActivatedStepTypeSourceDir  ActivatedStepType = "source"
-	ActivatedStepTypeExecutable ActivatedStepType = "executable"
-)
-
-type ActivatedStep struct {
-	Type             ActivatedStepType
-	SourceAbsDirPath string
-	ExecutablePath   string
-	StepYMLPath      string
-}
-
-func NewActivatedStepFromSourceDir(sourceDir string) ActivatedStep {
-	return ActivatedStep{
-		Type:             ActivatedStepTypeSourceDir,
-		SourceAbsDirPath: sourceDir,
-	}
-}
-
-func NewActivatedStepFromExecutable(executablePath string) ActivatedStep {
-	return ActivatedStep{
-		Type:           ActivatedStepTypeExecutable,
-		ExecutablePath: executablePath,
-	}
-}

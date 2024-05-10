@@ -19,7 +19,7 @@ const (
 )
 
 type Compiler interface {
-	CompileStepExecutable(activatedStep models.ActivatedStep, packageName string, targetExecutablePath string) (models.ActivatedStep, error)
+	CompileStepExecutable(sourceAbsDirPath string, packageName string, targetExecutablePath string) (toolkits.StepExecutor, error)
 }
 
 type PreloadOpts struct {
@@ -283,7 +283,7 @@ func preloadStepExecutable(log stepman.Logger, stepLib models.StepCollectionMode
 
 	log.Debugf("Building step %s@%s", id, version)
 	compiler := toolkits.ToolkitForStep(step)
-	_, err = compiler.CompileStepExecutable(models.ActivatedStep{SourceAbsDirPath: stepSourceDir}, step.Toolkit.Go.PackageName, targetExecutablePath)
+	_, err = compiler.CompileStepExecutable(stepSourceDir, step.Toolkit.Go.PackageName, targetExecutablePath)
 	if err != nil {
 		return "", fmt.Errorf("failed to build step: %s", err)
 	}
