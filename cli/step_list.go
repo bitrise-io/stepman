@@ -51,7 +51,7 @@ func printRawStepList(log stepman.Logger, stepLibURI string, maintaner string, s
 	for stepID := range stepLib.Steps {
 		stepIDs = append(stepIDs, stepID)
 	}
-	sort.Sort(sort.StringSlice(stepIDs))
+	sort.Strings(stepIDs)
 
 	skipped := []string{}
 	for _, stepID := range stepIDs {
