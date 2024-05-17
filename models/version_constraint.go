@@ -42,7 +42,7 @@ func ParseSemver(version string) (Semver, error) {
 	}, nil
 }
 
-func LessSemver(a, b Semver) int {
+func CmpSemver(a, b Semver) int {
 	if a.Major < b.Major {
 		return -1
 	}

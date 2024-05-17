@@ -189,7 +189,7 @@ func listCachedStepVersion(log stepman.Logger, stepLib models.StepCollectionMode
 		versions = append(versions, v)
 	}
 
-	slices.SortFunc(versions, models.LessSemver)
+	slices.SortFunc(versions, models.CmpSemver)
 
 	versionsStr := make([]string, len(versions))
 	for i, v := range versions {

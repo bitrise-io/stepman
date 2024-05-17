@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"sync"
-	"time"
 
 	"github.com/bitrise-io/go-utils/colorstring"
 	"github.com/bitrise-io/go-utils/pathutil"
@@ -13,16 +12,14 @@ import (
 )
 
 const (
-	workers       = 10
-	monthDuration = 24 * time.Hour * 31
+	workers = 10
 )
 
-type PreloadOpts struct {
+type CacheOpts struct {
 	NumMajor                uint
 	NumMinor                uint
 	LatestMinorsSinceMonths int
 	PatchesSinceMonths      int
-	UseBinaryExecutable     bool
 }
 
 type stepWorkInfo struct {
@@ -37,12 +34,8 @@ type preloadResult struct {
 	err     error
 }
 
-// PreloadBitriseSteps preloads the cache with Bitrise owned steps
-func PreloadBitriseSteps(log stepman.Logger, steplibURL, maintaner string, opts PreloadOpts) error {
-	if opts.UseBinaryExecutable {
-		return fmt.Errorf("binary steps are not supported yet")
-	}
-
+// CacheSteps preloads the step cache for offline access
+func CacheSteps(log stepman.Logger, steplibURL, maintaner string, opts CacheOpts) error {
 	// Check if setup was done for collection
 	if exist, err := stepman.RootExistForLibrary(steplibURL); err != nil {
 		return err
@@ -143,7 +136,7 @@ func PreloadBitriseSteps(log stepman.Logger, steplibURL, maintaner string, opts 
 	return nil
 }
 
-func preloadStepVersions(log stepman.Logger, steplibURL string, stepLib models.StepCollectionModel, stepID string, step models.StepGroupModel, opts PreloadOpts) ([]preloadResult, error) {
+func preloadStepVersions(log stepman.Logger, steplibURL string, stepLib models.StepCollectionModel, stepID string, step models.StepGroupModel, opts CacheOpts) ([]preloadResult, error) {
 	results := []preloadResult{}
 
 	_, found := stepman.ReadRoute(steplibURL)
@@ -158,7 +151,7 @@ func preloadStepVersions(log stepman.Logger, steplibURL string, stepLib models.S
 		return results, fmt.Errorf("failed to find latest version for step %s", stepID)
 	}
 
-	log.Infof("Preloading step %s", stepID)
+	log.Infof("Preloading step %s@latest", stepID)
 	err := preloadStep(log, stepLib, steplibURL, stepID, step.LatestVersionNumber, latestVersion)
 	if err != nil {
 		return results, fmt.Errorf("failed to preload step %s@%s: %w", stepID, latestVersionNumber, err)

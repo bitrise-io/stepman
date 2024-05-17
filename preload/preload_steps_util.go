@@ -7,7 +7,7 @@ import (
 	"github.com/bitrise-io/stepman/models"
 )
 
-func filterPreloadedStepVersions(stepID string, steps map[string]models.StepModel, opts PreloadOpts) (map[string]models.StepModel, error) {
+func filterPreloadedStepVersions(stepID string, steps map[string]models.StepModel, opts CacheOpts) (map[string]models.StepModel, error) {
 	filteredSteps := map[string]models.StepModel{}
 	allMajorMinor := map[uint64]map[uint64]models.Semver{}
 	allLatestNMinor := map[uint64][]uint64{}
@@ -18,8 +18,13 @@ func filterPreloadedStepVersions(stepID string, steps map[string]models.StepMode
 	}
 
 	for stepVersion, step := range steps {
+		if step.PublishedAt == nil {
+			return filteredSteps, fmt.Errorf("step %s@%s has no published_at date", stepID, stepVersion)
+		}
+
 		// Include all patch version releases
-		if time.Since(*step.PublishedAt) < time.Duration(opts.PatchesSinceMonths)*monthDuration {
+		publishDate := *(step.PublishedAt)
+		if time.Since(publishDate.AddDate(0, opts.PatchesSinceMonths, 0)) > 0 {
 			filteredSteps[stepVersion] = step
 		}
 
@@ -54,7 +59,8 @@ func filterPreloadedStepVersions(stepID string, steps map[string]models.StepMode
 			latestNMinors = insertLatestNVersions(latestNMinors, minor)
 
 			// The latest patch of any minor version
-			if time.Since(*steps[version.String()].PublishedAt) < time.Duration(opts.LatestMinorsSinceMonths)*monthDuration {
+			publishDate := *steps[version.String()].PublishedAt
+			if time.Since(publishDate.AddDate(0, opts.LatestMinorsSinceMonths, 0)) > 0 {
 				filteredSteps[version.String()] = steps[version.String()]
 			}
 		}
