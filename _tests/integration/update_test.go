@@ -84,39 +84,33 @@ func Test_StepLibUpdate2(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := stepman.UpdateLibrary2(steplib, NopeLogger{}); err != nil {
+	if _, err := stepman.UpdateLibrary(steplib, NopeLogger{}); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func BenchmarkStepLibUpdate(b *testing.B) {
-	steplib := "https://github.com/bitrise-io/bitrise-steplib.git"
 	oldCommit := "bf150ba4c10a05b9dfb063178746cb76286d04f1" // Commits on Apr 14, 2022
 
-	for _, mode := range []string{"old", "new", "file"} {
+	for _, mode := range []string{"old", "new"} {
 		b.Run(fmt.Sprintf("Benchmarking stepman.UpdateLibrary=%s", mode), func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
-				b.StopTimer()
-				err := setupStepLib(steplib, oldCommit)
-				if err != nil {
-					b.Fatal(err)
-				}
-				b.StartTimer()
-
+				var steplib string
 				if mode == "old" {
-					// 3251444262 ns/op
-					if _, err := stepman.UpdateLibrary(steplib, NopeLogger{}); err != nil {
+					steplib = "https://github.com/bitrise-io/bitrise-steplib"
+
+					b.StopTimer()
+					err := setupStepLib(steplib, oldCommit)
+					if err != nil {
 						b.Fatal(err)
 					}
-				} else if mode == "new" {
-					// 3052922411 ns/op
-					if _, err := stepman.UpdateLibrary2(steplib, NopeLogger{}); err != nil {
-						b.Fatal(err)
-					}
+					b.StartTimer()
 				} else {
-					if err := stepman.SetupLibrary3(steplib, NopeLogger{}); err != nil {
-						b.Fatal(err)
-					}
+					steplib = "https://github.com/bitrise-io/bitrise-steplib.git"
+				}
+
+				if _, err := stepman.UpdateLibrary(steplib, NopeLogger{}); err != nil {
+					b.Fatal(err)
 				}
 			}
 		})
@@ -124,11 +118,16 @@ func BenchmarkStepLibUpdate(b *testing.B) {
 }
 
 func BenchmarkStepLibSetup(b *testing.B) {
-	steplib := "https://github.com/bitrise-io/bitrise-steplib.git"
-
-	for _, mode := range []string{"old", "new", "file"} {
+	for _, mode := range []string{"old", "new"} {
 		b.Run(fmt.Sprintf("Benchmarking stepman.UpdateLibrary=%s", mode), func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
+				var steplib string
+				if mode == "old" {
+					steplib = "https://github.com/bitrise-io/bitrise-steplib"
+				} else {
+					steplib = "https://github.com/bitrise-io/bitrise-steplib.git"
+				}
+
 				b.StopTimer()
 				route, found := stepman.ReadRoute(steplib)
 				if found {
@@ -138,21 +137,8 @@ func BenchmarkStepLibSetup(b *testing.B) {
 				}
 				b.StartTimer()
 
-				if mode == "old" {
-					// 4959929200 ns/op
-					if err := stepman.SetupLibrary(steplib, NopeLogger{}); err != nil {
-						b.Fatal(err)
-					}
-				} else if mode == "new" {
-					// 4120265216 ns/op
-					if err := stepman.SetupLibrary2(steplib, NopeLogger{}); err != nil {
-						b.Fatal(err)
-					}
-				} else {
-					// 2762603411 ns/op
-					if err := stepman.SetupLibrary3(steplib, NopeLogger{}); err != nil {
-						b.Fatal(err)
-					}
+				if err := stepman.SetupLibrary(steplib, NopeLogger{}); err != nil {
+					b.Fatal(err)
 				}
 			}
 		})
@@ -190,5 +176,17 @@ type NopeLogger struct {
 }
 
 func (l NopeLogger) Warnf(format string, v ...interface{}) {
+	return
+}
+
+func (l NopeLogger) Debugf(format string, v ...interface{}) {
+	return
+}
+
+func (l NopeLogger) Errorf(format string, v ...interface{}) {
+	return
+}
+
+func (l NopeLogger) Infof(format string, v ...interface{}) {
 	return
 }
