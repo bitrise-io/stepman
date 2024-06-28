@@ -12,14 +12,14 @@ import (
 	"github.com/bitrise-io/go-utils/command"
 	"github.com/bitrise-io/go-utils/command/git"
 	"github.com/bitrise-io/go-utils/retry"
-
 	"github.com/bitrise-io/stepman/models"
 )
 
-const filePathPrefix = "file://"
-
-const defaultStepLib = "https://github.com/bitrise-io/bitrise-steplib.git"
-const DefaultStepLibSpecJSONURL = "http://bitrise-steplib-collection.s3.amazonaws.com/spec.json"
+const (
+	filePathPrefix            = "file://"
+	defaultStepLib            = "https://github.com/bitrise-io/bitrise-steplib.git"
+	defaultStepLibSpecJSONURL = "http://bitrise-steplib-collection.s3.amazonaws.com/spec.json"
+)
 
 // Logger ...
 type Logger interface {
@@ -68,7 +68,7 @@ func SetupLibrary(libraryURI string, log Logger) error {
 		return nil
 	}
 
-	if err := setupWithStepLibSpecURL(libraryURI, DefaultStepLibSpecJSONURL, route); err != nil {
+	if err := setupWithStepLibSpecURL(libraryURI, defaultStepLibSpecJSONURL, route); err != nil {
 		if err := setupWithStepLibRepo(libraryURI, route); err != nil {
 			if err := CleanupRoute(route); err != nil {
 				log.Warnf("Failed to cleanup routing for library (%s), error: %s", libraryURI, err)
@@ -113,7 +113,7 @@ func UpdateLibrary(libraryURI string, log Logger) (models.StepCollectionModel, e
 		return ReadStepSpec(libraryURI)
 	}
 
-	if err := setupWithStepLibSpecURL(libraryURI, DefaultStepLibSpecJSONURL, route); err != nil {
+	if err := setupWithStepLibSpecURL(libraryURI, defaultStepLibSpecJSONURL, route); err != nil {
 		if err := updateWithStepLibRepo(libraryURI, route); err != nil {
 			return models.StepCollectionModel{}, fmt.Errorf("failed to update library (%s), error: %s", libraryURI, err)
 		}
