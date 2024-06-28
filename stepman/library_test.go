@@ -96,18 +96,10 @@ func setupStepLib(uri, commit string) error {
 type NopeLogger struct {
 }
 
-func (l NopeLogger) Warnf(format string, v ...interface{}) {
-	return
-}
+func (l NopeLogger) Warnf(format string, v ...interface{}) {}
 
-func (l NopeLogger) Debugf(format string, v ...interface{}) {
-	return
-}
+func (l NopeLogger) Debugf(format string, v ...interface{}) {}
 
-func (l NopeLogger) Errorf(format string, v ...interface{}) {
-	return
-}
+func (l NopeLogger) Errorf(format string, v ...interface{}) {}
 
-func (l NopeLogger) Infof(format string, v ...interface{}) {
-	return
-}
+func (l NopeLogger) Infof(format string, v ...interface{}) {}
