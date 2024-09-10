@@ -27,6 +27,11 @@ func activateStepExecutable(
 	}
 	defer resp.Body.Close()
 
+	err = os.MkdirAll(destination, 0755)
+	if err != nil {
+		return fmt.Errorf("create directory %s: %w", destination, err)
+	}
+
 	path := filepath.Join(destination, stepID)
 	file, err := os.Create(path)
 	if err != nil {
