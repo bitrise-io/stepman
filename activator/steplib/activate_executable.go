@@ -21,6 +21,10 @@ func activateStepExecutable(
 	destination string,
 	destinationStepYML string,
 ) (string, error) {
+	if strings.HasPrefix(executable.Url, "http://") {
+		return "", fmt.Errorf("http URL is unsupported, please use https: %s", executable.Url)
+	}
+
 	resp, err := retryablehttp.Get(executable.Url)
 	if err != nil {
 		return "", fmt.Errorf("fetch from %s: %w", executable.Url, err)
