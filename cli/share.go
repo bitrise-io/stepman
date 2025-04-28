@@ -42,7 +42,7 @@ func ReadShareSteplibFromFile() (ShareModel, error) {
 	if exist, err := pathutil.IsPathExists(getShareFilePath()); err != nil {
 		return ShareModel{}, err
 	} else if !exist {
-		return ShareModel{}, errors.New("No share steplib found")
+		return ShareModel{}, errors.New("no share steplib found")
 	}
 
 	bytes, err := fileutil.ReadBytesFromFile(getShareFilePath())
@@ -63,7 +63,7 @@ func WriteShareSteplibToFile(share ShareModel) error {
 	var bytes []byte
 	bytes, err := json.MarshalIndent(share, "", "\t")
 	if err != nil {
-		log.Errorf("Failed to parse json, error: %s", err)
+		log.Errorf("failed to parse json, error: %s", err)
 		return err
 	}
 

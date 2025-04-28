@@ -379,13 +379,14 @@ func TestGetDownloadLocations(t *testing.T) {
 	gitIdx := -1
 
 	for idx, location := range locations {
-		if location.Type == "zip" {
+		switch location.Type {
+		case "zip":
 			if location.Src != "amazon/step/1.0.0/step.zip" {
 				t.Fatalf("Incorrect zip location (%s)", location.Src)
 			}
 			zipFound = true
 			zipIdx = idx
-		} else if location.Type == "git" {
+		case "git":
 			if location.Src != "https://git.url" {
 				t.Fatalf("Incorrect git location (%s)", location.Src)
 			}
