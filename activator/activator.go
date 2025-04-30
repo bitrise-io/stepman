@@ -12,5 +12,7 @@ type ActivatedStep struct {
 	ExecutablePath string
 
 	// DidStepLibUpdate indicates that the local steplib cache was updated while resolving the exact step version.
+	// TODO: this is a leaky abstraction and we shouldn't signal this here, but it requires a bigger refactor.
+	// (stepman should keep track of this info in a file probably)
 	DidStepLibUpdate bool
 }
