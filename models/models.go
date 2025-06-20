@@ -3,7 +3,7 @@ package models
 import (
 	"time"
 
-	envmanModels "github.com/bitrise-io/envman/models"
+	envmanModels "github.com/bitrise-io/envman/v2/models"
 )
 
 type StepSourceModel struct {

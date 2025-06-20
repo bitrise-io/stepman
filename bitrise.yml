@@ -22,8 +22,21 @@ workflows:
         inputs:
         - workflow: lint
         - skip_step_yml_validation: "yes"
+        - skip_go_checks: "yes"
     - bundle::setup-go: { }
     - go-list: { }
+    - script:
+        title: golangci-lint
+        inputs:
+        - content: |-
+            #!/usr/bin/env bash
+            set -ex
+
+            INSTALL_DIR=$(go env GOPATH)/bin
+
+            curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b "$INSTALL_DIR" v2.1.5
+            asdf reshim golang
+            "$INSTALL_DIR"/golangci-lint run
     - go-test: { }
     - script:
         title: Run integration tests
@@ -47,6 +60,18 @@ workflows:
     - GITHUB_TOKEN: $GIT_BOT_USER_ACCESS_TOKEN
     steps:
     - bundle::setup-go: { }
+    - script@1:
+        title: Validate if Stepman version matches the git tag
+        inputs:
+        - content: |-
+            #!/bin/bash
+            set -ex
+            version=$(go run main.go --version)
+            if [[ "v$version" != "$BITRISE_GIT_TAG" ]]; then
+              echo "Stepman version ($version) does not match the git tag ($BITRISE_GIT_TAG)"
+              echo "Please update the Stepman version to match the git tag"
+              exit 1
+            fi
     - script:
         title: Goreleaser (create binaries + publish to GH)
         deps:
