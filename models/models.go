@@ -73,7 +73,7 @@ type StepModel struct {
 	// auto-generated at share
 	PublishedAt *time.Time        `json:"published_at,omitempty" yaml:"published_at,omitempty"`
 	Source      *StepSourceModel  `json:"source,omitempty" yaml:"source,omitempty"`
-	Executables Executables       `json:"executables,omitempty" yaml:"executables,omitempty"`
+	Executables *Executables       `json:"executables,omitempty" yaml:"executables,omitempty"`
 	AssetURLs   map[string]string `json:"asset_urls,omitempty" yaml:"asset_urls,omitempty"`
 
 	//
