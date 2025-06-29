@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -162,7 +163,8 @@ func QueryStepInfoFromGit(gitURL, tagOrBranch string) (models.StepInfoModel, err
 }
 
 // QueryStepInfoFromPath returns step info from a local path source
-func QueryStepInfoFromPath(dir string) (models.StepInfoModel, error) {
+func QueryStepInfoFromPath(envdir string) (models.StepInfoModel, error) {
+	dir := os.ExpandEnv(envdir)
 	stepDefinitionPth := filepath.Join(dir, "step.yml")
 	if exist, err := pathutil.IsPathExists(stepDefinitionPth); err != nil {
 		return models.StepInfoModel{}, fmt.Errorf("query local step info: check if step.yml exist: %s", err)
