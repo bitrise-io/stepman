@@ -73,7 +73,7 @@ type StepModel struct {
 	// auto-generated at share
 	PublishedAt *time.Time        `json:"published_at,omitempty" yaml:"published_at,omitempty"`
 	Source      *StepSourceModel  `json:"source,omitempty" yaml:"source,omitempty"`
-	Executables *Executables       `json:"executables,omitempty" yaml:"executables,omitempty"`
+	Executables *Executables      `json:"executables,omitempty" yaml:"executables,omitempty"`
 	AssetURLs   map[string]string `json:"asset_urls,omitempty" yaml:"asset_urls,omitempty"`
 
 	//
@@ -98,6 +98,10 @@ type StepModel struct {
 	// 0 means timeout is disabled.
 	NoOutputTimeout *int                   `json:"no_output_timeout,omitempty" yaml:"no_output_timeout,omitempty"`
 	Meta            map[string]interface{} `json:"meta,omitempty" yaml:"meta,omitempty"`
+	// References to execution container to be used to run the step
+	ContainerID string `json:"container,omitempty" yaml:"container,omitempty"`
+	// References to service containers to be started before running the step
+	ServiceIDs []string `json:"services,omitempty" yaml:"services,omitempty"`
 	//
 	Inputs  []envmanModels.EnvironmentItemModel `json:"inputs,omitempty" yaml:"inputs,omitempty"`
 	Outputs []envmanModels.EnvironmentItemModel `json:"outputs,omitempty" yaml:"outputs,omitempty"`
