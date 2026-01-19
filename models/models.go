@@ -96,12 +96,19 @@ type StepModel struct {
 	Timeout *int    `json:"timeout,omitempty" yaml:"timeout,omitempty"`
 	// The timeout (in seconds) until a Step with no output (stdout/stderr) is aborted
 	// 0 means timeout is disabled.
-	NoOutputTimeout *int                   `json:"no_output_timeout,omitempty" yaml:"no_output_timeout,omitempty"`
-	Meta            map[string]interface{} `json:"meta,omitempty" yaml:"meta,omitempty"`
-	// References to execution container to be used to run the step
-	ContainerID string `json:"container,omitempty" yaml:"container,omitempty"`
-	// References to service containers to be started before running the step
-	ServiceIDs []string `json:"services,omitempty" yaml:"services,omitempty"`
+	NoOutputTimeout *int           `json:"no_output_timeout,omitempty" yaml:"no_output_timeout,omitempty"`
+	Meta            map[string]any `json:"meta,omitempty" yaml:"meta,omitempty"`
+	/*
+		Containers (execution and service) to be used for the step.
+		The value is either the container id, or a map with the container id and additional configuration.
+
+		service_containers:
+		- redis
+		- postgres:
+		   recreate: true
+	*/
+	ExecutionContainer any   `json:"execution_container,omitempty" yaml:"execution_container,omitempty"`
+	ServiceContainers  []any `json:"service_containers,omitempty" yaml:"service_containers,omitempty"`
 	//
 	Inputs  []envmanModels.EnvironmentItemModel `json:"inputs,omitempty" yaml:"inputs,omitempty"`
 	Outputs []envmanModels.EnvironmentItemModel `json:"outputs,omitempty" yaml:"outputs,omitempty"`
