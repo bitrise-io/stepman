@@ -3,6 +3,7 @@ package integration
 import (
 	"strings"
 	"testing"
+	"os"
 
 	"github.com/bitrise-io/go-utils/command"
 	"github.com/stretchr/testify/require"
@@ -43,6 +44,14 @@ func TestStepInfo(t *testing.T) {
 	t.Log("local step --format json")
 	{
 		out, err := command.New(binPath(), "step-info", "--collection", "path", "--id", "./test-step", "--format", "json").RunAndReturnTrimmedCombinedOutput()
+		require.NoError(t, err, out)
+		require.Equal(t, localTestStepDefinitionJSON, out)
+	}
+
+	t.Log("local step - environment variable path --format json")
+	{
+		os.Setenv("STEP", ".")
+		out, err := command.New(binPath(), "step-info", "--collection", "path", "--id", "$STEP/test-step", "--format", "json").RunAndReturnTrimmedCombinedOutput()
 		require.NoError(t, err, out)
 		require.Equal(t, localTestStepDefinitionJSON, out)
 	}
