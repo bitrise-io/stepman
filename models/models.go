@@ -108,6 +108,7 @@ type StepModel struct {
 	//    recreate: true
 	ExecutionContainer ContainerReference   `json:"execution_container,omitempty" yaml:"execution_container,omitempty"`
 	ServiceContainers  []ContainerReference `json:"service_containers,omitempty" yaml:"service_containers,omitempty"`
+
 	//
 	Inputs  []envmanModels.EnvironmentItemModel `json:"inputs,omitempty" yaml:"inputs,omitempty"`
 	Outputs []envmanModels.EnvironmentItemModel `json:"outputs,omitempty" yaml:"outputs,omitempty"`
