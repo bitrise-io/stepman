@@ -123,12 +123,12 @@ func (step *StepModel) Normalize() error {
 	}
 
 	if step.ServiceContainers != nil {
-		normalized, err := RecursiveJSONMarshallable(step.ServiceContainers)
-		if err != nil {
-			return err
-		}
-		if normalizedSlice, ok := normalized.([]interface{}); ok {
-			step.ServiceContainers = normalizedSlice
+		for i, container := range step.ServiceContainers {
+			normalized, err := RecursiveJSONMarshallable(container)
+			if err != nil {
+				return err
+			}
+			step.ServiceContainers[i] = normalized
 		}
 	}
 
