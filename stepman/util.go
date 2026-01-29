@@ -171,13 +171,13 @@ func DownloadStep(collectionURI string, collection models.StepCollectionModel, i
 	return errors.New("failed to download step")
 }
 
-func addStepVersionToStepGroup(step models.StepModel, versionStr string, stepGroup models.StepGroupModel) (models.StepGroupModel, error) {
+func addStepVersionToStepGroup(step models.StepModel, stepVersionStr string, stepGroup models.StepGroupModel) (models.StepGroupModel, error) {
 	if stepGroup.LatestVersionNumber != "" {
-		v1, err := version.NewVersion(stepGroup.LatestVersionNumber)
+		latestVersion, err := version.NewVersion(stepGroup.LatestVersionNumber)
 		if err != nil {
 			return models.StepGroupModel{}, err
 		}
-		v2, err := version.NewVersion(versionStr)
+		stepVersion, err := version.NewVersion(versionStr)
 		if err != nil {
 			return models.StepGroupModel{}, err
 		}
