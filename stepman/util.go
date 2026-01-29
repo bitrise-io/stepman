@@ -177,17 +177,17 @@ func addStepVersionToStepGroup(step models.StepModel, stepVersionStr string, ste
 		if err != nil {
 			return models.StepGroupModel{}, err
 		}
-		stepVersion, err := version.NewVersion(versionStr)
+		stepVersion, err := version.NewVersion(stepVersionStr)
 		if err != nil {
 			return models.StepGroupModel{}, err
 		}
-		if v1.LessThan(v2) {
-			stepGroup.LatestVersionNumber = versionStr
+		if latestVersion.LessThan(stepVersion) {
+			stepGroup.LatestVersionNumber = stepVersionStr
 		}
 	} else {
-		stepGroup.LatestVersionNumber = versionStr
+		stepGroup.LatestVersionNumber = stepVersionStr
 	}
-	stepGroup.Versions[versionStr] = step
+	stepGroup.Versions[stepVersionStr] = step
 	return stepGroup, nil
 }
 
