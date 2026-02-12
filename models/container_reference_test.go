@@ -45,7 +45,7 @@ func TestGetContainerConfig(t *testing.T) {
 			},
 		},
 		{
-			name: "map[string]any format - recreate true",
+			name: "map[string]any format - map[any]any recreate true",
 			input: map[string]any{
 				"postgres": map[any]any{
 					"recreate": true,
@@ -57,9 +57,9 @@ func TestGetContainerConfig(t *testing.T) {
 			},
 		},
 		{
-			name: "map[string]any format - recreate false",
+			name: "map[string]any format - map[string]any recreate false",
 			input: map[string]any{
-				"mysql": map[any]any{
+				"mysql": map[string]any{
 					"recreate": false,
 				},
 			},
