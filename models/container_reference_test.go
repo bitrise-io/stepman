@@ -20,11 +20,6 @@ func TestGetContainerConfig(t *testing.T) {
 			expectedConfig: nil,
 		},
 		{
-			name:           "string format - empty string",
-			input:          "",
-			expectedConfig: nil,
-		},
-		{
 			name:  "string format - simple container ID",
 			input: "redis",
 			expectedConfig: &ContainerConfig{
@@ -101,6 +96,20 @@ func TestGetContainerConfig(t *testing.T) {
 				ContainerID: "golang",
 				Recreate:    false,
 			},
+		},
+
+		// Error cases - empty container id
+		{
+			name:          "string format - empty container id",
+			input:         "",
+			errorContains: "empty container id",
+		},
+		{
+			name: "map[string]any format - empty container id",
+			input: map[string]any{
+				"": map[any]any{},
+			},
+			errorContains: "empty container id",
 		},
 
 		// Error cases - invalid types
