@@ -187,7 +187,7 @@ func TestGetContainerConfig(t *testing.T) {
 					"recreate": true,
 				},
 			},
-			errorContains: "invalid container config map type: map[interface {}]interface {}",
+			errorContains: "invalid container config type: map[interface {}]interface {}",
 		},
 	}
 
