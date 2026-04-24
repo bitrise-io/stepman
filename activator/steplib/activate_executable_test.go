@@ -180,7 +180,7 @@ func TestDownloadFromURLs(t *testing.T) {
 
 		body, err := downloadFromURLs([]string{primary.URL, secondary.URL})
 		require.NoError(t, err)
-		defer body.Close()
+		defer func() { _ = body.Close() }()
 
 		b, err := io.ReadAll(body)
 		require.NoError(t, err)
@@ -200,7 +200,7 @@ func TestDownloadFromURLs(t *testing.T) {
 
 		body, err := downloadFromURLs([]string{primary.URL, secondary.URL})
 		require.NoError(t, err)
-		defer body.Close()
+		defer func() { _ = body.Close() }()
 
 		b, err := io.ReadAll(body)
 		require.NoError(t, err)
