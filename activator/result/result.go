@@ -1,6 +1,10 @@
-package activator
+package result
+
+import "github.com/bitrise-io/stepman/models"
 
 type ActivatedStep struct {
+	StepInfo models.StepInfoModel
+
 	StepYMLPath string
 
 	ActivationType ActivationType

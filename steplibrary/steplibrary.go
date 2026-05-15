@@ -7,6 +7,7 @@ import (
 
 	"github.com/bitrise-io/go-utils/command"
 	"github.com/bitrise-io/go-utils/v2/fileutil"
+	"github.com/bitrise-io/stepman/activator/result"
 	"github.com/bitrise-io/stepman/models"
 	"github.com/bitrise-io/stepman/stepman"
 )
@@ -17,14 +18,6 @@ type Steplib struct {
 	isOfflineMode bool
 	api           API
 	fileManager   fileutil.FileManager
-}
-
-// ActivatedStep is the steplib v2 activation result.
-// Callers (e.g. the activator package) convert it to their own representation.
-type ActivatedStep struct {
-	StepInfo       models.StepInfoModel
-	StepYMLPath    string
-	ExecutablePath string
 }
 
 type ActivateOutputPaths struct {
@@ -41,7 +34,7 @@ func New(log stepman.Logger, steplibURI string, isOfflineMode bool, fileManager 
 	}
 }
 
-func (s *Steplib) Activate(stepID, version string, outputPaths ActivateOutputPaths) (ActivatedStep, error) {
+func (s *Steplib) Activate(stepID, version string, outputPaths ActivateOutputPaths) (result.ActivatedStep, error) {
 	stepInfo, resolved, err := s.getStepVersionInfo(stepID, version)
 
 	var sourceYMLPath, stepSourceZIPPath, execPath string
@@ -60,12 +53,14 @@ func (s *Steplib) Activate(stepID, version string, outputPaths ActivateOutputPat
 		err = s.fileManager.CopyFile(sourceYMLPath, outputPaths.YMLPath, &fileutil.CopyOptions{Overwrite: true})
 	}
 	if err != nil {
-		return ActivatedStep{}, err
+		return result.ActivatedStep{}, err
 	}
 
-	return ActivatedStep{
+	_ = sourceYMLPath
+	//nolint:exhaustruct // ActivationType + DidStepLibUpdate are set by the caller, not by v2
+	return result.ActivatedStep{
 		StepInfo:       stepInfo,
-		StepYMLPath:    sourceYMLPath,
+		StepYMLPath:    outputPaths.YMLPath,
 		ExecutablePath: execPath,
 	}, nil
 }
