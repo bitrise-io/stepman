@@ -2,6 +2,7 @@ package activator
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/bitrise-io/go-utils/pointers"
@@ -9,7 +10,10 @@ import (
 	"github.com/bitrise-io/stepman/models"
 	"github.com/bitrise-io/stepman/stepid"
 	"github.com/bitrise-io/stepman/stepman"
+	"github.com/bitrise-io/stepman/steplibrary"
 )
+
+const useSteplibV2 = "BITRISE_EXPERIMENT_STEPLIB_V2"
 
 func ActivateSteplibRefStep(
 	log stepman.Logger,
@@ -25,6 +29,14 @@ func ActivateSteplibRefStep(
 	activationResult := ActivatedStep{
 		StepYMLPath:      stepYMLPath,
 		DidStepLibUpdate: false,
+	}
+
+	if os.Getenv(useSteplibV2) == "true" || os.Getenv(useSteplibV2) == "1" {
+		steplib := steplibrary.New(log, id.SteplibSource, isOfflineMode)
+
+		if _, err := steplib.Activate(id.IDorURI, id.Version); err != nil {
+			return activationResult, err
+		}
 	}
 
 	stepInfo, didUpdate, err := prepareStepLibForActivation(log, id, didStepLibUpdateInWorkflow, isOfflineMode)
