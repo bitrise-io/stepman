@@ -1,0 +1,7 @@
+{
+  "maintainer": "community",
+  "deprecation": {
+    "removal_date": "2026-12-31",
+    "notes": "Replaced by hello-step. Migrate by updating your bitrise.yml.\n"
+  }
+}
