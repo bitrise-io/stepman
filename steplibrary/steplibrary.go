@@ -16,6 +16,14 @@ type Steplib struct {
 	api           API
 }
 
+// ActivatedStep is the steplib v2 activation result.
+// Callers (e.g. the activator package) convert it to their own representation.
+type ActivatedStep struct {
+	StepInfo       models.StepInfoModel
+	StepYMLPath    string
+	ExecutablePath string
+}
+
 func New(log stepman.Logger, steplibURI string, isOfflineMode bool) *Steplib {
 	return &Steplib{
 		log:           log,
@@ -25,49 +33,76 @@ func New(log stepman.Logger, steplibURI string, isOfflineMode bool) *Steplib {
 	}
 }
 
-func (s *Steplib) Activate(stepID, version string) (models.StepInfoModel, error) {
+func (s *Steplib) Activate(stepID, version, targetYMLPath string) (ActivatedStep, error) {
+	stepInfo, resolved, err := s.getStepVersionInfo(stepID, version)
+	if err != nil {
+		return ActivatedStep{}, err
+	}
+
+	ymlPath, err := s.api.GetStepYMLPath(resolved)
+	if err != nil {
+		return ActivatedStep{}, fmt.Errorf("fetching step.yml path for `%s@%s`: %w", resolved.ID, resolved.Version, err)
+	}
+
+	execPath, err := s.api.GetStepPrecompiledPath(resolved)
+	if err != nil {
+		return ActivatedStep{}, fmt.Errorf("fetching precompiled binary for `%s@%s`: %w", resolved.ID, resolved.Version, err)
+	}
+
+	// TODO: actually copy/extract the fetched step.yml to targetYMLPath instead of just exposing the source path.
+	_ = targetYMLPath
+	return ActivatedStep{
+		StepInfo:       stepInfo,
+		StepYMLPath:    ymlPath,
+		ExecutablePath: execPath,
+	}, nil
+}
+
+func (s *Steplib) getStepVersionInfo(stepID, version string) (models.StepInfoModel, ResolvedStepVersion, error) {
 	if stepID == "" {
-		return models.StepInfoModel{}, errors.New("missing required input: step id")
+		return models.StepInfoModel{}, ResolvedStepVersion{}, errors.New("missing required input: step id")
 	}
 
 	allSteps, err := s.api.GetAllStepIDs()
 	if err != nil {
-		return models.StepInfoModel{}, fmt.Errorf("fetching avaialble step IDs: %w", err)
+		return models.StepInfoModel{}, ResolvedStepVersion{}, fmt.Errorf("fetching avaialble step IDs: %w", err)
 	}
 	if !slices.Contains(allSteps, stepID) {
-		return models.StepInfoModel{}, fmt.Errorf("collection doesn't contain step: %s", stepID)
+		return models.StepInfoModel{}, ResolvedStepVersion{}, fmt.Errorf("%s steplib does not contain %s step", s.steplibURI, stepID)
 	}
 
 	versionConstraint, err := models.ParseRequiredVersion(version)
 	if err != nil {
-		return models.StepInfoModel{}, fmt.Errorf("invalid step `%s` version constraint: %w", stepID, err)
+		return models.StepInfoModel{}, ResolvedStepVersion{}, fmt.Errorf("invalid step `%s` version constraint: %w", stepID, err)
 	}
 	if versionConstraint.VersionLockType == models.InvalidVersionConstraint {
-		return models.StepInfoModel{}, fmt.Errorf("invalid step `%s` version constraint: %s", stepID, version)
+		return models.StepInfoModel{}, ResolvedStepVersion{}, fmt.Errorf("invalid step `%s` version constraint: %s", stepID, version)
 	}
 
 	latestVersions, err := s.api.GetLatestStepVersions(stepID)
 	if err != nil {
-		return models.StepInfoModel{}, fmt.Errorf("fetching versions of `%s`: %w", stepID, err)
+		return models.StepInfoModel{}, ResolvedStepVersion{}, fmt.Errorf("fetching latest versions of `%s`: %w", stepID, err)
 	}
 
-	var resolved string
+	var resolvedVersion string
 	switch versionConstraint.VersionLockType {
 	case models.Latest:
-		resolved = latestVersions.Latest
+		resolvedVersion = latestVersions.Latest
 	case models.Fixed:
-		resolved = versionConstraint.Version.String()
+		resolvedVersion = versionConstraint.Version.String()
+		// ToDo: check version exists, otherwise error:
+		// "%s steplib does not contain %s step %s version"
 	case models.MajorLocked, models.MinorLocked:
-		return models.StepInfoModel{}, fmt.Errorf("version constraint %q not yet supported in steplib v2", version)
+		return models.StepInfoModel{}, ResolvedStepVersion{}, fmt.Errorf("version constraint %q not yet supported in steplib v2", version)
 	default:
-		return models.StepInfoModel{}, fmt.Errorf("unknown version constraint: %s", version)
+		return models.StepInfoModel{}, ResolvedStepVersion{}, fmt.Errorf("unknown version constraint: %s", version)
 	}
 
 	return models.StepInfoModel{
 		Library:         s.steplibURI,
 		ID:              stepID,
-		Version:         resolved,
+		Version:         resolvedVersion,
 		OriginalVersion: version,
 		LatestVersion:   latestVersions.Latest,
-	}, nil
+	}, ResolvedStepVersion{ID: stepID, Version: resolvedVersion}, nil
 }

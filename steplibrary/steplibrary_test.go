@@ -14,6 +14,7 @@ func (discardLogger) Warnf(string, ...any)  {}
 func (discardLogger) Infof(string, ...any)  {}
 
 type fakeAPI struct {
+	MockAPI
 	ids               []string
 	listErr           error
 	latestVersions    map[string]StepVersionsLatest
@@ -60,14 +61,14 @@ func TestSteplib_Activate(t *testing.T) {
 			name:    "step not in collection",
 			api:     fakeAPI{ids: []string{"script"}},
 			stepID:  "xcode-test",
-			wantErr: "collection doesn't contain step",
+			wantErr: "steplib does not contain xcode-test step",
 		},
 		{
 			name:    "invalid version constraint",
 			api:     scriptOnly,
 			stepID:  "script",
 			version: "not-a-version",
-			wantErr: "invalid step version",
+			wantErr: "invalid step `script` version constraint",
 		},
 		{
 			name:        "empty version resolves to latest",
@@ -103,7 +104,7 @@ func TestSteplib_Activate(t *testing.T) {
 			name:    "list error propagates",
 			api:     fakeAPI{listErr: errors.New("boom")},
 			stepID:  "script",
-			wantErr: "fetching steps failed",
+			wantErr: "fetching avaialble step IDs",
 		},
 		{
 			name: "latest versions error propagates",
@@ -112,7 +113,7 @@ func TestSteplib_Activate(t *testing.T) {
 				latestVersionsErr: errors.New("kaboom"),
 			},
 			stepID:  "script",
-			wantErr: "fetching versions for script failed",
+			wantErr: "fetching latest versions of `script`",
 		},
 	}
 
@@ -123,7 +124,7 @@ func TestSteplib_Activate(t *testing.T) {
 				steplibURI: "https://github.com/bitrise-io/bitrise-steplib.git",
 				api:        tt.api,
 			}
-			got, err := s.Activate(tt.stepID, tt.version)
+			got, err := s.Activate(tt.stepID, tt.version, "/tmp/current_step.yml")
 			if tt.wantErr != "" {
 				if err == nil {
 					t.Fatalf("Activate(%q, %q) = nil error, want error containing %q", tt.stepID, tt.version, tt.wantErr)
@@ -136,17 +137,17 @@ func TestSteplib_Activate(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Activate(%q, %q) unexpected error: %v", tt.stepID, tt.version, err)
 			}
-			if got.ID != tt.stepID {
-				t.Errorf("ID = %q, want %q", got.ID, tt.stepID)
+			if got.StepInfo.ID != tt.stepID {
+				t.Errorf("StepInfo.ID = %q, want %q", got.StepInfo.ID, tt.stepID)
 			}
-			if got.Version != tt.wantVersion {
-				t.Errorf("Version = %q, want %q", got.Version, tt.wantVersion)
+			if got.StepInfo.Version != tt.wantVersion {
+				t.Errorf("StepInfo.Version = %q, want %q", got.StepInfo.Version, tt.wantVersion)
 			}
-			if got.LatestVersion != tt.wantLatest {
-				t.Errorf("LatestVersion = %q, want %q", got.LatestVersion, tt.wantLatest)
+			if got.StepInfo.LatestVersion != tt.wantLatest {
+				t.Errorf("StepInfo.LatestVersion = %q, want %q", got.StepInfo.LatestVersion, tt.wantLatest)
 			}
-			if got.OriginalVersion != tt.version {
-				t.Errorf("OriginalVersion = %q, want %q", got.OriginalVersion, tt.version)
+			if got.StepInfo.OriginalVersion != tt.version {
+				t.Errorf("StepInfo.OriginalVersion = %q, want %q", got.StepInfo.OriginalVersion, tt.version)
 			}
 		})
 	}
