@@ -125,6 +125,7 @@ func (s *Steplib) getStepVersionInfo(stepID, version string) (models.StepInfoMod
 	if err != nil {
 		return models.StepInfoModel{}, ResolvedStepVersion{}, err
 	}
+	//nolint:exhaustruct // GroupInfo, Step and DefinitionPth aren't surfaced by the v2 API yet
 	return models.StepInfoModel{
 		Library:         s.steplibURI,
 		ID:              stepID,

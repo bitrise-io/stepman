@@ -1,6 +1,7 @@
 package steplibrary
 
 import (
+	"archive/zip"
 	"errors"
 	"os"
 	"path/filepath"
@@ -24,6 +25,7 @@ type fakeAPI struct {
 	latestVersions    map[string]StepVersionsLatest
 	latestVersionsErr error
 	ymlSourcePath     string
+	zipSourcePath     string
 }
 
 func (f fakeAPI) GetAllStepIDs() ([]string, error) {
@@ -48,6 +50,40 @@ func (f fakeAPI) GetStepYMLPath(step ResolvedStepVersion) (string, error) {
 	return f.MockAPI.GetStepYMLPath(step)
 }
 
+func (f fakeAPI) GetStepSourceZIPPath(step ResolvedStepVersion) (string, error) {
+	if f.zipSourcePath != "" {
+		return f.zipSourcePath, nil
+	}
+	return f.MockAPI.GetStepSourceZIPPath(step)
+}
+
+func writeSeedZip(t *testing.T, path string) {
+	t.Helper()
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatalf("create seed zip: %v", err)
+	}
+	w := zip.NewWriter(f)
+	entry, err := w.Create("step.txt")
+	if err != nil {
+		_ = w.Close()
+		_ = f.Close()
+		t.Fatalf("create zip entry: %v", err)
+	}
+	if _, err := entry.Write([]byte("seed\n")); err != nil {
+		_ = w.Close()
+		_ = f.Close()
+		t.Fatalf("write zip entry: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		_ = f.Close()
+		t.Fatalf("close zip writer: %v", err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatalf("close zip file: %v", err)
+	}
+}
+
 func TestSteplib_Activate(t *testing.T) {
 	tmpDir := t.TempDir()
 	sourceYML := filepath.Join(tmpDir, "source-step.yml")
@@ -55,10 +91,14 @@ func TestSteplib_Activate(t *testing.T) {
 		t.Fatalf("seed source step.yml: %v", err)
 	}
 
+	sourceZIP := filepath.Join(tmpDir, "source-step.zip")
+	writeSeedZip(t, sourceZIP)
+
 	scriptOnly := fakeAPI{
 		ids:            []string{"script"},
 		latestVersions: map[string]StepVersionsLatest{"script": {Latest: "3.0.0"}},
 		ymlSourcePath:  sourceYML,
+		zipSourcePath:  sourceZIP,
 	}
 
 	tests := []struct {
