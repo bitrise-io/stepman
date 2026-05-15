@@ -6,11 +6,12 @@ import (
 	"path/filepath"
 
 	"github.com/bitrise-io/go-utils/pointers"
+	"github.com/bitrise-io/go-utils/v2/fileutil"
 	"github.com/bitrise-io/stepman/activator/steplib"
 	"github.com/bitrise-io/stepman/models"
 	"github.com/bitrise-io/stepman/stepid"
-	"github.com/bitrise-io/stepman/stepman"
 	"github.com/bitrise-io/stepman/steplibrary"
+	"github.com/bitrise-io/stepman/stepman"
 )
 
 const useSteplibV2 = "BITRISE_EXPERIMENT_STEPLIB_V2"
@@ -32,11 +33,20 @@ func ActivateSteplibRefStep(
 	}
 
 	if os.Getenv(useSteplibV2) == "true" || os.Getenv(useSteplibV2) == "1" {
-		steplib := steplibrary.New(log, id.SteplibSource, isOfflineMode)
-
-		if _, err := steplib.Activate(id.IDorURI, id.Version); err != nil {
+		v2 := steplibrary.New(log, id.SteplibSource, isOfflineMode, fileutil.NewFileManager())
+		activated, err := v2.Activate(id.IDorURI, id.Version, steplibrary.ActivateOutputPaths{
+			YMLPath:  stepYMLPath,
+			CodePath: activatedStepDir,
+		})
+		if err != nil {
 			return activationResult, err
 		}
+
+		*stepInfoPtr = activated.StepInfo
+		activationResult.ExecutablePath = activated.ExecutablePath
+		// steplib v2 always returns an executable, it compiles and caches step source too
+		activationResult.ActivationType = ActivationTypeSteplibExecutable
+		return activationResult, nil
 	}
 
 	stepInfo, didUpdate, err := prepareStepLibForActivation(log, id, didStepLibUpdateInWorkflow, isOfflineMode)

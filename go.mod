@@ -16,6 +16,7 @@ require (
 )
 
 require (
+	github.com/bitrise-io/go-utils/v2 v2.0.0-alpha.34 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.4 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect

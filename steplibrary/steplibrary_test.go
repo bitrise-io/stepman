@@ -2,8 +2,12 @@ package steplibrary
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/bitrise-io/go-utils/v2/fileutil"
 )
 
 type discardLogger struct{}
@@ -19,6 +23,7 @@ type fakeAPI struct {
 	listErr           error
 	latestVersions    map[string]StepVersionsLatest
 	latestVersionsErr error
+	ymlSourcePath     string
 }
 
 func (f fakeAPI) GetAllStepIDs() ([]string, error) {
@@ -36,10 +41,24 @@ func (f fakeAPI) GetLatestStepVersions(id string) (StepVersionsLatest, error) {
 	return v, nil
 }
 
+func (f fakeAPI) GetStepYMLPath(step ResolvedStepVersion) (string, error) {
+	if f.ymlSourcePath != "" {
+		return f.ymlSourcePath, nil
+	}
+	return f.MockAPI.GetStepYMLPath(step)
+}
+
 func TestSteplib_Activate(t *testing.T) {
+	tmpDir := t.TempDir()
+	sourceYML := filepath.Join(tmpDir, "source-step.yml")
+	if err := os.WriteFile(sourceYML, []byte("# stub step.yml\n"), 0o644); err != nil {
+		t.Fatalf("seed source step.yml: %v", err)
+	}
+
 	scriptOnly := fakeAPI{
 		ids:            []string{"script"},
 		latestVersions: map[string]StepVersionsLatest{"script": {Latest: "3.0.0"}},
+		ymlSourcePath:  sourceYML,
 	}
 
 	tests := []struct {
@@ -120,11 +139,17 @@ func TestSteplib_Activate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &Steplib{
-				log:        discardLogger{},
-				steplibURI: "https://github.com/bitrise-io/bitrise-steplib.git",
-				api:        tt.api,
+				log:         discardLogger{},
+				steplibURI:  "https://github.com/bitrise-io/bitrise-steplib.git",
+				api:         tt.api,
+				fileManager: fileutil.NewFileManager(),
 			}
-			got, err := s.Activate(tt.stepID, tt.version, "/tmp/current_step.yml")
+			outDir := t.TempDir()
+			outPaths := ActivateOutputPaths{
+				YMLPath:  filepath.Join(outDir, "current_step.yml"),
+				CodePath: filepath.Join(outDir, "code"),
+			}
+			got, err := s.Activate(tt.stepID, tt.version, outPaths)
 			if tt.wantErr != "" {
 				if err == nil {
 					t.Fatalf("Activate(%q, %q) = nil error, want error containing %q", tt.stepID, tt.version, tt.wantErr)
