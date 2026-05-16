@@ -113,6 +113,70 @@ Three CDN/object-storage rules, in priority order. All three major hosting optio
 
 **Cache invalidation:** all three CDNs offer purge-by-URL APIs (Cloudflare Purge, CloudFront `CreateInvalidation`, GCP cache invalidation) for break-glass scenarios. Normal-path correctness is achieved purely via the TTLs above; purge is a safety net.
 
+### Stale-data fallback (offline / upstream unavailable)
+
+The TTLs above describe the happy path. When upstream (origin or CDN edge) is unreachable, or the client is offline, we still want builds to succeed if a sufficiently-recent copy is available. Three layered mechanisms, ordered from CDN-side to client-side:
+
+#### 1. `stale-while-revalidate` (RFC 5861)
+
+Extends `Cache-Control` with `stale-while-revalidate=<seconds>`. Once `max-age` elapses, the cache (CDN or HTTP client) returns the stale response immediately and triggers an async revalidation. Good for keeping latency low while still picking up fresh data within the SWR window.
+
+| Pattern | Suggested header | Effect |
+|---|---|---|
+| `/spec/*` | `public, max-age=60, must-revalidate, stale-while-revalidate=300` | Fresh within 60s; up to 5 min of "warm-stale" while a background fetch refreshes. |
+| `/steps/*/step-info.json` | `public, max-age=300, must-revalidate, stale-while-revalidate=1800` | 5 min fresh; up to 30 min stale-served, with async refresh. |
+| `/steps/*/<v>/...` (immutable) | `public, max-age=31536000, immutable` | SWR adds no value — content cannot change. |
+
+#### 2. `stale-if-error` (RFC 5861)
+
+Independent of SWR: `stale-if-error=<seconds>` tells the cache to serve a stale response *only* when revalidation fails (5xx, connection error, DNS failure, timeout). This is the explicit "ride out a brief upstream outage" knob.
+
+| Pattern | Suggested header | Effect |
+|---|---|---|
+| `/spec/*` | `…, stale-if-error=86400` | Tolerate up to a day of staleness while origin is down. Index files churn frequently enough that a day is acceptable. |
+| `/steps/*/step-info.json` | `…, stale-if-error=604800` | One week — `step-info.json` carries deprecation metadata, which is non-critical to read freshly. |
+| `/steps/*/<v>/...` (immutable) | n/a | Immutable content never goes stale; nothing to fall back to. |
+
+Concrete combined header for `/spec/*`:
+
+```
+Cache-Control: public, max-age=60, must-revalidate, stale-while-revalidate=300, stale-if-error=86400
+ETag: "<hash>"
+```
+
+#### 3. Client-side on-disk cache (ultimate fallback)
+
+Cache-Control directives are advisory — only useful if the client (or an intermediate CDN edge) actually honors them. Go's `net/http` does not implement SWR or SIE natively; most third-party HTTP cache libraries (e.g. `gregjones/httpcache`) cover only `max-age` + `ETag`. Two implementation paths:
+
+- **Adopt a SWR/SIE-aware client.** Smaller surface but the ecosystem is thin in Go.
+- **Implement the directive-aware layer ourselves** on top of an on-disk store. The semantics we need are small: per-URL entries keyed by URL, storing body + ETag + `Date` + the parsed `Cache-Control` directives. Read path:
+  1. If a cached entry exists and `now - Date < max-age` → serve from cache, no network.
+  2. Else issue conditional GET (`If-None-Match: <etag>`):
+     - `304 Not Modified` → bump entry's `Date`, serve cached body.
+     - `200` → replace entry, serve.
+     - Network/5xx error → if cached entry exists and `now - Date < max-age + stale-if-error` → serve cached body with a `Warning: 110 - "Response is Stale"` log line; otherwise propagate the error.
+  3. In SWR window: serve cached, kick off the revalidation in a goroutine.
+
+This keeps the protocol-level fallback story uniform across operators (CDN edge, browser, our client) and means we don't need a separate "offline cache" code path.
+
+#### 4. Explicit offline mode
+
+`BITRISE_OFFLINE_MODE=true` (already honored elsewhere in stepman) short-circuits the network entirely:
+
+- All reads come from the on-disk cache, regardless of freshness or `Cache-Control`.
+- A miss is a hard error, surfaced with the list of cached versions available for the requested step (mirrors today's `collectOfflineAvailableStepVersions` behavior in `activator/steplib/activate_source.go`).
+
+Offline mode bypasses both `max-age` and `stale-if-error`; treat it as "client is the source of truth, no upstream exists".
+
+#### Operator vs client responsibility
+
+| Layer | Owns | Notes |
+|---|---|---|
+| Origin (object storage) | Sets `Cache-Control` headers per the table above. | One config knob per prefix; static. |
+| CDN edge | Honors SWR/SIE if upstream is unreachable. | Cloudflare, CloudFront, and GCP Cloud CDN all support both directives via standard config. |
+| stepman client | Honors `max-age` + `ETag` + `stale-if-error` against its on-disk cache. | Implementation lives in the V2 inventory `Reader` (PoC B). |
+| Operator break-glass | CDN purge-by-URL; `STEPMAN_OFFLINE_MODE`. | Used for incident recovery, not steady-state. |
+
 ---
 
 ## Schemas

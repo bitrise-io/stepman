@@ -41,6 +41,7 @@ func (s *Steplib) Activate(stepID, version string, outputPaths ActivateOutputPat
 	if err == nil {
 		sourceYMLPath, err = s.api.GetStepYMLPath(resolved)
 	}
+	// ToDo: precompiled binary
 	if err == nil {
 		stepSourceZIPPath, err = s.api.GetStepSourceZIPPath(resolved)
 	}
@@ -56,12 +57,16 @@ func (s *Steplib) Activate(stepID, version string, outputPaths ActivateOutputPat
 		return result.ActivatedStep{}, err
 	}
 
-	_ = sourceYMLPath
-	//nolint:exhaustruct // ActivationType + DidStepLibUpdate are set by the caller, not by v2
+	activationType := result.ActivationTypeSteplibSource
+	if execPath != "" {
+		activationType = result.ActivationTypeSteplibExecutable
+	}
 	return result.ActivatedStep{
-		StepInfo:       stepInfo,
-		StepYMLPath:    outputPaths.YMLPath,
-		ExecutablePath: execPath,
+		StepInfo:         stepInfo,
+		StepYMLPath:      outputPaths.YMLPath,
+		ExecutablePath:   execPath,
+		ActivationType:   activationType,
+		DidStepLibUpdate: false, // deprecated
 	}, nil
 }
 
