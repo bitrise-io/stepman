@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 
 	"github.com/bitrise-io/go-utils/command"
 	"github.com/bitrise-io/go-utils/v2/fileutil"
@@ -113,14 +114,23 @@ func (s *Steplib) getStepVersionInfo(stepID, version string) (models.StepInfoMod
 			resolvedVersion = latestVersions.Latest
 		case models.Fixed:
 			resolvedVersion = versionConstraint.Version.String()
-			// ToDo: check version exists, otherwise error:
-			// "%s steplib does not contain %s step %s version"
-		case models.MajorLocked, models.MinorLocked:
+		case models.MajorLocked:
+			majorKey := strconv.FormatUint(versionConstraint.Version.Major, 10)
+			v, ok := latestVersions.LatestByMajor[majorKey]
+			if !ok {
+				err = fmt.Errorf("%s steplib does not contain %s step with major version %s", s.steplibURI, stepID, majorKey)
+			} else {
+				resolvedVersion = v
+			}
+		case models.MinorLocked:
 			err = fmt.Errorf("version constraint %q not yet supported in steplib v2", version)
 		default:
 			err = fmt.Errorf("unknown version constraint: %s", version)
 		}
 	}
+
+	// ToDo: check version exists, otherwise error:
+	// "%s steplib does not contain %s step %s version"
 
 	if err != nil {
 		return models.StepInfoModel{}, ResolvedStepVersion{}, err

@@ -95,10 +95,20 @@ func TestSteplib_Activate(t *testing.T) {
 	writeSeedZip(t, sourceZIP)
 
 	scriptOnly := fakeAPI{
-		ids:            []string{"script"},
-		latestVersions: map[string]StepVersionsLatest{"script": {Latest: "3.0.0"}},
-		ymlSourcePath:  sourceYML,
-		zipSourcePath:  sourceZIP,
+		ids: []string{"script"},
+		latestVersions: map[string]StepVersionsLatest{
+			"script": {
+				StepID: "script",
+				Latest: "3.0.0",
+				LatestByMajor: map[string]string{
+					"1": "1.2.0",
+					"2": "2.4.1",
+					"3": "3.0.0",
+				},
+			},
+		},
+		ymlSourcePath: sourceYML,
+		zipSourcePath: sourceZIP,
 	}
 
 	tests := []struct {
@@ -146,11 +156,19 @@ func TestSteplib_Activate(t *testing.T) {
 			wantLatest:  "3.0.0",
 		},
 		{
-			name:    "major-locked not yet supported",
+			name:        "major-locked resolves via latest_by_major",
+			api:         scriptOnly,
+			stepID:      "script",
+			version:     "2",
+			wantVersion: "2.4.1",
+			wantLatest:  "3.0.0",
+		},
+		{
+			name:    "major-locked with unknown major errors",
 			api:     scriptOnly,
 			stepID:  "script",
-			version: "1",
-			wantErr: "not yet supported",
+			version: "99",
+			wantErr: "does not contain script step with major version 99",
 		},
 		{
 			name:    "minor-locked not yet supported",

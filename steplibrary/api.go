@@ -9,8 +9,13 @@ type ResolvedStepVersion struct {
 	ID, Version string
 }
 
+// StepVersionsLatest mirrors `spec/steps/<id>/latest.json` from the V2 inventory
+// layout described in plan.md. Resolves Latest and MajorLocked version constraints
+// in a single fetch.
 type StepVersionsLatest struct {
-	Latest string `json:"latest"`
+	StepID        string            `json:"step_id"`
+	Latest        string            `json:"latest"`
+	LatestByMajor map[string]string `json:"latest_by_major"`
 }
 
 type API interface {
@@ -31,7 +36,13 @@ func (m MockAPI) GetAllStepIDs() ([]string, error) {
 func (m MockAPI) GetLatestStepVersions(id string) (StepVersionsLatest, error) {
 	versions := map[string]StepVersionsLatest{
 		"script": {
+			StepID: "script",
 			Latest: "3.0.0",
+			LatestByMajor: map[string]string{
+				"1": "1.2.0",
+				"2": "2.4.1",
+				"3": "3.0.0",
+			},
 		},
 	}
 
