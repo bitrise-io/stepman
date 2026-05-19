@@ -1,0 +1,19 @@
+title: No Info Step
+summary: Step with no step-info.yml file.
+description: |
+  Tests the path where step-info.yml is absent. Generator should not write
+  step-info.json for this step, but should still produce step.json + versions.
+website: https://example.com/no-info-step
+source_code_url: https://github.com/example/no-info-step
+support_url: https://github.com/example/no-info-step/issues
+published_at: 2024-11-11T11:11:11Z
+source:
+  git: https://github.com/example/no-info-step.git
+  commit: 1234567890abcdef1234567890abcdef12345678
+type_tags:
+  - utility
+toolkit:
+  bash:
+    entry_file: step.sh
+inputs: []
+outputs: []

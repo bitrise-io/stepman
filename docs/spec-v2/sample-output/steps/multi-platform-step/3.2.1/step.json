@@ -1,0 +1,49 @@
+{
+  "format_version": "2.0.0",
+  "id": "multi-platform-step",
+  "version": "3.2.1",
+  "title": "Multi-platform Step",
+  "summary": "A Go step with prebuilt binaries on two platforms.",
+  "description": "Demonstrates the executables map across multiple OS/arch combinations.\n",
+  "website": "https://example.com/multi-platform-step",
+  "source_code_url": "https://github.com/example/multi-platform-step",
+  "support_url": "https://github.com/example/multi-platform-step/issues",
+  "source": {
+    "git": "https://github.com/example/multi-platform-step.git",
+    "commit": "eeee5555eeee5555eeee5555eeee5555eeee5555"
+  },
+  "executables": {
+    "darwin-arm64": {
+      "location": "https://storage.googleapis.com/bitrise-steplib-storage/steps/multi-platform-step/3.2.1/bin/multi-platform-step-darwin-arm64",
+      "hash": "sha256-1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa"
+    },
+    "linux-amd64": {
+      "location": "https://storage.googleapis.com/bitrise-steplib-storage/steps/multi-platform-step/3.2.1/bin/multi-platform-step-linux-amd64",
+      "hash": "sha256-2222bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222bbbb"
+    }
+  },
+  "type_tags": [
+    "utility"
+  ],
+  "toolkit": {
+    "go": {
+      "package_name": "github.com/example/multi-platform-step"
+    }
+  },
+  "inputs": [
+    {
+      "opts": {
+        "title": "Threshold"
+      },
+      "threshold": "10"
+    }
+  ],
+  "outputs": [
+    {
+      "RESULT_COUNT": null,
+      "opts": {
+        "title": "Number of processed items"
+      }
+    }
+  ]
+}

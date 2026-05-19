@@ -1,0 +1,24 @@
+{
+  "step_id": "hello-step",
+  "latest": "2.0.0",
+  "versions": [
+    {
+      "version": "2.0.0",
+      "published_at": "2025-06-01T09:15:00Z",
+      "has_executable": false,
+      "commit": "cccc3333cccc3333cccc3333cccc3333cccc3333"
+    },
+    {
+      "version": "1.1.0",
+      "published_at": "2024-03-01T12:30:00Z",
+      "has_executable": false,
+      "commit": "bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222"
+    },
+    {
+      "version": "1.0.0",
+      "published_at": "2024-01-15T10:00:00Z",
+      "has_executable": false,
+      "commit": "aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111"
+    }
+  ]
+}

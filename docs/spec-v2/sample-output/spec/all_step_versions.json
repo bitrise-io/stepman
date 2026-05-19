@@ -1,0 +1,22 @@
+{
+  "format_version": "2.0.0",
+  "steps": {
+    "bash-step": [
+      "1.0.0"
+    ],
+    "deprecated-step": [
+      "1.0.0"
+    ],
+    "hello-step": [
+      "1.0.0",
+      "1.1.0",
+      "2.0.0"
+    ],
+    "multi-platform-step": [
+      "3.2.1"
+    ],
+    "no-info-step": [
+      "1.0.0"
+    ]
+  }
+}

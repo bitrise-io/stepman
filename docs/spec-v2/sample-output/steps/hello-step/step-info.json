@@ -1,0 +1,7 @@
+{
+  "maintainer": "bitrise",
+  "deprecation": null,
+  "asset_urls": {
+    "icon.svg": "assets/icon.svg"
+  }
+}
