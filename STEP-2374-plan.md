@@ -382,6 +382,31 @@ Ordered newest-first. `has_executable` lets clients short-circuit binary lookup 
 
 ---
 
+## Resolution routes (stepman side)
+
+Stepman recognizes four version-constraint types (see
+`models/version_constraint.go`). The V2 layout serves each with the
+minimum fetch set:
+
+| Constraint | Example user input | Files fetched | Notes |
+|---|---|---|---|
+| **Fixed** | `1.2.3` | `steps/<id>/1.2.3/step.json` (1 fetch) | Never touches `spec/`. A 404 is the canonical "no such version" signal. Once fetched, the file is immutable for a year — repeat builds re-validate nothing. |
+| **Latest** | `""` / `latest` | `spec/steps/<id>/latest.json` → `steps/<id>/<resolved>/step.json` (2 fetches) | Read `latest` field, then the resolved `step.json`. |
+| **MajorLocked** | `1.x.x` or `1` | `spec/steps/<id>/latest.json` → `steps/<id>/<resolved>/step.json` (2 fetches) | **Same file as Latest** — read `latest_by_major["1"]` instead of `latest`. Shared cache key with the Latest route is a real win. |
+| **MinorLocked** | `1.2.x` | `spec/steps/<id>/versions.json` → `steps/<id>/<resolved>/step.json` (2 fetches) | Client filters the version list for matching `major.minor`, picks highest patch. `versions.json` is larger (~300 B gz median), so we keep MinorLocked off the small `latest.json`. |
+
+Two design properties this confirms:
+
+1. **The most common production case (Fixed pins) is the cheapest route** — one fetch, immutable, never re-validated. V2's caching wins are biggest for the workflows that need it most.
+2. **Latest and MajorLocked share a fetch.** Storing `latest_by_major` alongside `latest` in the same file means a workflow with mixed `latest` + `1.x.x` pins doesn't pay extra round trips.
+
+(Step ID validity — "does step `<id>` exist?" — is implicitly answered by
+the 404 / 200 of the resolution fetch itself. Clients that need a
+proactive validation list can fetch `spec/step_ids.json` once per
+session.)
+
+---
+
 ## Per-workflow client bandwidth comparison
 
 10-step workflow, fresh cache, gzipped bytes:

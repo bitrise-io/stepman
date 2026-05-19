@@ -312,6 +312,30 @@ that version.
 
 ---
 
+## Resolution routes (stepman side)
+
+Stepman recognizes four version-constraint types (`models/version_constraint.go`).
+The V2 layout serves each with the minimum fetch set:
+
+| Constraint | Example | Files fetched | Notes |
+|---|---|---|---|
+| **Fixed** | `1.2.3` | `steps/<id>/1.2.3/step.json` (1 fetch) | Never touches `spec/`. 404 = no such version. File is immutable; repeat builds re-validate nothing. |
+| **Latest** | `""` / `latest` | `spec/steps/<id>/latest.json` → `steps/<id>/<resolved>/step.json` (2 fetches) | Read `.latest`, then the resolved `step.json`. |
+| **MajorLocked** | `1.x.x` or `1` | `spec/steps/<id>/latest.json` → `steps/<id>/<resolved>/step.json` (2 fetches) | **Same file as Latest** — read `.latest_by_major["1"]` instead of `.latest`. Shared cache key with the Latest route. |
+| **MinorLocked** | `1.2.x` | `spec/steps/<id>/versions.json` → `steps/<id>/<resolved>/step.json` (2 fetches) | Client filters the version list for matching `major.minor`, picks highest patch. Larger file (~300 B gz median), so kept off the small `latest.json`. |
+
+The most common production case (Fixed pins) is the cheapest route — one
+fetch, immutable, never re-validated. Latest and MajorLocked share a
+fetch by design; storing `latest_by_major` alongside `latest` in
+`latest.json` means mixed-constraint workflows don't pay extra round
+trips.
+
+Step-ID validity is implicitly answered by the 404 / 200 of the
+resolution fetch itself. Clients that need proactive validation can
+fetch `spec/step_ids.json` once per session.
+
+---
+
 ## Sizes (measured against real bitrise-steplib at `b9af7d7`)
 
 | File pattern | Count | Total raw | Total gzipped | Median gzipped |
