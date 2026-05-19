@@ -114,12 +114,13 @@ func TestHTTPAPI_Integration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("read downloaded file: %v", err)
 		}
-		// The real sample step.json carries the step's id+version inline.
-		if !strings.Contains(string(body), `"id": "hello-step"`) {
-			t.Errorf("downloaded body missing id field: %q", body[:min(200, len(body))])
+		// step.json mirrors models.StepModel — id/version are implicit from the
+		// file path, not serialised as fields. Verify against stable content.
+		if !strings.Contains(string(body), `"title": "Hello Step"`) {
+			t.Errorf("downloaded body missing title field: %q", body[:min(200, len(body))])
 		}
-		if !strings.Contains(string(body), `"version": "2.0.0"`) {
-			t.Errorf("downloaded body missing version field: %q", body[:min(200, len(body))])
+		if !strings.Contains(string(body), `"source_code_url": "https://github.com/example/hello-step"`) {
+			t.Errorf("downloaded body missing source_code_url field: %q", body[:min(300, len(body))])
 		}
 	})
 
