@@ -68,16 +68,16 @@ type StepJSON struct {
 	ProjectTypeTags []string `json:"project_type_tags,omitempty"`
 	TypeTags        []string `json:"type_tags,omitempty"`
 
-	Toolkit             *models.StepToolkitModel  `json:"toolkit,omitempty"`
-	Deps                *models.DepsModel         `json:"deps,omitempty"`
-	Dependencies        []models.DependencyModel  `json:"dependencies,omitempty"`
-	IsRequiresAdminUser *bool                     `json:"is_requires_admin_user,omitempty"`
-	IsAlwaysRun         *bool                     `json:"is_always_run,omitempty"`
-	IsSkippable         *bool                     `json:"is_skippable,omitempty"`
-	RunIf               string                    `json:"run_if,omitempty"`
-	Timeout             *int                      `json:"timeout,omitempty"`
-	NoOutputTimeout     *int                      `json:"no_output_timeout,omitempty"`
-	Meta                map[string]any            `json:"meta,omitempty"`
+	Toolkit             *models.StepToolkitModel `json:"toolkit,omitempty"`
+	Deps                *models.DepsModel        `json:"deps,omitempty"`
+	Dependencies        []models.DependencyModel `json:"dependencies,omitempty"`
+	IsRequiresAdminUser *bool                    `json:"is_requires_admin_user,omitempty"`
+	IsAlwaysRun         *bool                    `json:"is_always_run,omitempty"`
+	IsSkippable         *bool                    `json:"is_skippable,omitempty"`
+	RunIf               string                   `json:"run_if,omitempty"`
+	Timeout             *int                     `json:"timeout,omitempty"`
+	NoOutputTimeout     *int                     `json:"no_output_timeout,omitempty"`
+	Meta                map[string]any           `json:"meta,omitempty"`
 
 	ExecutionContainer models.ContainerReference   `json:"execution_container,omitempty"`
 	ServiceContainers  []models.ContainerReference `json:"service_containers,omitempty"`

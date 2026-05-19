@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/bitrise-io/stepman/models"
+	"github.com/bitrise-io/stepman/stepman"
 	"gopkg.in/yaml.v2"
 )
 
@@ -32,14 +33,6 @@ type Options struct {
 	SteplibCommitSHA string
 }
 
-// Logger is the minimal logging surface the generator needs.
-type Logger interface {
-	Debugf(format string, v ...any)
-	Infof(format string, v ...any)
-	Warnf(format string, v ...any)
-	Errorf(format string, v ...any)
-}
-
 // Stats summarizes a successful generation.
 type Stats struct {
 	StepCount    int
@@ -52,7 +45,7 @@ type Stats struct {
 // Generate reads a bitrise-steplib clone at inputDir and writes the V2 inventory
 // tree to outputDir. It is destructive in the sense that it writes files; it
 // does NOT delete existing files outside the paths it owns.
-func Generate(inputDir, outputDir string, opts Options, log Logger) (Stats, error) {
+func Generate(inputDir, outputDir string, opts Options, log stepman.Logger) (Stats, error) {
 	start := time.Now()
 	opts = withDefaults(opts)
 
@@ -118,15 +111,15 @@ func withDefaults(o Options) Options {
 // phase, used by the write phase to emit per-step and index files.
 type parsedStep struct {
 	id          string
-	info        StepInfoJSON               // step-info.yml + assets/ listing
-	hasInfoFile bool                       // whether step-info.yml existed
-	assetFiles  []string                   // relative paths under assets/, sorted
+	info        StepInfoJSON // step-info.yml + assets/ listing
+	hasInfoFile bool         // whether step-info.yml existed
+	assetFiles  []string     // relative paths under assets/, sorted
 	versions    map[string]models.StepModel
-	versionList []string                   // sorted ascending by semver
-	latest      string                     // highest semver in versionList
+	versionList []string // sorted ascending by semver
+	latest      string   // highest semver in versionList
 }
 
-func collectSteps(inputDir string, log Logger) ([]parsedStep, error) {
+func collectSteps(inputDir string, log stepman.Logger) ([]parsedStep, error) {
 	stepsDir := filepath.Join(inputDir, "steps")
 	entries, err := os.ReadDir(stepsDir)
 	if err != nil {
@@ -152,7 +145,7 @@ func collectSteps(inputDir string, log Logger) ([]parsedStep, error) {
 	return out, nil
 }
 
-func collectStep(stepsDir, id string, log Logger) (parsedStep, error) {
+func collectStep(stepsDir, id string, log stepman.Logger) (parsedStep, error) {
 	s := parsedStep{
 		id:          id,
 		info:        StepInfoJSON{Maintainer: "", Deprecation: nil, AssetURLs: nil},

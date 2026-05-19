@@ -19,8 +19,12 @@ type stderrLogger struct{}
 
 func (stderrLogger) Debugf(format string, v ...any) {} // suppress; turn on with -verbose if needed
 func (stderrLogger) Infof(format string, v ...any)  { fmt.Fprintf(os.Stderr, format+"\n", v...) }
-func (stderrLogger) Warnf(format string, v ...any)  { fmt.Fprintf(os.Stderr, "warn: "+format+"\n", v...) }
-func (stderrLogger) Errorf(format string, v ...any) { fmt.Fprintf(os.Stderr, "error: "+format+"\n", v...) }
+func (stderrLogger) Warnf(format string, v ...any) {
+	fmt.Fprintf(os.Stderr, "warn: "+format+"\n", v...)
+}
+func (stderrLogger) Errorf(format string, v ...any) {
+	fmt.Fprintf(os.Stderr, "error: "+format+"\n", v...)
+}
 
 func main() {
 	var (
