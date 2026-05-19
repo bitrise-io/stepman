@@ -2,9 +2,12 @@ package steplibrary
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
+	"path/filepath"
 	"slices"
 	"strconv"
 
@@ -32,16 +35,25 @@ type ActivateOutputPaths struct {
 }
 
 func New(log stepman.Logger, steplibURI string, isOfflineMode bool, fileManager fileutil.FileManager) *Steplib {
+	api := NewHTTPAPI(steplibURI, v2CacheDir(steplibURI), nil)
 	return &Steplib{
 		log:           log,
 		steplibURI:    steplibURI,
 		isOfflineMode: isOfflineMode,
-		api:           MockAPI{},
+		api:           api,
 		fileManager:   fileManager,
 		// Used for downloading precompiled step binaries from arbitrary URLs
 		// (storage_uri is rooted at a different host than the inventory).
 		downloader: filedownloader.NewDownloader(v2log.NewLogger(v2log.WithOutput(io.Discard))),
 	}
+}
+
+// v2CacheDir returns a stable on-disk cache directory for a given steplib URL.
+// Keyed by a sha256 prefix so different URLs don't collide and the directory
+// name is filesystem-safe.
+func v2CacheDir(steplibURI string) string {
+	sum := sha256.Sum256([]byte(steplibURI))
+	return filepath.Join(stepman.GetStepmanDirPath(), "v2-cache", hex.EncodeToString(sum[:8]))
 }
 
 func (s *Steplib) Activate(ctx context.Context, stepID, version string, outputPaths ActivateOutputPaths) (result.ActivatedStep, error) {
