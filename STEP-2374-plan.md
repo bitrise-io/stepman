@@ -77,8 +77,14 @@ Everything else in `step.yml` is **passed through verbatim** via `copyStepYML` t
       │  └─ icon.svg
       └─ <version>/
          └─ step.json                     ← full per-version step manifest (immutable, 1y TTL)
-         └─ (Phase 2: bin/<platform>/<bin>, src.zip)
 ```
+
+(Prebuilt binaries and source archives are NOT hosted under `steps/`. They
+stay in their existing separate storage; `step.json`'s
+`executables[*].storage_uri` remains a relative path that the client
+resolves against the configured binary storage base, exactly as V1 does
+today. Keeping binary storage decoupled from metadata storage is a
+deliberate design choice — see follow-up item #3 for the rationale.)
 
 ### Architectural invariants
 
@@ -452,7 +458,7 @@ Produce a runnable Go tool that converts a local clone of `bitrise-steplib` into
 - No uploads to any bucket (output is a local directory only).
 - No interface refactor inside stepman (a separate engineer is working on the abstraction boundary; we'll integrate after that lands).
 - No telemetry instrumentation (relevant only when the read path exists).
-- No binary co-location, no `src.zip` co-location. Per-version `step.json` carries the V1 `executables[*].storage_uri` relative path verbatim; client (today's activator) resolves it against the configured binary storage base.
+- **Binary downloads stay separate from V2 metadata, by design.** Per-version `step.json` carries the V1 `executables[*].storage_uri` relative path verbatim; the client (today's activator) resolves it against the configured binary storage base. We deliberately keep binary storage and metadata storage decoupled so each can scale / move independently.
 
 ### Estimated effort
 
@@ -491,17 +497,28 @@ For V2 PoC A we roll with the current shape (carried over from `steplib.yml`). *
 
 V2 may co-locate assets directly in `steps/<id>/assets/` rather than mirroring to S3. If so, this field becomes vestigial. Decision deferred to the hosting / deployment phase (Confluence Phase 3/4).
 
-### 3. **`binary_storage_base_url` — major decision point**
+### 3. Binary storage (resolved: stays decoupled)
 
-Today: `step.json` (PoC A) carries `executables[platform].storage_uri` verbatim from V1 — a relative path (e.g., `"steps/git-clone/8.5.0/bin/git-clone-darwin-amd64"`). The client knows where to look (today's GCS bucket, with `BITRISE_PRECOMPILED_STEPS_PRIMARY_STORAGE` env override). The same arrangement V1 has, just JSON-encoded.
+**Decision:** V2 inventory stores metadata only. Prebuilt binaries continue
+to live in their existing separate storage (today's GCS bucket via
+`BITRISE_PRECOMPILED_STEPS_PRIMARY_STORAGE`), and `step.json` continues to
+reference them via the V1 `executables[*].storage_uri` relative path
+exactly as `step.yml` does today. No `binary_storage_base_url` in
+`meta.json`, no co-location under `steps/<id>/<v>/bin/`, no per-version
+absolute URLs.
 
-The deferred question: when V2 wants to co-locate binaries inside the inventory itself (Confluence Phase 2), how do clients find them? Options:
+**Why decoupled, by design:**
 
-- **Self-describing inventory.** `meta.json` declares a `binary_storage_base_url`; `step.json` keeps the relative `storage_uri`. Client resolves at fetch time.
-- **Per-version absolute URLs.** Reinterpret `storage_uri` (or add a sibling field) so each `step.json` carries a full URL.
-- **Sniff rule.** Treat `storage_uri` as "absolute URL if it starts with http://, else relative". One field, both shapes, additive change.
+- Metadata and binaries have very different change profiles and storage
+  needs. Decoupling lets each move / scale / migrate independently
+  (e.g., switching binary buckets without regenerating any metadata).
+- A binary-bucket incident doesn't take down metadata resolution, and
+  vice versa — graceful degradation by construction.
+- The existing arrangement already works; nothing forces us to disturb it.
 
-All three are reachable as additive changes to V1's shape, so we are not locked out of any. **The choice should be settled before binaries are actually co-located**, not before V2 metadata ships. Coordinates with binary co-location (Confluence Phase 2).
+If a future need to migrate the binary base ever arises, the V1
+indirection (relative `storage_uri` + client-configured base URL) handles
+it without any schema change — same way it would handle it today.
 
 ### Smaller deferrals
 
