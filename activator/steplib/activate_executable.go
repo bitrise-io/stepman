@@ -107,9 +107,9 @@ func validateHash(filePath string, expectedHash string) error {
 }
 
 func downloadURL(executable models.Executable) string {
-	baseURL := os.Getenv(precompiledStepsPrimaryStorageEnv)
+	baseURL := os.Getenv(PrecompiledStepsPrimaryStorageEnv)
 	if baseURL == "" {
-		baseURL = precompiledStepsDefaultStorage
+		baseURL = PrecompiledStepsDefaultStorage
 	}
 	baseURL = strings.TrimRight(baseURL, "/")
 	return fmt.Sprintf("%s/%s", baseURL, strings.TrimLeft(executable.StorageURI, "/"))

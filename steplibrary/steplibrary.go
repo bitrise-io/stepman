@@ -4,11 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"slices"
 	"strconv"
 
 	"github.com/bitrise-io/go-utils/command"
+	"github.com/bitrise-io/go-utils/v2/filedownloader"
 	"github.com/bitrise-io/go-utils/v2/fileutil"
+	v2log "github.com/bitrise-io/go-utils/v2/log"
 	"github.com/bitrise-io/stepman/activator/result"
 	"github.com/bitrise-io/stepman/models"
 	"github.com/bitrise-io/stepman/stepman"
@@ -21,6 +24,7 @@ type Steplib struct {
 	isOfflineMode bool
 	api           API
 	fileManager   fileutil.FileManager
+	downloader    filedownloader.Downloader
 }
 
 type ActivateOutputPaths struct {
@@ -34,6 +38,9 @@ func New(log stepman.Logger, steplibURI string, isOfflineMode bool, fileManager 
 		isOfflineMode: isOfflineMode,
 		api:           MockAPI{},
 		fileManager:   fileManager,
+		// Used for downloading precompiled step binaries from arbitrary URLs
+		// (storage_uri is rooted at a different host than the inventory).
+		downloader: filedownloader.NewDownloader(v2log.NewLogger(v2log.WithOutput(io.Discard))),
 	}
 }
 
@@ -41,17 +48,32 @@ func (s *Steplib) Activate(ctx context.Context, stepID, version string, outputPa
 	stepInfo, resolved, err := s.getStepVersionInfo(ctx, stepID, version)
 
 	var stepModel models.StepModel
-	var stepSourceZIPPath, execPath string
+	var execPath string
 	if err == nil {
 		stepModel, err = s.api.GetStepModel(ctx, resolved)
 	}
-	// ToDo: precompiled binary
+
+	// Prefer the precompiled binary for the current platform when the step
+	// publishes one; transparently fall back to source on any failure so an
+	// individual broken executable can't block activation.
 	if err == nil {
-		stepSourceZIPPath, err = s.api.GetStepSourceZIPPath(ctx, resolved)
+		if executable, ok := resolveExecutable(stepModel); ok {
+			path, perr := s.downloadPrecompiled(ctx, stepID, executable, outputPaths.CodePath)
+			if perr == nil {
+				execPath = path
+			} else {
+				s.log.Warnf("Failed to download precompiled binary for %s, falling back to source: %s", currentPlatform(), perr)
+			}
+		}
 	}
-	if err == nil {
-		if err = command.UnZIP(stepSourceZIPPath, outputPaths.CodePath); err != nil {
-			err = fmt.Errorf("unzip step source %s: %w", stepSourceZIPPath, err)
+
+	if err == nil && execPath == "" {
+		var stepSourceZIPPath string
+		stepSourceZIPPath, err = s.api.GetStepSourceZIPPath(ctx, resolved)
+		if err == nil {
+			if uerr := command.UnZIP(stepSourceZIPPath, outputPaths.CodePath); uerr != nil {
+				err = fmt.Errorf("unzip step source %s: %w", stepSourceZIPPath, uerr)
+			}
 		}
 	}
 	var stepYML []byte

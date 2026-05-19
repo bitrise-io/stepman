@@ -70,7 +70,7 @@ func TestDownloadURL(t *testing.T) {
 		{
 			name: "With custom base URL",
 			env: map[string]string{
-				precompiledStepsPrimaryStorageEnv: "https://custom.example.com/storage",
+				PrecompiledStepsPrimaryStorageEnv: "https://custom.example.com/storage",
 			},
 			executable: models.Executable{
 				StorageURI: "steps/step1.tar.gz",
@@ -80,7 +80,7 @@ func TestDownloadURL(t *testing.T) {
 		{
 			name: "With custom base URL with trailing slash",
 			env: map[string]string{
-				precompiledStepsPrimaryStorageEnv: "https://custom.example.com/storage/",
+				PrecompiledStepsPrimaryStorageEnv: "https://custom.example.com/storage/",
 			},
 			executable: models.Executable{
 				StorageURI: "steps/step1.tar.gz",
@@ -98,7 +98,7 @@ func TestDownloadURL(t *testing.T) {
 		{
 			name: "With leading slash in storage URI",
 			env: map[string]string{
-				precompiledStepsPrimaryStorageEnv: "https://custom.example.com/storage",
+				PrecompiledStepsPrimaryStorageEnv: "https://custom.example.com/storage",
 			},
 			executable: models.Executable{
 				StorageURI: "/steps/step3.tar.gz",
@@ -108,7 +108,7 @@ func TestDownloadURL(t *testing.T) {
 		{
 			name: "With multiple slashes in base URL",
 			env: map[string]string{
-				precompiledStepsPrimaryStorageEnv: "https://custom.example.com/storage///",
+				PrecompiledStepsPrimaryStorageEnv: "https://custom.example.com/storage///",
 			},
 			executable: models.Executable{
 				StorageURI: "steps/step4.tar.gz",
@@ -118,7 +118,7 @@ func TestDownloadURL(t *testing.T) {
 		{
 			name: "Empty storage URI",
 			env: map[string]string{
-				precompiledStepsPrimaryStorageEnv: "https://custom.example.com/storage",
+				PrecompiledStepsPrimaryStorageEnv: "https://custom.example.com/storage",
 			},
 			executable: models.Executable{
 				StorageURI: "",
@@ -129,8 +129,8 @@ func TestDownloadURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if val, exists := tt.env[precompiledStepsPrimaryStorageEnv]; exists {
-				t.Setenv(precompiledStepsPrimaryStorageEnv, val)
+			if val, exists := tt.env[PrecompiledStepsPrimaryStorageEnv]; exists {
+				t.Setenv(PrecompiledStepsPrimaryStorageEnv, val)
 			}
 			url := downloadURL(tt.executable)
 			require.Equal(t, tt.expectedURL, url)
