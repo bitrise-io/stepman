@@ -477,6 +477,102 @@ PoC B intersects with another engineer's work on the abstraction boundary; the o
 
 ---
 
+## Routing strategy: V2 by default, V1 as graceful fallback
+
+How stepman picks between the V2 HTTP reader and the V1 git-clone reader for a given `step_lib_source` URI from the user's `bitrise.yml`. Designed so that:
+
+- GitHub is **not** a hot-path dependency for the V2 flow.
+- Default workflows transparently get V2 the moment it's deployed.
+- Existing alt-steplib workflows (custom `step_lib_source` URLs) keep working unchanged.
+- Alt-steplib operators have a clean opt-in path to V2 later, with no stepman release and no central registry.
+- Later `bitrise.yml` can be updated to host the new path and it'll be automatically handled
+
+### Mechanism
+
+The V2 inventory's URL is **compiled into stepman**, with an env-var override for staging / DR. The URI a user types into `bitrise.yml` is just an *identity* (which steplib we're talking about); the V2 URL belongs to stepman itself.
+
+```go
+// stepman/inventory/factory.go
+const officialV2InventoryURL = "https://steplib-v2.bitrise.io/"
+// (precise hosting URL TBD — see Open Questions. Overridable via
+//  BITRISE_STEPLIB_V2_INVENTORY_URL for staging / DR.)
+
+// URIs recognized as "the official steplib." Existing user workflows
+// pin one of these; matching → routed to the V2 API above.
+var officialSteplibURIs = []string{
+    "https://github.com/bitrise-io/bitrise-steplib.git",
+    // room here for historic redirects, no-.git variants, etc.
+}
+
+func NewReader(steplibURI string, log Logger) (Reader, error) {
+    if isOfficialSteplib(steplibURI) {
+        // Default path: V2 API directly. GitHub is NOT consulted.
+        if r, err := newV2Reader(officialV2InventoryURL, log); err == nil {
+            return r, nil
+        } else {
+            // V2 unreachable → graceful fallback to V1 git clone of the
+            // official mirror, for THIS build only. Logged + metered.
+            log.Warnf("V2 API unreachable (%s); falling back to V1 git clone", err)
+            return newV1Reader(steplibURI, log), nil
+        }
+    }
+
+    // Alt-steplib path. Phase 1: always V1 (today's behavior).
+    // Phase 2: see below.
+    return newV1Reader(steplibURI, log), nil
+}
+```
+
+### Routing table
+
+| User's `step_lib_source` in `bitrise.yml` | Stepman route |
+|---|---|
+| Unset (CLI default = official git URL) | V2 API directly. GitHub untouched on the hot path. |
+| Explicitly `https://github.com/bitrise-io/bitrise-steplib.git` | Same — recognized → V2. |
+| A custom `*.git` URL (alt-steplib today) | V1 git clone (today's behavior, unchanged). |
+| A V2 inventory URL (alt-steplib opting into V2, Phase 2) | V2 reader against their URL. |
+
+### Phase 2: alt-steplib operators on V2
+
+When an alt-steplib operator wants to offer V2 to their users:
+
+1. They generate their own V2 tree with `cmd/steplib-gen`.
+2. They host it on their CDN / bucket / wherever, over HTTPS.
+3. Their users change `step_lib_source` in `bitrise.yml` from `https://…/repo.git` to the V2 base URL (e.g., `https://my-cdn.example/steplib/`).
+
+Stepman differentiates a V2 inventory URL from a V1 git URL by URL shape: **a URL ending in `.git` is V1; anything else is treated as a V2 inventory base URL.**
+
+```go
+// Phase 2 hook — replaces the alt-steplib branch above:
+if strings.HasSuffix(steplibURI, ".git") {
+    return newV1Reader(steplibURI, log), nil
+}
+return newV2Reader(steplibURI, log)
+```
+
+If a user has a misconfigured non-`.git` URL pointing at a non-V2-inventory, the V2 reader fails loud on first request. We deliberately **do not** auto-fall-back from a misconfigured custom URL to V1 — silent fallback on user misconfig hides bugs.
+
+No stepman release, no PR to bitrise repos, no central registry is required for an alt-steplib to opt into V2. Each operator owns their own opt-in, declared in their users' `bitrise.yml`.
+
+### Properties this design gives us
+
+| Property | How it falls out |
+|---|---|
+| GitHub is not on the V2 hot path | Compiled-in V2 URL; no remote probe / no `steplib.yml` fetch over HTTP. |
+| Default workflows transparently get V2 | Recognized official URI → V2 reader, no user action. |
+| Existing alt-steplib workflows keep working | Unrecognized URI → V1 reader, exactly as today. |
+| Alt-steplib operators can adopt V2 independently | Phase 2: change the URL in `bitrise.yml`. No stepman release. |
+| Staging / DR controllable | `BITRISE_STEPLIB_V2_INVENTORY_URL` env var overrides the compiled-in URL. |
+| Graceful degradation on V2 outage for the official path | Compiled-in mapping knows the corresponding git URL; falls back transparently. |
+| Misconfigured custom URLs fail loud | No auto-fallback from alt-steplib V2 → V1; the V2 reader's error is the right signal. |
+
+### Items to nail down before this lands
+
+1. **The actual hosting URL** for the official V2 inventory (Cloudflare Pages vs DC object storage vs GCP, per Confluence Phase 4) — pins `officialV2InventoryURL`.
+2. **Fallback policy.** Only on connection-level errors and 5xx, or also on (say) 4xx? My default: connection / 5xx only; 4xx means our deployment is broken and silent fallback would mask it.
+
+---
+
 ## Deferred decisions / follow-up action items
 
 Captured in memory so they don't get lost. To be revisited after PoC A is accepted, **before** any production rollout.
@@ -532,9 +628,10 @@ it without any schema change — same way it would handle it today.
 
 ## Open questions for the team
 
-1. **Alt-steplib path.** Confluence notes the alt-steplib feature still works ("unfortunately"). PoC A targets the official steplib only; the V2 read path (PoC B) will hardcode "official → V2 / others → V1 git clone". Confirm this is acceptable.
-2. **Hosting target for eventual deployment.** Confluence Phase 4 calls out Cloudflare Pages, DC-level object storage, or GCP. Not blocking for PoC A but worth converging on before B.
-3. **Concurrent-release safety.** Today's release flow can't be parallelized. V2 changes this surface; deserves its own design once we get past PoC A. Out of scope here.
+1. **Hosting target for the official V2 inventory.** Cloudflare Pages vs DC object storage vs GCP (Confluence Phase 4). Pins the value of `officialV2InventoryURL` in stepman. Not blocking for PoC A; needs alignment before PoC B lands.
+2. **Concurrent-release safety.** Today's release flow can't be parallelized. V2 changes this surface; deserves its own design once we get past PoC A. Out of scope here.
+
+(Open question #1 from earlier drafts — "alt-steplib path" — is resolved by the Routing strategy section above.)
 
 ---
 
