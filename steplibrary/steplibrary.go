@@ -1,6 +1,7 @@
 package steplibrary
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"slices"
@@ -35,16 +36,16 @@ func New(log stepman.Logger, steplibURI string, isOfflineMode bool, fileManager 
 	}
 }
 
-func (s *Steplib) Activate(stepID, version string, outputPaths ActivateOutputPaths) (result.ActivatedStep, error) {
-	stepInfo, resolved, err := s.getStepVersionInfo(stepID, version)
+func (s *Steplib) Activate(ctx context.Context, stepID, version string, outputPaths ActivateOutputPaths) (result.ActivatedStep, error) {
+	stepInfo, resolved, err := s.getStepVersionInfo(ctx, stepID, version)
 
 	var sourceYMLPath, stepSourceZIPPath, execPath string
 	if err == nil {
-		sourceYMLPath, err = s.api.GetStepYMLPath(resolved)
+		sourceYMLPath, err = s.api.GetStepYMLPath(ctx, resolved)
 	}
 	// ToDo: precompiled binary
 	if err == nil {
-		stepSourceZIPPath, err = s.api.GetStepSourceZIPPath(resolved)
+		stepSourceZIPPath, err = s.api.GetStepSourceZIPPath(ctx, resolved)
 	}
 	if err == nil {
 		if err = command.UnZIP(stepSourceZIPPath, outputPaths.CodePath); err != nil {
@@ -71,7 +72,7 @@ func (s *Steplib) Activate(stepID, version string, outputPaths ActivateOutputPat
 	}, nil
 }
 
-func (s *Steplib) getStepVersionInfo(stepID, version string) (models.StepInfoModel, ResolvedStepVersion, error) {
+func (s *Steplib) getStepVersionInfo(ctx context.Context, stepID, version string) (models.StepInfoModel, ResolvedStepVersion, error) {
 	var err error
 	if stepID == "" {
 		err = errors.New("missing required input: step id")
@@ -79,7 +80,7 @@ func (s *Steplib) getStepVersionInfo(stepID, version string) (models.StepInfoMod
 
 	var allSteps []string
 	if err == nil {
-		allSteps, err = s.api.GetAllStepIDs()
+		allSteps, err = s.api.GetAllStepIDs(ctx)
 		if err != nil {
 			err = fmt.Errorf("fetching avaialble step IDs: %w", err)
 		}
@@ -101,7 +102,7 @@ func (s *Steplib) getStepVersionInfo(stepID, version string) (models.StepInfoMod
 
 	var latestVersions StepVersionsLatest
 	if err == nil {
-		latestVersions, err = s.api.GetLatestStepVersions(stepID)
+		latestVersions, err = s.api.GetLatestStepVersions(ctx, stepID)
 		if err != nil {
 			err = fmt.Errorf("fetching latest versions of `%s`: %w", stepID, err)
 		}
@@ -109,7 +110,7 @@ func (s *Steplib) getStepVersionInfo(stepID, version string) (models.StepInfoMod
 
 	var groupInfo StepGroupInfo
 	if err == nil {
-		groupInfo, err = s.api.GetStepGroupInfo(stepID)
+		groupInfo, err = s.api.GetStepGroupInfo(ctx, stepID)
 		if err != nil {
 			err = fmt.Errorf("fetching group info of `%s`: %w", stepID, err)
 		}
@@ -134,7 +135,7 @@ func (s *Steplib) getStepVersionInfo(stepID, version string) (models.StepInfoMod
 			}
 		case models.MinorLocked:
 			var allVersions []string
-			allVersions, err = s.api.GetAllStepVersions(stepID)
+			allVersions, err = s.api.GetAllStepVersions(ctx, stepID)
 			if err != nil {
 				err = fmt.Errorf("fetching all versions of `%s`: %w", stepID, err)
 			}

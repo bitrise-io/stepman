@@ -2,6 +2,7 @@ package steplibrary
 
 import (
 	"archive/zip"
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -32,11 +33,11 @@ type fakeAPI struct {
 	zipSourcePath     string
 }
 
-func (f fakeAPI) GetAllStepIDs() ([]string, error) {
+func (f fakeAPI) GetAllStepIDs(_ context.Context) ([]string, error) {
 	return f.ids, f.listErr
 }
 
-func (f fakeAPI) GetLatestStepVersions(id string) (StepVersionsLatest, error) {
+func (f fakeAPI) GetLatestStepVersions(_ context.Context, id string) (StepVersionsLatest, error) {
 	if f.latestVersionsErr != nil {
 		return StepVersionsLatest{}, f.latestVersionsErr
 	}
@@ -47,7 +48,7 @@ func (f fakeAPI) GetLatestStepVersions(id string) (StepVersionsLatest, error) {
 	return v, nil
 }
 
-func (f fakeAPI) GetAllStepVersions(id string) ([]string, error) {
+func (f fakeAPI) GetAllStepVersions(_ context.Context, id string) ([]string, error) {
 	if f.allVersionsErr != nil {
 		return nil, f.allVersionsErr
 	}
@@ -58,7 +59,7 @@ func (f fakeAPI) GetAllStepVersions(id string) ([]string, error) {
 	return v, nil
 }
 
-func (f fakeAPI) GetStepGroupInfo(id string) (StepGroupInfo, error) {
+func (f fakeAPI) GetStepGroupInfo(ctx context.Context, id string) (StepGroupInfo, error) {
 	if f.groupInfoErr != nil {
 		return StepGroupInfo{}, f.groupInfoErr
 	}
@@ -69,21 +70,21 @@ func (f fakeAPI) GetStepGroupInfo(id string) (StepGroupInfo, error) {
 		}
 		return v, nil
 	}
-	return f.MockAPI.GetStepGroupInfo(id)
+	return f.MockAPI.GetStepGroupInfo(ctx, id)
 }
 
-func (f fakeAPI) GetStepYMLPath(step ResolvedStepVersion) (string, error) {
+func (f fakeAPI) GetStepYMLPath(ctx context.Context, step ResolvedStepVersion) (string, error) {
 	if f.ymlSourcePath != "" {
 		return f.ymlSourcePath, nil
 	}
-	return f.MockAPI.GetStepYMLPath(step)
+	return f.MockAPI.GetStepYMLPath(ctx, step)
 }
 
-func (f fakeAPI) GetStepSourceZIPPath(step ResolvedStepVersion) (string, error) {
+func (f fakeAPI) GetStepSourceZIPPath(ctx context.Context, step ResolvedStepVersion) (string, error) {
 	if f.zipSourcePath != "" {
 		return f.zipSourcePath, nil
 	}
-	return f.MockAPI.GetStepSourceZIPPath(step)
+	return f.MockAPI.GetStepSourceZIPPath(ctx, step)
 }
 
 func writeSeedZip(t *testing.T, path string) {
@@ -259,7 +260,7 @@ func TestSteplib_Activate(t *testing.T) {
 				YMLPath:  filepath.Join(outDir, "current_step.yml"),
 				CodePath: filepath.Join(outDir, "code"),
 			}
-			got, err := s.Activate(tt.stepID, tt.version, outPaths)
+			got, err := s.Activate(context.Background(), tt.stepID, tt.version, outPaths)
 			if tt.wantErr != "" {
 				if err == nil {
 					t.Fatalf("Activate(%q, %q) = nil error, want error containing %q", tt.stepID, tt.version, tt.wantErr)

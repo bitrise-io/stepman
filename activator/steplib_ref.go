@@ -1,6 +1,7 @@
 package activator
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -35,7 +36,8 @@ func ActivateSteplibRefStep(
 
 	if os.Getenv(useSteplibV2) == "true" || os.Getenv(useSteplibV2) == "1" {
 		v2 := steplibrary.New(log, id.SteplibSource, isOfflineMode, fileutil.NewFileManager())
-		activated, err := v2.Activate(id.IDorURI, id.Version, steplibrary.ActivateOutputPaths{
+		// TODO: thread context.Context through ActivateSteplibRefStep when callers can supply one.
+		activated, err := v2.Activate(context.Background(), id.IDorURI, id.Version, steplibrary.ActivateOutputPaths{
 			YMLPath:  stepYMLPath,
 			CodePath: activatedStepDir,
 		})
