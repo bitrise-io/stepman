@@ -29,12 +29,11 @@ const FormatVersion = 2
 // MetaJSON is the inventory-level metadata file at the inventory root, and
 // the only file that carries format_version.
 type MetaJSON struct {
-	FormatVersion         int                            `json:"format_version"`
-	UpdatedAt             time.Time                      `json:"updated_at"`
-	SteplibCommitSHA      string                         `json:"steplib_commit_sha,omitempty"`
-	SteplibSource         string                         `json:"steplib_source,omitempty"`
-	DownloadLocations     []models.DownloadLocationModel `json:"download_locations,omitempty"`
-	AssetsDownloadBaseURI string                         `json:"assets_download_base_uri,omitempty"`
+	FormatVersion     int                            `json:"format_version"`
+	UpdatedAt         time.Time                      `json:"updated_at"`
+	SteplibCommitSHA  string                         `json:"steplib_commit_sha,omitempty"`
+	SteplibSource     string                         `json:"steplib_source,omitempty"`
+	DownloadLocations []models.DownloadLocationModel `json:"download_locations,omitempty"`
 }
 
 // StepInfoJSON is the per-step metadata file at steps/<id>/step-info.json.

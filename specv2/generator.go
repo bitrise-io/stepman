@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/bitrise-io/stepman/models"
@@ -59,17 +58,16 @@ func Generate(inputDir, outputDir string, opts Options, log stepman.Logger) (Sta
 		}
 	}
 
-	if err := writeSpecFiles(w, steps, opts, steplibYML.AssetsDownloadBaseURI); err != nil {
+	if err := writeSpecFiles(w, steps, opts); err != nil {
 		return Stats{}, fmt.Errorf("write spec files: %w", err)
 	}
 
 	meta := MetaJSON{
-		FormatVersion:         FormatVersion,
-		UpdatedAt:             opts.GeneratedAt,
-		SteplibCommitSHA:      opts.SteplibCommitSHA,
-		SteplibSource:         steplibYML.SteplibSource,
-		DownloadLocations:     steplibYML.DownloadLocations,
-		AssetsDownloadBaseURI: steplibYML.AssetsDownloadBaseURI,
+		FormatVersion:     FormatVersion,
+		UpdatedAt:         opts.GeneratedAt,
+		SteplibCommitSHA:  opts.SteplibCommitSHA,
+		SteplibSource:     steplibYML.SteplibSource,
+		DownloadLocations: steplibYML.DownloadLocations,
 	}
 	if err := w.writeJSON("meta.json", meta); err != nil {
 		return Stats{}, fmt.Errorf("write meta.json: %w", err)
@@ -328,7 +326,7 @@ func derefStr(p *string) string {
 // spec/ writes (derived index files)
 // ---------------------------------------------------------------------------
 
-func writeSpecFiles(w *writer, steps []parsedStep, opts Options, assetsBaseURI string) error {
+func writeSpecFiles(w *writer, steps []parsedStep, opts Options) error {
 	ids := make([]string, len(steps))
 	for i, s := range steps {
 		ids[i] = s.id
@@ -345,7 +343,7 @@ func writeSpecFiles(w *writer, steps []parsedStep, opts Options, assetsBaseURI s
 		return err
 	}
 
-	catalog := buildCatalog(steps, opts, assetsBaseURI)
+	catalog := buildCatalog(steps, opts)
 	if err := w.writeJSON("spec/latest_versions.json", catalog); err != nil {
 		return err
 	}
@@ -361,7 +359,7 @@ func writeSpecFiles(w *writer, steps []parsedStep, opts Options, assetsBaseURI s
 	return nil
 }
 
-func buildCatalog(steps []parsedStep, opts Options, assetsBaseURI string) LatestVersionsJSON {
+func buildCatalog(steps []parsedStep, opts Options) LatestVersionsJSON {
 	out := LatestVersionsJSON{
 		GeneratedAt:      opts.GeneratedAt,
 		SteplibCommitSHA: opts.SteplibCommitSHA,
@@ -373,16 +371,16 @@ func buildCatalog(steps []parsedStep, opts Options, assetsBaseURI string) Latest
 		if latestStep.PublishedAt != nil && !latestStep.PublishedAt.IsZero() {
 			publishedAt = latestStep.PublishedAt
 		}
-		// Catalog asset URLs are pre-resolved to absolute URLs (against the
-		// steplib.yml AssetsDownloadBaseURI, matching V1 behavior) so catalog
-		// consumers don't need to know the inventory base. If AssetsDownloadBaseURI
-		// is empty, the relative path from step-info.json is kept as-is.
-		// See deferred follow-up #2 in STEP-2374-plan.md.
+		// Catalog asset URLs are INVENTORY-ROOT-RELATIVE. Catalog consumers
+		// resolve them against the inventory base URL (i.e., the URL the
+		// catalog itself was fetched from, with /spec/latest_versions.json
+		// trimmed). This keeps the V2 inventory portable across hosting
+		// changes — no V1-era S3 host is baked into the catalog payload.
 		var assetURLs map[string]string
 		if len(s.info.AssetURLs) > 0 {
 			assetURLs = make(map[string]string, len(s.info.AssetURLs))
 			for filename, relPath := range s.info.AssetURLs {
-				assetURLs[filename] = resolveCatalogAssetURL(assetsBaseURI, s.id, filename, relPath)
+				assetURLs[filename] = catalogAssetURL(s.id, relPath)
 			}
 		}
 		out.Steps[s.id] = CatalogEntry{
@@ -405,14 +403,12 @@ func buildCatalog(steps []parsedStep, opts Options, assetsBaseURI string) Latest
 	return out
 }
 
-// resolveCatalogAssetURL joins an asset URL for the catalog. Returns an
-// absolute URL <base>/<stepID>/assets/<filename> when base is set; otherwise
-// returns the relative path verbatim.
-func resolveCatalogAssetURL(base, stepID, filename, relPath string) string {
-	if base == "" {
-		return relPath
-	}
-	return strings.TrimRight(base, "/") + "/" + stepID + "/assets/" + filename
+// catalogAssetURL produces the inventory-root-relative path the catalog
+// emits for a given asset. The relPath comes from step-info.json (which
+// is step-dir-relative, e.g. "assets/icon.svg"); we prepend "steps/<id>/"
+// so the result is anchored at the inventory root.
+func catalogAssetURL(stepID, relPath string) string {
+	return "steps/" + stepID + "/" + relPath
 }
 
 func buildLatestPointer(s parsedStep) LatestPointerJSON {

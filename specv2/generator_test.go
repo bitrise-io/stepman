@@ -57,7 +57,6 @@ func TestGenerator_meta(t *testing.T) {
 	assert.Equal(t, fixedTime, meta.UpdatedAt)
 	assert.Equal(t, "deadbeefcafef00d", meta.SteplibCommitSHA)
 	assert.Equal(t, "https://github.com/example/test-steplib.git", meta.SteplibSource)
-	assert.Equal(t, "https://assets.example.com/steps", meta.AssetsDownloadBaseURI)
 	require.Len(t, meta.DownloadLocations, 2)
 	assert.Equal(t, "zip", meta.DownloadLocations[0].Type)
 	assert.Equal(t, "https://archives.example.com/", meta.DownloadLocations[0].Src)
@@ -236,9 +235,11 @@ func TestGenerator_catalog_entry(t *testing.T) {
 	assert.Equal(t, "bitrise", hello.Maintainer)
 	assert.Nil(t, hello.Deprecation)
 	assert.False(t, hello.HasExecutable)
-	// asset_urls in the catalog must be ABSOLUTE (pre-resolved against AssetsDownloadBaseURI).
+	// asset_urls in the catalog are INVENTORY-ROOT-RELATIVE — consumers
+	// resolve them against the inventory base URL they fetched the
+	// catalog from (no hosting URL baked into the payload).
 	assert.Equal(t,
-		"https://assets.example.com/steps/hello-step/assets/icon.svg",
+		"steps/hello-step/assets/icon.svg",
 		hello.AssetURLs["icon.svg"],
 	)
 
@@ -268,20 +269,15 @@ func TestGenerator_stats(t *testing.T) {
 	assert.Positive(t, stats.BytesWritten)
 }
 
-func TestResolveCatalogAssetURL(t *testing.T) {
+func TestCatalogAssetURL(t *testing.T) {
 	assert.Equal(t,
-		"https://assets.example.com/steps/git-clone/assets/icon.svg",
-		resolveCatalogAssetURL("https://assets.example.com/steps", "git-clone", "icon.svg", "assets/icon.svg"),
+		"steps/git-clone/assets/icon.svg",
+		catalogAssetURL("git-clone", "assets/icon.svg"),
 	)
-	// Trailing slash on base must not produce a double slash.
+	// Multi-component step IDs.
 	assert.Equal(t,
-		"https://assets.example.com/steps/git-clone/assets/icon.svg",
-		resolveCatalogAssetURL("https://assets.example.com/steps/", "git-clone", "icon.svg", "assets/icon.svg"),
-	)
-	// Empty base falls through to the relative path.
-	assert.Equal(t,
-		"assets/icon.svg",
-		resolveCatalogAssetURL("", "git-clone", "icon.svg", "assets/icon.svg"),
+		"steps/some-very-long-step-id/assets/icon.svg",
+		catalogAssetURL("some-very-long-step-id", "assets/icon.svg"),
 	)
 }
 

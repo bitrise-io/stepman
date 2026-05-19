@@ -12,6 +12,5 @@
       "type": "git",
       "src": "source/git"
     }
-  ],
-  "assets_download_base_uri": "https://assets.example.com/steps"
+  ]
 }

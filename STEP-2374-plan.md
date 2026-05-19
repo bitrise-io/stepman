@@ -125,8 +125,7 @@ Inventory-level metadata. Carries the file format version, generation timestamp,
   "download_locations": [
     { "type": "zip", "src": "https://bitrise-steplib-collection.s3.amazonaws.com/step-archives/" },
     { "type": "git", "src": "source/git" }
-  ],
-  "assets_download_base_uri": "https://bitrise-steplib-collection.s3.amazonaws.com/steps"
+  ]
 }
 ```
 
@@ -137,7 +136,6 @@ Inventory-level metadata. Carries the file format version, generation timestamp,
 | `steplib_commit_sha` | string | Git SHA the generator ran against. Reproducibility + debugging. |
 | `steplib_source` | URL | Source repo. Mostly for alt-steplib disambiguation / debugging. |
 | `download_locations` | array | Source-archive fallback. **See deferred decision #1** — to be cleaned up after PoC A. |
-| `assets_download_base_uri` | URL | Used by `latest_versions.json` to pre-resolve asset URLs. **See deferred decision #2.** |
 
 ### `steps/<id>/step-info.json`
 
@@ -318,7 +316,7 @@ Fat catalog: one entry per step, carrying everything WFE / Integrations Page / `
       "source_code_url": "https://github.com/bitrise-steplib/steps-git-clone",
       "support_url": "https://github.com/bitrise-steplib/steps-git-clone/issues",
       "asset_urls": {
-        "icon.svg": "https://bitrise-steplib-collection.s3.amazonaws.com/steps/git-clone/assets/icon.svg"
+        "icon.svg": "steps/git-clone/assets/icon.svg"
       },
       "has_executable": true,
       "deprecation": null
@@ -327,7 +325,7 @@ Fat catalog: one entry per step, carrying everything WFE / Integrations Page / `
 }
 ```
 
-**Field rationale:** see schema discussion in this doc's predecessor notes; only fields meaningful for browse views are included. `asset_urls` is pre-resolved to absolute URLs here (unlike `step-info.json`) because the catalog must be self-contained for consumers that don't know the inventory base URL.
+**Field rationale:** see schema discussion in this doc's predecessor notes; only fields meaningful for browse views are included. `asset_urls` are **inventory-root-relative** (e.g., `"steps/git-clone/assets/icon.svg"`). Catalog consumers resolve them against the inventory base URL — i.e., wherever they fetched the catalog from. No hosting URL is baked into the payload, so the catalog body is portable across hosting changes.
 
 **Intentional duplication with `step.json`** (title, summary, maintainer, source_code_url, support_url, asset_urls): justified because the catalog must be one-fetch-self-sufficient. Versions are immutable, so no drift risk; the generator regenerates this on every release.
 
@@ -493,9 +491,13 @@ For V2 PoC A we roll with the current shape (carried over from `steplib.yml`). *
 - Fully-resolved URLs in `step.json` (per-version) — kills the global template entirely.
 - Drop the zip fallback if it's no longer used in practice (worth checking the metabase).
 
-### 2. `assets_download_base_uri` future
+### 2. Asset URLs (resolved: inventory-root-relative, no `assets_download_base_uri`)
 
-V2 may co-locate assets directly in `steps/<id>/assets/` rather than mirroring to S3. If so, this field becomes vestigial. Decision deferred to the hosting / deployment phase (Confluence Phase 3/4).
+**Decision:** V2 inventory hosts assets directly under `steps/<id>/assets/` (the generator copies them from the source steplib at build time). The catalog (`latest_versions.json`) emits inventory-root-relative paths (e.g., `"steps/git-clone/assets/icon.svg"`). Consumers resolve them against the inventory base URL they fetched the catalog from.
+
+The V1-era `assets_download_base_uri` field (which pointed at the parallel S3 mirror at `https://bitrise-steplib-collection.s3.amazonaws.com/steps`) is **not carried into `meta.json`**. No V2 file references it. The S3 mirror can keep existing for V1 consumer compatibility; V2 simply doesn't depend on it.
+
+Rationale: hard-coding the V1 hosting URL into V2 catalog payloads would lock the V2 inventory to that mirror forever. Inventory-root-relative paths let the V2 inventory be hosted anywhere — staging, mirrors, future migrations — without invalidating the catalog body.
 
 ### 3. Binary storage (resolved: stays decoupled)
 

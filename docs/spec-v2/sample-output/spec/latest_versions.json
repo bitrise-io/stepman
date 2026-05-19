@@ -48,7 +48,7 @@
       "source_code_url": "https://github.com/example/hello-step",
       "support_url": "https://github.com/example/hello-step/issues",
       "asset_urls": {
-        "icon.svg": "https://assets.example.com/steps/hello-step/assets/icon.svg"
+        "icon.svg": "steps/hello-step/assets/icon.svg"
       },
       "has_executable": false,
       "deprecation": null
@@ -66,7 +66,7 @@
       "source_code_url": "https://github.com/example/multi-platform-step",
       "support_url": "https://github.com/example/multi-platform-step/issues",
       "asset_urls": {
-        "icon.svg": "https://assets.example.com/steps/multi-platform-step/assets/icon.svg"
+        "icon.svg": "steps/multi-platform-step/assets/icon.svg"
       },
       "has_executable": true,
       "deprecation": null

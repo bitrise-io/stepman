@@ -73,8 +73,7 @@ Inventory-level metadata. One file at the root.
   "download_locations": [
     { "type": "zip", "src": "https://bitrise-steplib-collection.s3.amazonaws.com/step-archives/" },
     { "type": "git", "src": "source/git" }
-  ],
-  "assets_download_base_uri": "https://bitrise-steplib-collection.s3.amazonaws.com/steps"
+  ]
 }
 ```
 
@@ -85,7 +84,6 @@ Inventory-level metadata. One file at the root.
 | `steplib_commit_sha` | string | Git SHA the generator ran against. Reproducibility + debugging. |
 | `steplib_source` | URL | The git source repo this snapshot was generated from. |
 | `download_locations` | `[{type, src}]` | Source-archive fallback templates. Carried over from `steplib.yml` verbatim. *Cleanup item: see STEP-2374-plan.md deferred decision #1.* |
-| `assets_download_base_uri` | URL | Base used to pre-resolve `asset_urls` in `latest_versions.json`. |
 
 ---
 
@@ -181,7 +179,7 @@ path) so that:
 
 `id` and `version` are deliberately NOT in the file — the file path
 `steps/<id>/<version>/step.json` is the canonical identifier, same as
-today's `steps/<id>/<version>/step.yml`.
+today's `steps/<id>/<version>/step.yml`. We might revisit this later.
 
 ---
 
@@ -229,7 +227,7 @@ Fat catalog: one entry per step with everything WFE / Integrations Page /
       "source_code_url": "https://github.com/bitrise-steplib/steps-git-clone",
       "support_url": "https://github.com/bitrise-steplib/steps-git-clone/issues",
       "asset_urls": {
-        "icon.svg": "https://bitrise-steplib-collection.s3.amazonaws.com/steps/git-clone/assets/icon.svg"
+        "icon.svg": "steps/git-clone/assets/icon.svg"
       },
       "has_executable": true,
       "deprecation": null
@@ -241,7 +239,7 @@ Fat catalog: one entry per step with everything WFE / Integrations Page /
 Notes:
 
 - Map keyed by step ID for O(1) lookup.
-- `asset_urls` are **pre-resolved to absolute URLs** here (unlike `step-info.json`), against `meta.json#assets_download_base_uri`. Catalog consumers shouldn't have to know the inventory base URL.
+- `asset_urls` are **inventory-root-relative** (e.g., `"steps/git-clone/assets/icon.svg"`). Catalog consumers resolve them against the inventory base URL — i.e., wherever they fetched the catalog from, with `/spec/latest_versions.json` trimmed. This keeps the catalog payload free of any specific hosting URL.
 - Catalogue fields **deliberately duplicate** values from `step.json` (title, summary, maintainer, asset URLs, etc.). Versions are immutable so there is no drift risk; the generator regenerates the catalog on every release.
 
 ---
@@ -285,7 +283,7 @@ one small fetch.
 }
 ```
 
-`MinorLocked` (e.g., `8.4.x`) is rare and falls through to `versions.json`.
+`MinorLocked` (e.g., `8.4.x`) is **assumed** rare and falls through to `versions.json`.
 
 ---
 
