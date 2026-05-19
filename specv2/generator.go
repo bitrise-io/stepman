@@ -15,17 +15,9 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-// DefaultBinaryStorageBaseURL is today's hosted location for prebuilt step
-// binaries (matches activator/steplib/activate.go:precompiledStepsDefaultStorage).
-// step.json Executable locations are synthesized as <base>/<storage_uri>.
-const DefaultBinaryStorageBaseURL = "https://storage.googleapis.com/bitrise-steplib-storage"
-
 // Options control generator behavior. Zero values are filled with sensible
 // defaults; callers (CLI / tests) override what they need.
 type Options struct {
-	// BinaryStorageBaseURL is prepended to per-platform StorageURI values
-	// when synthesizing absolute URLs for Executables in step.json.
-	BinaryStorageBaseURL string
 	// GeneratedAt is written to meta.json and latest_versions.json.
 	// Tests should set this for deterministic output.
 	GeneratedAt time.Time
@@ -62,7 +54,7 @@ func Generate(inputDir, outputDir string, opts Options, log stepman.Logger) (Sta
 	w := &writer{outputDir: outputDir, fileCount: 0, byteCount: 0}
 
 	for _, s := range steps {
-		if err := writeStepFiles(w, inputDir, s, opts); err != nil {
+		if err := writeStepFiles(w, inputDir, s); err != nil {
 			return Stats{}, fmt.Errorf("write step %s: %w", s.id, err)
 		}
 	}
@@ -98,9 +90,6 @@ func Generate(inputDir, outputDir string, opts Options, log stepman.Logger) (Sta
 
 // withDefaults fills zero-valued options.
 func withDefaults(o Options) Options {
-	if o.BinaryStorageBaseURL == "" {
-		o.BinaryStorageBaseURL = DefaultBinaryStorageBaseURL
-	}
 	if o.GeneratedAt.IsZero() {
 		o.GeneratedAt = time.Now().UTC()
 	}
@@ -306,7 +295,7 @@ func sortedSemver(m map[string]models.StepModel) []string {
 // step-level writes (steps/<id>/...)
 // ---------------------------------------------------------------------------
 
-func writeStepFiles(w *writer, inputDir string, s parsedStep, opts Options) error {
+func writeStepFiles(w *writer, inputDir string, s parsedStep) error {
 	if s.hasInfoFile || len(s.assetFiles) > 0 {
 		if err := w.writeJSON(filepath.Join("steps", s.id, "step-info.json"), s.info); err != nil {
 			return err
@@ -320,58 +309,12 @@ func writeStepFiles(w *writer, inputDir string, s parsedStep, opts Options) erro
 		}
 	}
 	for _, v := range s.versionList {
-		sj := toStepJSON(s.versions[v], s.id, v, opts)
-		if err := w.writeJSON(filepath.Join("steps", s.id, v, "step.json"), sj); err != nil {
+		step := s.versions[v]
+		if err := w.writeJSON(filepath.Join("steps", s.id, v, "step.json"), step); err != nil {
 			return err
 		}
 	}
 	return nil
-}
-
-func toStepJSON(step models.StepModel, id, version string, opts Options) StepJSON {
-	return StepJSON{
-		ID:                  id,
-		Version:             version,
-		Title:               derefStr(step.Title),
-		Summary:             derefStr(step.Summary),
-		Description:         derefStr(step.Description),
-		Website:             derefStr(step.Website),
-		SourceCodeURL:       derefStr(step.SourceCodeURL),
-		SupportURL:          derefStr(step.SupportURL),
-		Source:              step.Source,
-		Executables:         convertExecutables(step.Executables, opts.BinaryStorageBaseURL),
-		HostOsTags:          step.HostOsTags,
-		ProjectTypeTags:     step.ProjectTypeTags,
-		TypeTags:            step.TypeTags,
-		Toolkit:             step.Toolkit,
-		Deps:                step.Deps,
-		Dependencies:        step.Dependencies,
-		IsRequiresAdminUser: step.IsRequiresAdminUser,
-		IsAlwaysRun:         step.IsAlwaysRun,
-		IsSkippable:         step.IsSkippable,
-		RunIf:               derefStr(step.RunIf),
-		Timeout:             step.Timeout,
-		NoOutputTimeout:     step.NoOutputTimeout,
-		Meta:                step.Meta,
-		ExecutionContainer:  step.ExecutionContainer,
-		ServiceContainers:   step.ServiceContainers,
-		Inputs:              step.Inputs,
-		Outputs:             step.Outputs,
-	}
-}
-
-func convertExecutables(execs *models.Executables, base string) map[string]ExecutableJSON {
-	if execs == nil {
-		return nil
-	}
-	out := make(map[string]ExecutableJSON, len(*execs))
-	for platform, exec := range *execs {
-		out[platform] = ExecutableJSON{
-			Location: joinBinaryURL(base, exec.StorageURI),
-			Hash:     exec.Hash,
-		}
-	}
-	return out
 }
 
 func derefStr(p *string) string {
@@ -379,16 +322,6 @@ func derefStr(p *string) string {
 		return ""
 	}
 	return *p
-}
-
-func joinBinaryURL(base, rel string) string {
-	if rel == "" {
-		return ""
-	}
-	if strings.HasPrefix(rel, "http://") || strings.HasPrefix(rel, "https://") {
-		return rel
-	}
-	return strings.TrimRight(base, "/") + "/" + strings.TrimLeft(rel, "/")
 }
 
 // ---------------------------------------------------------------------------

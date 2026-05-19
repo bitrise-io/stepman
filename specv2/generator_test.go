@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bitrise-io/stepman/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -131,38 +132,40 @@ func TestGenerator_no_info_step_skips_step_info_file(t *testing.T) {
 func TestGenerator_multi_platform_executables(t *testing.T) {
 	out := runGenerate(t)
 
-	var step StepJSON
+	// step.json is a models.StepModel marshaled as JSON — same shape as V1 step.yml.
+	var step models.StepModel
 	readJSON(t, filepath.Join(out, "steps/multi-platform-step/3.2.1/step.json"), &step)
 
-	assert.Equal(t, "multi-platform-step", step.ID)
-	assert.Equal(t, "3.2.1", step.Version)
-	require.Len(t, step.Executables, 2)
+	require.NotNil(t, step.Executables)
+	require.Len(t, *step.Executables, 2)
 
-	// Location is an absolute URL built from default storage base + the per-platform StorageURI.
-	darwinArm := step.Executables["darwin-arm64"]
+	// StorageURI is preserved verbatim from V1 step.yml — a relative path.
+	// The client (today's activator) is responsible for resolving it against
+	// the configured binary storage base.
+	darwinArm := (*step.Executables)["darwin-arm64"]
 	assert.Equal(t,
-		DefaultBinaryStorageBaseURL+"/steps/multi-platform-step/3.2.1/bin/multi-platform-step-darwin-arm64",
-		darwinArm.Location,
+		"steps/multi-platform-step/3.2.1/bin/multi-platform-step-darwin-arm64",
+		darwinArm.StorageURI,
 	)
 	assert.Equal(t,
 		"sha256-1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa",
 		darwinArm.Hash,
 	)
 
-	linuxAmd := step.Executables["linux-amd64"]
+	linuxAmd := (*step.Executables)["linux-amd64"]
 	assert.Equal(t,
-		DefaultBinaryStorageBaseURL+"/steps/multi-platform-step/3.2.1/bin/multi-platform-step-linux-amd64",
-		linuxAmd.Location,
+		"steps/multi-platform-step/3.2.1/bin/multi-platform-step-linux-amd64",
+		linuxAmd.StorageURI,
 	)
 }
 
 func TestGenerator_bash_step_has_no_executables(t *testing.T) {
 	out := runGenerate(t)
 
-	var step StepJSON
+	var step models.StepModel
 	readJSON(t, filepath.Join(out, "steps/bash-step/1.0.0/step.json"), &step)
 
-	assert.Empty(t, step.Executables)
+	assert.Nil(t, step.Executables)
 	require.NotNil(t, step.Toolkit)
 	require.NotNil(t, step.Toolkit.Bash)
 	assert.Equal(t, "step.sh", step.Toolkit.Bash.EntryFile)
@@ -263,23 +266,6 @@ func TestGenerator_stats(t *testing.T) {
 	assert.Equal(t, 7, stats.VersionCount)
 	assert.Positive(t, stats.FilesWritten)
 	assert.Positive(t, stats.BytesWritten)
-}
-
-func TestJoinBinaryURL(t *testing.T) {
-	cases := []struct {
-		base, rel, want string
-	}{
-		{"https://example.com", "path/to/bin", "https://example.com/path/to/bin"},
-		{"https://example.com/", "path/to/bin", "https://example.com/path/to/bin"},
-		{"https://example.com", "/path/to/bin", "https://example.com/path/to/bin"},
-		{"https://example.com/", "/path/to/bin", "https://example.com/path/to/bin"},
-		{"https://example.com", "https://other.host/bin", "https://other.host/bin"},
-		{"https://example.com", "", ""},
-	}
-	for i, c := range cases {
-		got := joinBinaryURL(c.base, c.rel)
-		assert.Equal(t, c.want, got, "case %d (base=%q rel=%q)", i, c.base, c.rel)
-	}
 }
 
 func TestResolveCatalogAssetURL(t *testing.T) {

@@ -1,12 +1,11 @@
 {
-  "id": "hello-step",
-  "version": "1.0.0",
   "title": "Hello Step",
   "summary": "Says hello.",
   "description": "A simple example step that echoes a greeting.\n",
   "website": "https://example.com/hello-step",
   "source_code_url": "https://github.com/example/hello-step",
   "support_url": "https://github.com/example/hello-step/issues",
+  "published_at": "2024-01-15T10:00:00Z",
   "source": {
     "git": "https://github.com/example/hello-step.git",
     "commit": "aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111"
@@ -21,6 +20,7 @@
   },
   "is_always_run": false,
   "is_skippable": false,
+  "run_if": "",
   "inputs": [
     {
       "name": "World",

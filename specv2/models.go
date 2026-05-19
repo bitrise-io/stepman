@@ -5,15 +5,15 @@
 //   - steps/  — source of truth, self-contained per step, immutable per version
 //   - spec/   — derived index files, regeneratable from steps/, short-TTL
 //
-// All files are JSON. Types here are the canonical on-disk shapes; the
-// generator (Generate) walks an input bitrise-steplib clone and produces a
-// V2 tree under an output directory.
+// All files are JSON. Per-version step manifests (steps/<id>/<v>/step.json)
+// are V1's models.StepModel marshaled as JSON — same shape, different
+// encoding. The other types below describe the new inventory-level and
+// index files that have no V1 equivalent.
 package specv2
 
 import (
 	"time"
 
-	envmanModels "github.com/bitrise-io/envman/v2/models"
 	"github.com/bitrise-io/stepman/models"
 )
 
@@ -53,53 +53,17 @@ type DeprecationJSON struct {
 	Notes       string `json:"notes,omitempty"`
 }
 
-// StepJSON is the per-version step manifest at steps/<id>/<version>/step.json.
-// Replaces step.yml. Immutable once published.
-type StepJSON struct {
-	ID      string `json:"id"`
-	Version string `json:"version"`
-
-	Title       string `json:"title,omitempty"`
-	Summary     string `json:"summary,omitempty"`
-	Description string `json:"description,omitempty"`
-
-	Website       string `json:"website,omitempty"`
-	SourceCodeURL string `json:"source_code_url,omitempty"`
-	SupportURL    string `json:"support_url,omitempty"`
-
-	Source      *models.StepSourceModel   `json:"source,omitempty"`
-	Executables map[string]ExecutableJSON `json:"executables,omitempty"`
-
-	HostOsTags      []string `json:"host_os_tags,omitempty"`
-	ProjectTypeTags []string `json:"project_type_tags,omitempty"`
-	TypeTags        []string `json:"type_tags,omitempty"`
-
-	Toolkit             *models.StepToolkitModel `json:"toolkit,omitempty"`
-	Deps                *models.DepsModel        `json:"deps,omitempty"`
-	Dependencies        []models.DependencyModel `json:"dependencies,omitempty"`
-	IsRequiresAdminUser *bool                    `json:"is_requires_admin_user,omitempty"`
-	IsAlwaysRun         *bool                    `json:"is_always_run,omitempty"`
-	IsSkippable         *bool                    `json:"is_skippable,omitempty"`
-	RunIf               string                   `json:"run_if,omitempty"`
-	Timeout             *int                     `json:"timeout,omitempty"`
-	NoOutputTimeout     *int                     `json:"no_output_timeout,omitempty"`
-	Meta                map[string]any           `json:"meta,omitempty"`
-
-	ExecutionContainer models.ContainerReference   `json:"execution_container,omitempty"`
-	ServiceContainers  []models.ContainerReference `json:"service_containers,omitempty"`
-
-	Inputs  []envmanModels.EnvironmentItemModel `json:"inputs,omitempty"`
-	Outputs []envmanModels.EnvironmentItemModel `json:"outputs,omitempty"`
-}
-
-// ExecutableJSON describes a single prebuilt binary for a platform.
-// The Location field accepts either an absolute URL (resolved at generation
-// time from today's bitrise-steplib-storage bucket) or a path relative to
-// the step version directory. Clients sniff by "http://" / "https://" prefix.
-type ExecutableJSON struct {
-	Location string `json:"location"`
-	Hash     string `json:"hash"`
-}
+// The per-version step manifest at steps/<id>/<version>/step.json is
+// models.StepModel marshaled as JSON. models.StepModel already carries
+// `json:"…"` tags alongside its `yaml:"…"` tags, so no specv2-specific
+// struct is needed — the inventory's per-version file is the V1 step.yml,
+// re-encoded.
+//
+// This preserves field-for-field compatibility with V1's audit/runtime
+// code paths (activator/, cli/, toolkits/, etc.), which already operate on
+// models.StepModel. A consumer that wants to read a V2 step.json calls
+// json.Unmarshal into a models.StepModel; today's yaml.Unmarshal callers
+// can swap parsers without any other change.
 
 // StepIDsJSON is spec/step_ids.json: bare list of valid step IDs.
 type StepIDsJSON struct {

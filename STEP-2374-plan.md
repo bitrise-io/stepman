@@ -170,13 +170,13 @@ For a deprecated step:
 
 ### `steps/<id>/<v>/step.json`
 
-The full per-version step manifest. Replaces today's `step.yml`. Immutable.
+The full per-version step manifest. **Field-for-field identical to V1's
+`step.yml`**, just JSON-encoded. `models.StepModel` already carries
+`json:"…"` tags alongside its `yaml:"…"` tags, so the generator emits the
+same shape simply by swapping the marshaler.
 
 ```json
 {
-  "id": "git-clone",
-  "version": "8.5.0",
-
   "title": "Git Clone Repository",
   "summary": "Checks out the repository, updates submodules and exports git metadata as Step outputs.",
   "description": "The checkout process depends on the Step settings and the build trigger parameters...",
@@ -185,6 +185,8 @@ The full per-version step manifest. Replaces today's `step.yml`. Immutable.
   "source_code_url": "https://github.com/bitrise-steplib/steps-git-clone",
   "support_url": "https://github.com/bitrise-steplib/steps-git-clone/issues",
 
+  "published_at": "2026-03-10T12:57:02Z",
+
   "source": {
     "git": "https://github.com/bitrise-steplib/steps-git-clone.git",
     "commit": "df4081a169df74a8185a653919d223703b2200f6"
@@ -192,34 +194,25 @@ The full per-version step manifest. Replaces today's `step.yml`. Immutable.
 
   "executables": {
     "darwin-amd64": {
-      "location": "https://storage.googleapis.com/bitrise-steplib-storage/steps/git-clone/8.5.0/bin/git-clone-darwin-amd64",
+      "storage_uri": "steps/git-clone/8.5.0/bin/git-clone-darwin-amd64",
       "hash": "sha256-9fa46d766238d946e851a2751b61488b422831a45bf1aa81e6afccf272deb841"
     },
     "darwin-arm64": {
-      "location": "https://storage.googleapis.com/bitrise-steplib-storage/steps/git-clone/8.5.0/bin/git-clone-darwin-arm64",
+      "storage_uri": "steps/git-clone/8.5.0/bin/git-clone-darwin-arm64",
       "hash": "sha256-ee75fc91ef4a4844d48b2f1413b696cc16f4b6167a7e05bf47494088b3abab28"
     },
-    "linux-amd64": { "...": "..." },
-    "linux-arm64": { "...": "..." }
+    "linux-amd64": { "storage_uri": "…", "hash": "sha256-…" },
+    "linux-arm64": { "storage_uri": "…", "hash": "sha256-…" }
   },
 
   "type_tags": ["utility"],
-  "project_type_tags": [],
-  "host_os_tags": [],
 
   "toolkit": { "go": { "package_name": "github.com/bitrise-steplib/steps-git-clone" } },
-  "deps": null,
-  "dependencies": null,
 
   "is_requires_admin_user": false,
   "is_always_run": false,
   "is_skippable": false,
   "run_if": ".IsCI",
-  "timeout": 0,
-  "no_output_timeout": null,
-
-  "execution_container": null,
-  "service_containers": [],
 
   "inputs": [
     {
@@ -229,15 +222,6 @@ The full per-version step manifest. Replaces today's `step.yml`. Immutable.
         "summary": "Checkout the merged PR state instead of the PR head",
         "description": "This only applies to builds triggered by pull requests...",
         "value_options": ["yes", "no"]
-      }
-    },
-    {
-      "git_http_username": "$GIT_HTTP_USERNAME",
-      "opts": {
-        "title": "Username for establishing an HTTP(S) connection to the repository",
-        "description": "Username for establishing an HTTP(S) connection to the repository",
-        "is_dont_change_value": true,
-        "is_sensitive": true
       }
     }
   ],
@@ -258,10 +242,22 @@ The full per-version step manifest. Replaces today's `step.yml`. Immutable.
 
 | Change | Why |
 |---|---|
-| `id` and `version` added | File is self-identifying; no need to infer from path. |
-| `format_version` NOT per-file | Single `format_version` lives at the inventory root (`meta.json`), inherited transitively. Matches V1 / YAML-era convention; smaller per-file payloads. |
-| `published_at` removed | Lives in `spec/steps/<id>/versions.json` (the right home for per-version metadata used by catalogs/indexes). Can be re-added later if a need surfaces. |
-| `executables[platform].storage_uri` → `executables[platform].location` | Renamed to indicate "URL or relative path". Sniff rule: starts with `http://`/`https://` → absolute URL; otherwise → relative to step version dir. PoC always emits absolute URLs against today's GCS bucket. Future co-location works without breaking clients. **See deferred decision #3.** |
+| Output is JSON, not YAML | The whole point of V2 — clients fetch + parse incrementally, no YAML dependency required to consume. |
+
+**That's it.** No field renames, no removals, no additions. The generator
+takes the parsed `models.StepModel` and emits it via `json.Marshal`. This
+means:
+
+- Today's audit / runtime code paths (`activator/`, `cli/`, `toolkits/`,
+  etc.) operate on the same `models.StepModel` — only the parser changes
+  from `yaml.Unmarshal` to `json.Unmarshal`.
+- No V1↔V2 field-name drift to maintain or document.
+- The "where should binary URLs come from?" major deferred decision (#3
+  below) is genuinely deferred — not pre-empted by an unmotivated rename.
+
+`id` and `version` are deliberately NOT in the file — the file path
+`steps/<id>/<version>/step.json` is the canonical identifier, same as
+today's `steps/<id>/<version>/step.yml`.
 
 **Sizes (gzipped, measured):**
 
@@ -431,7 +427,7 @@ Produce a runnable Go tool that converts a local clone of `bitrise-steplib` into
 - No uploads to any bucket (output is a local directory only).
 - No interface refactor inside stepman (a separate engineer is working on the abstraction boundary; we'll integrate after that lands).
 - No telemetry instrumentation (relevant only when the read path exists).
-- No binary co-location, no `src.zip` co-location — link-only via `executables[*].location`.
+- No binary co-location, no `src.zip` co-location. Per-version `step.json` carries the V1 `executables[*].storage_uri` relative path verbatim; client (today's activator) resolves it against the configured binary storage base.
 
 ### Estimated effort
 
@@ -472,11 +468,15 @@ V2 may co-locate assets directly in `steps/<id>/assets/` rather than mirroring t
 
 ### 3. **`binary_storage_base_url` — major decision point**
 
-Should the inventory be **self-describing** (declare the binary storage base in `meta.json`; `step.json` carries relative paths) or stay **decoupled** (each `step.json` carries absolute URLs)?
+Today: `step.json` (PoC A) carries `executables[platform].storage_uri` verbatim from V1 — a relative path (e.g., `"steps/git-clone/8.5.0/bin/git-clone-darwin-amd64"`). The client knows where to look (today's GCS bucket, with `BITRISE_PRECOMPILED_STEPS_PRIMARY_STORAGE` env override). The same arrangement V1 has, just JSON-encoded.
 
-PoC A emits absolute URLs (decoupled, smaller blast radius). Both options work with the same `step.json` schema thanks to the sniff rule (`http://` prefix → absolute; otherwise → relative). However, **once we publish step.json files with absolute URLs, we can't retroactively change them** — versions are immutable. So if we ever want to move binaries to a new bucket / co-locate them / change the base URL, we'd have to commit to relative paths going forward and live with absolute URLs for historical versions.
+The deferred question: when V2 wants to co-locate binaries inside the inventory itself (Confluence Phase 2), how do clients find them? Options:
 
-**Must be settled before production rollout.** Coordinates with binary co-location (Confluence Phase 2).
+- **Self-describing inventory.** `meta.json` declares a `binary_storage_base_url`; `step.json` keeps the relative `storage_uri`. Client resolves at fetch time.
+- **Per-version absolute URLs.** Reinterpret `storage_uri` (or add a sibling field) so each `step.json` carries a full URL.
+- **Sniff rule.** Treat `storage_uri` as "absolute URL if it starts with http://, else relative". One field, both shapes, additive change.
+
+All three are reachable as additive changes to V1's shape, so we are not locked out of any. **The choice should be settled before binaries are actually co-located**, not before V2 metadata ships. Coordinates with binary co-location (Confluence Phase 2).
 
 ### Smaller deferrals
 

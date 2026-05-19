@@ -132,29 +132,29 @@ source file nor any asset files.
 
 ## `steps/<id>/<version>/step.json`
 
-Per-version step manifest — the V2 replacement for `step.yml`. Immutable
-once published.
+Per-version step manifest — V1's `step.yml` marshaled as JSON. Field-for-field
+identical to today's `step.yml` (which already carries `json:"…"` tags on
+every field via `models.StepModel`). The only change is the encoding.
 
 ```json
 {
-  "id": "git-clone",
-  "version": "8.5.0",
   "title": "Git Clone Repository",
   "summary": "Checks out the repository, updates submodules and exports git metadata as Step outputs.",
   "description": "...",
   "website": "https://github.com/bitrise-steplib/steps-git-clone",
   "source_code_url": "https://github.com/bitrise-steplib/steps-git-clone",
   "support_url": "https://github.com/bitrise-steplib/steps-git-clone/issues",
+  "published_at": "2026-03-10T12:57:02Z",
   "source": {
     "git": "https://github.com/bitrise-steplib/steps-git-clone.git",
     "commit": "df4081a169df74a8185a653919d223703b2200f6"
   },
   "executables": {
     "darwin-amd64": {
-      "location": "https://storage.googleapis.com/bitrise-steplib-storage/steps/git-clone/8.5.0/bin/git-clone-darwin-amd64",
+      "storage_uri": "steps/git-clone/8.5.0/bin/git-clone-darwin-amd64",
       "hash": "sha256-9fa46d766238d946e851a2751b61488b422831a45bf1aa81e6afccf272deb841"
     },
-    "darwin-arm64": { "location": "...", "hash": "sha256-..." }
+    "darwin-arm64": { "storage_uri": "…", "hash": "sha256-…" }
   },
   "type_tags": ["utility"],
   "toolkit": { "go": { "package_name": "github.com/bitrise-steplib/steps-git-clone" } },
@@ -167,14 +167,21 @@ once published.
 }
 ```
 
-Differences from today's `step.yml`:
+**Why no schema changes from V1?** V2 deliberately preserves the V1
+`step.yml` shape (including `published_at` and the relative `storage_uri`
+path) so that:
 
-| Change | Why |
-|---|---|
-| Added `id`, `version` | File is self-identifying; no need to infer from path. (Schema version lives in `meta.json` only.) |
-| Removed `published_at` | Lives in `versions.json` (the right home for per-version metadata used by indexes). Can be re-added if needed. |
-| `executables[platform].storage_uri` → `executables[platform].location` | Sniff rule: `http://` / `https://` prefix → use as-is; otherwise → resolve relative to the step version's URL. Generator emits absolute URLs for V2 today; future co-located binaries can use relative paths without breaking clients. *Major decision point: see STEP-2374-plan.md deferred decision #3.* |
-| Output is JSON, not YAML | Smaller without `description` (no markdown reflow), trivially parsed by any client, no YAML dependency. |
+- Today's audit/runtime code paths (`activator/`, `cli/`, `toolkits/`,
+  etc.) operate on the same `models.StepModel` — only the parser changes
+  from `yaml.Unmarshal` to `json.Unmarshal`.
+- There is no V1↔V2 field-name drift to maintain or document.
+- The "where should binary URLs come from?" decision (deferred follow-up
+  #3 in STEP-2374-plan.md) is genuinely deferred, not pre-empted by an
+  unmotivated rename.
+
+`id` and `version` are deliberately NOT in the file — the file path
+`steps/<id>/<version>/step.json` is the canonical identifier, same as
+today's `steps/<id>/<version>/step.yml`.
 
 ---
 
