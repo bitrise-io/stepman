@@ -330,7 +330,6 @@ func writeStepFiles(w *writer, inputDir string, s parsedStep, opts Options) erro
 
 func toStepJSON(step models.StepModel, id, version string, opts Options) StepJSON {
 	return StepJSON{
-		FormatVersion:       FormatVersion,
 		ID:                  id,
 		Version:             version,
 		Title:               derefStr(step.Title),
@@ -401,10 +400,7 @@ func writeSpecFiles(w *writer, steps []parsedStep, opts Options, assetsBaseURI s
 	for i, s := range steps {
 		ids[i] = s.id
 	}
-	if err := w.writeJSON("spec/step_ids.json", StepIDsJSON{
-		FormatVersion: FormatVersion,
-		StepIDs:       ids,
-	}); err != nil {
+	if err := w.writeJSON("spec/step_ids.json", StepIDsJSON{StepIDs: ids}); err != nil {
 		return err
 	}
 
@@ -412,10 +408,7 @@ func writeSpecFiles(w *writer, steps []parsedStep, opts Options, assetsBaseURI s
 	for _, s := range steps {
 		allVersions[s.id] = s.versionList
 	}
-	if err := w.writeJSON("spec/all_step_versions.json", AllStepVersionsJSON{
-		FormatVersion: FormatVersion,
-		Steps:         allVersions,
-	}); err != nil {
+	if err := w.writeJSON("spec/all_step_versions.json", AllStepVersionsJSON{Steps: allVersions}); err != nil {
 		return err
 	}
 
@@ -437,7 +430,6 @@ func writeSpecFiles(w *writer, steps []parsedStep, opts Options, assetsBaseURI s
 
 func buildCatalog(steps []parsedStep, opts Options, assetsBaseURI string) LatestVersionsJSON {
 	out := LatestVersionsJSON{
-		FormatVersion:    FormatVersion,
 		GeneratedAt:      opts.GeneratedAt,
 		SteplibCommitSHA: opts.SteplibCommitSHA,
 		Steps:            make(map[string]CatalogEntry, len(steps)),

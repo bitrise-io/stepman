@@ -52,6 +52,7 @@ func TestGenerator_meta(t *testing.T) {
 	readJSON(t, filepath.Join(out, "meta.json"), &meta)
 
 	assert.Equal(t, FormatVersion, meta.FormatVersion)
+	assert.Equal(t, 2, meta.FormatVersion)
 	assert.Equal(t, fixedTime, meta.UpdatedAt)
 	assert.Equal(t, "deadbeefcafef00d", meta.SteplibCommitSHA)
 	assert.Equal(t, "https://github.com/example/test-steplib.git", meta.SteplibSource)
@@ -133,7 +134,6 @@ func TestGenerator_multi_platform_executables(t *testing.T) {
 	var step StepJSON
 	readJSON(t, filepath.Join(out, "steps/multi-platform-step/3.2.1/step.json"), &step)
 
-	assert.Equal(t, FormatVersion, step.FormatVersion)
 	assert.Equal(t, "multi-platform-step", step.ID)
 	assert.Equal(t, "3.2.1", step.Version)
 	require.Len(t, step.Executables, 2)
@@ -221,7 +221,6 @@ func TestGenerator_catalog_entry(t *testing.T) {
 	var catalog LatestVersionsJSON
 	readJSON(t, filepath.Join(out, "spec/latest_versions.json"), &catalog)
 
-	assert.Equal(t, FormatVersion, catalog.FormatVersion)
 	assert.Equal(t, fixedTime, catalog.GeneratedAt)
 	assert.Equal(t, "deadbeefcafef00d", catalog.SteplibCommitSHA)
 	require.Len(t, catalog.Steps, 5)

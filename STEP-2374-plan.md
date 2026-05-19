@@ -112,7 +112,7 @@ Inventory-level metadata. Carries the file format version, generation timestamp,
 
 ```json
 {
-  "format_version": "2.0.0",
+  "format_version": 2,
   "updated_at": "2026-05-15T11:31:34Z",
   "steplib_commit_sha": "b9af7d7abc123def456...",
   "steplib_source": "https://github.com/bitrise-io/bitrise-steplib.git",
@@ -126,7 +126,7 @@ Inventory-level metadata. Carries the file format version, generation timestamp,
 
 | Field | Type | Notes |
 |---|---|---|
-| `format_version` | string (semver) | Bump major on breaking schema changes. |
+| `format_version` | int | Major-only schema version. Declared **only** in `meta.json`; per-step and per-version files inherit it transitively (matches V1 / YAML-era convention). Bump only on breaking changes — additive changes don't bump, consumers ignore unknown fields. |
 | `updated_at` | ISO 8601 string | When this snapshot was generated. |
 | `steplib_commit_sha` | string | Git SHA the generator ran against. Reproducibility + debugging. |
 | `steplib_source` | URL | Source repo. Mostly for alt-steplib disambiguation / debugging. |
@@ -174,7 +174,6 @@ The full per-version step manifest. Replaces today's `step.yml`. Immutable.
 
 ```json
 {
-  "format_version": "2.0.0",
   "id": "git-clone",
   "version": "8.5.0",
 
@@ -260,7 +259,7 @@ The full per-version step manifest. Replaces today's `step.yml`. Immutable.
 | Change | Why |
 |---|---|
 | `id` and `version` added | File is self-identifying; no need to infer from path. |
-| `format_version` added | Per-file versioning; consumers can reject incompatible. |
+| `format_version` NOT per-file | Single `format_version` lives at the inventory root (`meta.json`), inherited transitively. Matches V1 / YAML-era convention; smaller per-file payloads. |
 | `published_at` removed | Lives in `spec/steps/<id>/versions.json` (the right home for per-version metadata used by catalogs/indexes). Can be re-added later if a need surfaces. |
 | `executables[platform].storage_uri` → `executables[platform].location` | Renamed to indicate "URL or relative path". Sniff rule: starts with `http://`/`https://` → absolute URL; otherwise → relative to step version dir. PoC always emits absolute URLs against today's GCS bucket. Future co-location works without breaking clients. **See deferred decision #3.** |
 
@@ -280,7 +279,6 @@ Bare list of valid step IDs. Used to answer "is `<id>` a known step?" without fe
 
 ```json
 {
-  "format_version": "2.0.0",
   "step_ids": [
     "activate-ssh-key",
     "amazon-s3-deploy",
@@ -301,7 +299,6 @@ Fat catalog: one entry per step, carrying everything WFE / Integrations Page / `
 
 ```json
 {
-  "format_version": "2.0.0",
   "generated_at": "2026-05-15T11:31:34Z",
   "steplib_commit_sha": "b9af7d7abc...",
 
@@ -340,7 +337,6 @@ Step ID → version list. Bare minimum to answer "what versions exist for `<id>`
 
 ```json
 {
-  "format_version": "2.0.0",
   "steps": {
     "git-clone": ["7.0.2", "7.0.3", "8.0.0", "8.0.1", "...", "8.5.0"],
     "activate-ssh-key": ["3.0.2", "3.0.3", "3.1.0", "3.1.1", "4.0.1", "...", "4.1.1"]

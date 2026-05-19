@@ -17,12 +17,19 @@ import (
 	"github.com/bitrise-io/stepman/models"
 )
 
-// FormatVersion is the on-disk schema version. Bump major on breaking changes.
-const FormatVersion = "2.0.0"
+// FormatVersion is the on-disk schema version recorded in meta.json. It is a
+// single major-only integer: bump only on breaking changes (renamed or
+// removed fields, changed semantics). Additive changes (new optional fields)
+// DO NOT bump — consumers ignore unknown JSON keys.
+//
+// Per V1 convention, format_version is declared only at the inventory root;
+// per-step and per-version files inherit it transitively.
+const FormatVersion = 2
 
-// MetaJSON is the inventory-level metadata file at the inventory root.
+// MetaJSON is the inventory-level metadata file at the inventory root, and
+// the only file that carries format_version.
 type MetaJSON struct {
-	FormatVersion         string                         `json:"format_version"`
+	FormatVersion         int                            `json:"format_version"`
 	UpdatedAt             time.Time                      `json:"updated_at"`
 	SteplibCommitSHA      string                         `json:"steplib_commit_sha,omitempty"`
 	SteplibSource         string                         `json:"steplib_source,omitempty"`
@@ -49,9 +56,8 @@ type DeprecationJSON struct {
 // StepJSON is the per-version step manifest at steps/<id>/<version>/step.json.
 // Replaces step.yml. Immutable once published.
 type StepJSON struct {
-	FormatVersion string `json:"format_version"`
-	ID            string `json:"id"`
-	Version       string `json:"version"`
+	ID      string `json:"id"`
+	Version string `json:"version"`
 
 	Title       string `json:"title,omitempty"`
 	Summary     string `json:"summary,omitempty"`
@@ -97,15 +103,13 @@ type ExecutableJSON struct {
 
 // StepIDsJSON is spec/step_ids.json: bare list of valid step IDs.
 type StepIDsJSON struct {
-	FormatVersion string   `json:"format_version"`
-	StepIDs       []string `json:"step_ids"`
+	StepIDs []string `json:"step_ids"`
 }
 
 // LatestVersionsJSON is spec/latest_versions.json: fat catalog for browse views.
 // Single fetch gives WFE / Integrations Page / `stepman list` everything they
 // need to render a catalog without per-step round trips.
 type LatestVersionsJSON struct {
-	FormatVersion    string                  `json:"format_version"`
 	GeneratedAt      time.Time               `json:"generated_at"`
 	SteplibCommitSHA string                  `json:"steplib_commit_sha,omitempty"`
 	Steps            map[string]CatalogEntry `json:"steps"`
@@ -134,8 +138,7 @@ type CatalogEntry struct {
 // AllStepVersionsJSON is spec/all_step_versions.json: step_id → list of versions.
 // Bare index, no per-version metadata; use spec/steps/<id>/versions.json for that.
 type AllStepVersionsJSON struct {
-	FormatVersion string              `json:"format_version"`
-	Steps         map[string][]string `json:"steps"`
+	Steps map[string][]string `json:"steps"`
 }
 
 // LatestPointerJSON is spec/steps/<id>/latest.json: per-step latest pointers.

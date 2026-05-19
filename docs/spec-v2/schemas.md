@@ -29,6 +29,23 @@ steps covering the variations the generator handles.
          └─ step.json
 ```
 
+## Versioning
+
+The inventory carries a single `format_version` field, declared once in
+`meta.json` and inherited transitively by every other file. This matches
+the V1 / YAML-era convention (`steplib.yml` carried `format_version` at the
+root, per-step / per-version YAMLs did not).
+
+- **Type:** integer (`int`), not semver string. JSON has real numbers; use
+  them.
+- **Current value:** `2`.
+- **When to bump:** only on **breaking changes** — renamed fields, removed
+  fields, changed semantics of existing fields. Additive changes (new
+  optional fields) do **not** bump, since consumers ignore unknown JSON
+  keys.
+- **Where to read it:** `meta.json` only. A consumer that needs to know the
+  inventory's schema version must fetch `meta.json` once per session.
+
 ## Cache contract (recommended)
 
 | Pattern | Cache profile |
@@ -49,7 +66,7 @@ Inventory-level metadata. One file at the root.
 
 ```json
 {
-  "format_version": "2.0.0",
+  "format_version": 2,
   "updated_at": "2026-05-15T11:31:34Z",
   "steplib_commit_sha": "b9af7d7abc123def456...",
   "steplib_source": "https://github.com/bitrise-io/bitrise-steplib.git",
@@ -63,7 +80,7 @@ Inventory-level metadata. One file at the root.
 
 | Field | Type | Notes |
 |---|---|---|
-| `format_version` | string (semver) | On-disk schema version. Bump major on breaking schema changes. |
+| `format_version` | int | Major-only schema version. See [Versioning](#versioning). |
 | `updated_at` | RFC3339 | When this snapshot was generated. |
 | `steplib_commit_sha` | string | Git SHA the generator ran against. Reproducibility + debugging. |
 | `steplib_source` | URL | The git source repo this snapshot was generated from. |
@@ -120,7 +137,6 @@ once published.
 
 ```json
 {
-  "format_version": "2.0.0",
   "id": "git-clone",
   "version": "8.5.0",
   "title": "Git Clone Repository",
@@ -155,7 +171,7 @@ Differences from today's `step.yml`:
 
 | Change | Why |
 |---|---|
-| Added `format_version`, `id`, `version` | File is self-identifying; no need to infer from path. |
+| Added `id`, `version` | File is self-identifying; no need to infer from path. (Schema version lives in `meta.json` only.) |
 | Removed `published_at` | Lives in `versions.json` (the right home for per-version metadata used by indexes). Can be re-added if needed. |
 | `executables[platform].storage_uri` → `executables[platform].location` | Sniff rule: `http://` / `https://` prefix → use as-is; otherwise → resolve relative to the step version's URL. Generator emits absolute URLs for V2 today; future co-located binaries can use relative paths without breaking clients. *Major decision point: see STEP-2374-plan.md deferred decision #3.* |
 | Output is JSON, not YAML | Smaller without `description` (no markdown reflow), trivially parsed by any client, no YAML dependency. |
@@ -169,7 +185,6 @@ fetching anything else.
 
 ```json
 {
-  "format_version": "2.0.0",
   "step_ids": [
     "activate-ssh-key",
     "amazon-s3-deploy",
@@ -191,7 +206,6 @@ Fat catalog: one entry per step with everything WFE / Integrations Page /
 
 ```json
 {
-  "format_version": "2.0.0",
   "generated_at": "2026-05-15T11:31:34Z",
   "steplib_commit_sha": "b9af7d7abc...",
   "steps": {
@@ -232,7 +246,6 @@ Step ID → version list. Bare index, no per-version metadata; use the per-step
 
 ```json
 {
-  "format_version": "2.0.0",
   "steps": {
     "git-clone": ["2.0.0", "2.1.0", "...", "8.5.0"],
     "activate-ssh-key": ["3.0.2", "3.0.3", "3.1.0", "3.1.1", "...", "4.1.1"]
