@@ -25,7 +25,7 @@ func TestHTTPAPI(t *testing.T) {
 		_, _ = w.Write([]byte(`{"maintainer":"bitrise","deprecation":null,"asset_urls":{"icon.svg":"assets/icon.svg"}}`))
 	})
 	mux.HandleFunc("/steps/hello-step/2.0.0/step.json", func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"id":"hello-step","version":"2.0.0"}`))
+		_, _ = w.Write([]byte(`{"title":"Hello","summary":"says hi"}`))
 	})
 	mux.HandleFunc("/steps/hello-step/2.0.0/src.zip", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("PK\x03\x04seed-zip-bytes"))
@@ -94,21 +94,13 @@ func TestHTTPAPI(t *testing.T) {
 		}
 	})
 
-	t.Run("GetStepYMLPath downloads to cache dir", func(t *testing.T) {
-		path, err := api.GetStepYMLPath(ctx, ResolvedStepVersion{ID: "hello-step", Version: "2.0.0"})
+	t.Run("GetStepModel decodes step.json into models.StepModel", func(t *testing.T) {
+		got, err := api.GetStepModel(ctx, ResolvedStepVersion{ID: "hello-step", Version: "2.0.0"})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		want := filepath.Join(cacheDir, "steps", "hello-step", "2.0.0", "step.json")
-		if path != want {
-			t.Errorf("path = %q, want %q", path, want)
-		}
-		body, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatalf("read downloaded file: %v", err)
-		}
-		if !strings.Contains(string(body), `"id":"hello-step"`) {
-			t.Errorf("downloaded body does not contain expected JSON: %q", body)
+		if got.Title == nil || *got.Title != "Hello" {
+			t.Errorf("Title = %v, want %q", got.Title, "Hello")
 		}
 	})
 

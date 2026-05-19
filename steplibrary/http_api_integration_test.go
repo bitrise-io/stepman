@@ -101,26 +101,19 @@ func TestHTTPAPI_Integration(t *testing.T) {
 		}
 	})
 
-	t.Run("GetStepYMLPath(hello-step, 2.0.0) downloads step.json", func(t *testing.T) {
-		path, err := api.GetStepYMLPath(ctx, ResolvedStepVersion{ID: "hello-step", Version: "2.0.0"})
+	t.Run("GetStepModel(hello-step, 2.0.0) decodes step.json", func(t *testing.T) {
+		got, err := api.GetStepModel(ctx, ResolvedStepVersion{ID: "hello-step", Version: "2.0.0"})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		want := filepath.Join(cacheDir, "steps", "hello-step", "2.0.0", "step.json")
-		if path != want {
-			t.Errorf("path = %q, want %q", path, want)
+		if got.Title == nil || *got.Title != "Hello Step" {
+			t.Errorf("Title = %v, want %q", got.Title, "Hello Step")
 		}
-		body, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatalf("read downloaded file: %v", err)
+		if got.SourceCodeURL == nil || *got.SourceCodeURL != "https://github.com/example/hello-step" {
+			t.Errorf("SourceCodeURL = %v, want %q", got.SourceCodeURL, "https://github.com/example/hello-step")
 		}
-		// step.json mirrors models.StepModel — id/version are implicit from the
-		// file path, not serialised as fields. Verify against stable content.
-		if !strings.Contains(string(body), `"title": "Hello Step"`) {
-			t.Errorf("downloaded body missing title field: %q", body[:min(200, len(body))])
-		}
-		if !strings.Contains(string(body), `"source_code_url": "https://github.com/example/hello-step"`) {
-			t.Errorf("downloaded body missing source_code_url field: %q", body[:min(300, len(body))])
+		if got.Source == nil || got.Source.Git != "https://github.com/example/hello-step.git" {
+			t.Errorf("Source.Git = %+v, want %q", got.Source, "https://github.com/example/hello-step.git")
 		}
 	})
 

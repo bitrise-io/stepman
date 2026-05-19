@@ -12,6 +12,7 @@ import (
 	"github.com/bitrise-io/stepman/activator/result"
 	"github.com/bitrise-io/stepman/models"
 	"github.com/bitrise-io/stepman/stepman"
+	"gopkg.in/yaml.v2"
 )
 
 type Steplib struct {
@@ -39,9 +40,10 @@ func New(log stepman.Logger, steplibURI string, isOfflineMode bool, fileManager 
 func (s *Steplib) Activate(ctx context.Context, stepID, version string, outputPaths ActivateOutputPaths) (result.ActivatedStep, error) {
 	stepInfo, resolved, err := s.getStepVersionInfo(ctx, stepID, version)
 
-	var sourceYMLPath, stepSourceZIPPath, execPath string
+	var stepModel models.StepModel
+	var stepSourceZIPPath, execPath string
 	if err == nil {
-		sourceYMLPath, err = s.api.GetStepYMLPath(ctx, resolved)
+		stepModel, err = s.api.GetStepModel(ctx, resolved)
 	}
 	// ToDo: precompiled binary
 	if err == nil {
@@ -52,8 +54,15 @@ func (s *Steplib) Activate(ctx context.Context, stepID, version string, outputPa
 			err = fmt.Errorf("unzip step source %s: %w", stepSourceZIPPath, err)
 		}
 	}
+	var stepYML []byte
 	if err == nil {
-		err = s.fileManager.CopyFile(sourceYMLPath, outputPaths.YMLPath, &fileutil.CopyOptions{Overwrite: true})
+		stepYML, err = yaml.Marshal(stepModel)
+		if err != nil {
+			err = fmt.Errorf("marshal step model to YAML: %w", err)
+		}
+	}
+	if err == nil {
+		err = s.fileManager.WriteBytes(outputPaths.YMLPath, stepYML)
 	}
 	if err != nil {
 		return result.ActivatedStep{}, err

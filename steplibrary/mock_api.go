@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
+	"github.com/bitrise-io/go-utils/pointers"
+	"github.com/bitrise-io/stepman/models"
 )
 
 // MockAPI is an in-memory API implementation used as the default in `New` and
@@ -62,8 +65,15 @@ func (m MockAPI) GetStepGroupInfo(_ context.Context, id string) (StepGroupInfo, 
 	return v, nil
 }
 
-func (m MockAPI) GetStepYMLPath(_ context.Context, step ResolvedStepVersion) (string, error) {
-	return fmt.Sprintf("/mock/steplib/%s/%s/step.yml", step.ID, step.Version), nil
+func (m MockAPI) GetStepModel(_ context.Context, step ResolvedStepVersion) (models.StepModel, error) {
+	if step.ID != "script" {
+		return models.StepModel{}, errors.New("not found")
+	}
+	//nolint:exhaustruct // mock returns a minimal StepModel; downstream consumers don't need the full shape here
+	return models.StepModel{
+		Title:   pointers.NewStringPtr("Script"),
+		Summary: pointers.NewStringPtr("Runs a shell script."),
+	}, nil
 }
 
 func (m MockAPI) GetStepSourceZIPPath(_ context.Context, step ResolvedStepVersion) (string, error) {

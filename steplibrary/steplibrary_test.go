@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/bitrise-io/go-utils/v2/fileutil"
+	"github.com/bitrise-io/stepman/models"
 )
 
 type discardLogger struct{}
@@ -29,7 +30,7 @@ type fakeAPI struct {
 	allVersionsErr    error
 	groupInfo         map[string]StepGroupInfo
 	groupInfoErr      error
-	ymlSourcePath     string
+	stepModel         map[string]models.StepModel
 	zipSourcePath     string
 }
 
@@ -73,11 +74,15 @@ func (f fakeAPI) GetStepGroupInfo(ctx context.Context, id string) (StepGroupInfo
 	return f.MockAPI.GetStepGroupInfo(ctx, id)
 }
 
-func (f fakeAPI) GetStepYMLPath(ctx context.Context, step ResolvedStepVersion) (string, error) {
-	if f.ymlSourcePath != "" {
-		return f.ymlSourcePath, nil
+func (f fakeAPI) GetStepModel(ctx context.Context, step ResolvedStepVersion) (models.StepModel, error) {
+	if f.stepModel != nil {
+		v, ok := f.stepModel[step.ID]
+		if !ok {
+			return models.StepModel{}, errors.New("not found")
+		}
+		return v, nil
 	}
-	return f.MockAPI.GetStepYMLPath(ctx, step)
+	return f.MockAPI.GetStepModel(ctx, step)
 }
 
 func (f fakeAPI) GetStepSourceZIPPath(ctx context.Context, step ResolvedStepVersion) (string, error) {
@@ -116,11 +121,6 @@ func writeSeedZip(t *testing.T, path string) {
 
 func TestSteplib_Activate(t *testing.T) {
 	tmpDir := t.TempDir()
-	sourceYML := filepath.Join(tmpDir, "source-step.yml")
-	if err := os.WriteFile(sourceYML, []byte("# stub step.yml\n"), 0o644); err != nil {
-		t.Fatalf("seed source step.yml: %v", err)
-	}
-
 	sourceZIP := filepath.Join(tmpDir, "source-step.zip")
 	writeSeedZip(t, sourceZIP)
 
@@ -140,7 +140,6 @@ func TestSteplib_Activate(t *testing.T) {
 		allVersions: map[string][]string{
 			"script": {"1.0.0", "1.1.5", "1.2.0", "2.0.0", "2.4.0", "2.4.1", "3.0.0"},
 		},
-		ymlSourcePath: sourceYML,
 		zipSourcePath: sourceZIP,
 	}
 

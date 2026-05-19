@@ -13,6 +13,7 @@ import (
 
 	"github.com/bitrise-io/go-utils/v2/filedownloader"
 	"github.com/bitrise-io/go-utils/v2/log"
+	"github.com/bitrise-io/stepman/models"
 )
 
 // HTTPAPI fetches the V2 inventory layout (step_ids.json, latest.json,
@@ -82,15 +83,17 @@ func (h *HTTPAPI) GetStepGroupInfo(ctx context.Context, id string) (StepGroupInf
 	return out, err
 }
 
-// GetStepYMLPath downloads the V2 step manifest (step.json) and returns the
-// local cache path. Note: the file is JSON, not YAML — the V1 step.yml shape
-// is no longer produced by the V2 inventory.
-func (h *HTTPAPI) GetStepYMLPath(ctx context.Context, step ResolvedStepVersion) (string, error) {
-	return h.download(
+// GetStepModel fetches the V2 step manifest (`steps/<id>/<v>/step.json`,
+// which serialises models.StepModel) and returns the decoded model.
+func (h *HTTPAPI) GetStepModel(ctx context.Context, step ResolvedStepVersion) (models.StepModel, error) {
+	//nolint:exhaustruct // server JSON dictates which fields are populated
+	var out models.StepModel
+	err := h.fetchJSON(
 		ctx,
 		fmt.Sprintf("/steps/%s/%s/step.json", url.PathEscape(step.ID), url.PathEscape(step.Version)),
-		filepath.Join(h.CacheDir, "steps", step.ID, step.Version, "step.json"),
+		&out,
 	)
+	return out, err
 }
 
 func (h *HTTPAPI) GetStepSourceZIPPath(ctx context.Context, step ResolvedStepVersion) (string, error) {

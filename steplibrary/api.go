@@ -1,6 +1,10 @@
 package steplibrary
 
-import "context"
+import (
+	"context"
+
+	"github.com/bitrise-io/stepman/models"
+)
 
 type ResolvedStepVersion struct {
 	ID, Version string
@@ -40,7 +44,9 @@ type API interface {
 	// GetStepGroupInfo returns version-independent step metadata
 	// (maintainer, deprecation, asset URLs). Mirrors `steps/<id>/step-info.json`.
 	GetStepGroupInfo(ctx context.Context, id string) (StepGroupInfo, error)
-	GetStepYMLPath(ctx context.Context, step ResolvedStepVersion) (string, error)
+	// GetStepModel fetches the V2 per-version step manifest (mirrors
+	// `steps/<id>/<version>/step.json`, which serializes models.StepModel).
+	GetStepModel(ctx context.Context, step ResolvedStepVersion) (models.StepModel, error)
 	GetStepSourceZIPPath(ctx context.Context, step ResolvedStepVersion) (string, error)
 	GetStepPrecompiledPath(ctx context.Context, step ResolvedStepVersion) (string, error)
 }
