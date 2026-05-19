@@ -1,13 +1,11 @@
 {
-  "format_version": "2.0.0",
-  "id": "bash-step",
-  "version": "1.0.0",
   "title": "Bash Step",
   "summary": "A bash-only step with no prebuilt binary.",
   "description": "Demonstrates the case where Executables is absent.\n",
   "website": "https://example.com/bash-step",
   "source_code_url": "https://github.com/example/bash-step",
   "support_url": "https://github.com/example/bash-step/issues",
+  "published_at": "2024-08-10T10:00:00Z",
   "source": {
     "git": "https://github.com/example/bash-step.git",
     "commit": "ffff6666ffff6666ffff6666ffff6666ffff6666"

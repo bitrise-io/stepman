@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bitrise-io/stepman/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -52,10 +53,10 @@ func TestGenerator_meta(t *testing.T) {
 	readJSON(t, filepath.Join(out, "meta.json"), &meta)
 
 	assert.Equal(t, FormatVersion, meta.FormatVersion)
+	assert.Equal(t, 2, meta.FormatVersion)
 	assert.Equal(t, fixedTime, meta.UpdatedAt)
 	assert.Equal(t, "deadbeefcafef00d", meta.SteplibCommitSHA)
 	assert.Equal(t, "https://github.com/example/test-steplib.git", meta.SteplibSource)
-	assert.Equal(t, "https://assets.example.com/steps", meta.AssetsDownloadBaseURI)
 	require.Len(t, meta.DownloadLocations, 2)
 	assert.Equal(t, "zip", meta.DownloadLocations[0].Type)
 	assert.Equal(t, "https://archives.example.com/", meta.DownloadLocations[0].Src)
@@ -130,39 +131,40 @@ func TestGenerator_no_info_step_skips_step_info_file(t *testing.T) {
 func TestGenerator_multi_platform_executables(t *testing.T) {
 	out := runGenerate(t)
 
-	var step StepJSON
+	// step.json is a models.StepModel marshaled as JSON — same shape as V1 step.yml.
+	var step models.StepModel
 	readJSON(t, filepath.Join(out, "steps/multi-platform-step/3.2.1/step.json"), &step)
 
-	assert.Equal(t, FormatVersion, step.FormatVersion)
-	assert.Equal(t, "multi-platform-step", step.ID)
-	assert.Equal(t, "3.2.1", step.Version)
-	require.Len(t, step.Executables, 2)
+	require.NotNil(t, step.Executables)
+	require.Len(t, *step.Executables, 2)
 
-	// Location is an absolute URL built from default storage base + the per-platform StorageURI.
-	darwinArm := step.Executables["darwin-arm64"]
+	// StorageURI is preserved verbatim from V1 step.yml — a relative path.
+	// The client (today's activator) is responsible for resolving it against
+	// the configured binary storage base.
+	darwinArm := (*step.Executables)["darwin-arm64"]
 	assert.Equal(t,
-		DefaultBinaryStorageBaseURL+"/steps/multi-platform-step/3.2.1/bin/multi-platform-step-darwin-arm64",
-		darwinArm.Location,
+		"steps/multi-platform-step/3.2.1/bin/multi-platform-step-darwin-arm64",
+		darwinArm.StorageURI,
 	)
 	assert.Equal(t,
 		"sha256-1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa",
 		darwinArm.Hash,
 	)
 
-	linuxAmd := step.Executables["linux-amd64"]
+	linuxAmd := (*step.Executables)["linux-amd64"]
 	assert.Equal(t,
-		DefaultBinaryStorageBaseURL+"/steps/multi-platform-step/3.2.1/bin/multi-platform-step-linux-amd64",
-		linuxAmd.Location,
+		"steps/multi-platform-step/3.2.1/bin/multi-platform-step-linux-amd64",
+		linuxAmd.StorageURI,
 	)
 }
 
 func TestGenerator_bash_step_has_no_executables(t *testing.T) {
 	out := runGenerate(t)
 
-	var step StepJSON
+	var step models.StepModel
 	readJSON(t, filepath.Join(out, "steps/bash-step/1.0.0/step.json"), &step)
 
-	assert.Empty(t, step.Executables)
+	assert.Nil(t, step.Executables)
 	require.NotNil(t, step.Toolkit)
 	require.NotNil(t, step.Toolkit.Bash)
 	assert.Equal(t, "step.sh", step.Toolkit.Bash.EntryFile)
@@ -221,7 +223,6 @@ func TestGenerator_catalog_entry(t *testing.T) {
 	var catalog LatestVersionsJSON
 	readJSON(t, filepath.Join(out, "spec/latest_versions.json"), &catalog)
 
-	assert.Equal(t, FormatVersion, catalog.FormatVersion)
 	assert.Equal(t, fixedTime, catalog.GeneratedAt)
 	assert.Equal(t, "deadbeefcafef00d", catalog.SteplibCommitSHA)
 	require.Len(t, catalog.Steps, 5)
@@ -234,9 +235,11 @@ func TestGenerator_catalog_entry(t *testing.T) {
 	assert.Equal(t, "bitrise", hello.Maintainer)
 	assert.Nil(t, hello.Deprecation)
 	assert.False(t, hello.HasExecutable)
-	// asset_urls in the catalog must be ABSOLUTE (pre-resolved against AssetsDownloadBaseURI).
+	// asset_urls in the catalog are INVENTORY-ROOT-RELATIVE — consumers
+	// resolve them against the inventory base URL they fetched the
+	// catalog from (no hosting URL baked into the payload).
 	assert.Equal(t,
-		"https://assets.example.com/steps/hello-step/assets/icon.svg",
+		"steps/hello-step/assets/icon.svg",
 		hello.AssetURLs["icon.svg"],
 	)
 
@@ -266,37 +269,15 @@ func TestGenerator_stats(t *testing.T) {
 	assert.Positive(t, stats.BytesWritten)
 }
 
-func TestJoinBinaryURL(t *testing.T) {
-	cases := []struct {
-		base, rel, want string
-	}{
-		{"https://example.com", "path/to/bin", "https://example.com/path/to/bin"},
-		{"https://example.com/", "path/to/bin", "https://example.com/path/to/bin"},
-		{"https://example.com", "/path/to/bin", "https://example.com/path/to/bin"},
-		{"https://example.com/", "/path/to/bin", "https://example.com/path/to/bin"},
-		{"https://example.com", "https://other.host/bin", "https://other.host/bin"},
-		{"https://example.com", "", ""},
-	}
-	for i, c := range cases {
-		got := joinBinaryURL(c.base, c.rel)
-		assert.Equal(t, c.want, got, "case %d (base=%q rel=%q)", i, c.base, c.rel)
-	}
-}
-
-func TestResolveCatalogAssetURL(t *testing.T) {
+func TestCatalogAssetURL(t *testing.T) {
 	assert.Equal(t,
-		"https://assets.example.com/steps/git-clone/assets/icon.svg",
-		resolveCatalogAssetURL("https://assets.example.com/steps", "git-clone", "icon.svg", "assets/icon.svg"),
+		"steps/git-clone/assets/icon.svg",
+		catalogAssetURL("git-clone", "assets/icon.svg"),
 	)
-	// Trailing slash on base must not produce a double slash.
+	// Multi-component step IDs.
 	assert.Equal(t,
-		"https://assets.example.com/steps/git-clone/assets/icon.svg",
-		resolveCatalogAssetURL("https://assets.example.com/steps/", "git-clone", "icon.svg", "assets/icon.svg"),
-	)
-	// Empty base falls through to the relative path.
-	assert.Equal(t,
-		"assets/icon.svg",
-		resolveCatalogAssetURL("", "git-clone", "icon.svg", "assets/icon.svg"),
+		"steps/some-very-long-step-id/assets/icon.svg",
+		catalogAssetURL("some-very-long-step-id", "assets/icon.svg"),
 	)
 }
 

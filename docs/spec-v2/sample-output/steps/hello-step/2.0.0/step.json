@@ -1,13 +1,11 @@
 {
-  "format_version": "2.0.0",
-  "id": "hello-step",
-  "version": "2.0.0",
   "title": "Hello Step",
   "summary": "Says hello, breaking change.",
   "description": "Major rewrite. Now greets in 27 languages.\n",
   "website": "https://example.com/hello-step",
   "source_code_url": "https://github.com/example/hello-step",
   "support_url": "https://github.com/example/hello-step/issues",
+  "published_at": "2025-06-01T09:15:00Z",
   "source": {
     "git": "https://github.com/example/hello-step.git",
     "commit": "cccc3333cccc3333cccc3333cccc3333cccc3333"

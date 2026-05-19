@@ -31,7 +31,6 @@ func main() {
 		input     = flag.String("input", "", "path to a bitrise-steplib clone (required)")
 		output    = flag.String("output", "", "output directory for the V2 tree (required)")
 		commitSHA = flag.String("commit-sha", "", "optional steplib commit sha to record in meta.json")
-		binBase   = flag.String("binary-base-url", specv2.DefaultBinaryStorageBaseURL, "base URL prepended to per-platform StorageURI when writing executables in step.json")
 		timestamp = flag.String("timestamp", "", "RFC3339 timestamp to record as updated_at (default: time.Now UTC). Set for reproducible output (e.g., sample-output regeneration).")
 	)
 	flag.Parse()
@@ -53,9 +52,8 @@ func main() {
 	}
 
 	opts := specv2.Options{
-		BinaryStorageBaseURL: *binBase,
-		GeneratedAt:          generatedAt,
-		SteplibCommitSHA:     *commitSHA,
+		GeneratedAt:      generatedAt,
+		SteplibCommitSHA: *commitSHA,
 	}
 
 	stats, err := specv2.Generate(*input, *output, opts, stderrLogger{})

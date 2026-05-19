@@ -1,13 +1,11 @@
 {
-  "format_version": "2.0.0",
-  "id": "hello-step",
-  "version": "1.1.0",
   "title": "Hello Step",
   "summary": "Says hello, now with timezones.",
   "description": "Greets with a timezone-aware message.\n",
   "website": "https://example.com/hello-step",
   "source_code_url": "https://github.com/example/hello-step",
   "support_url": "https://github.com/example/hello-step/issues",
+  "published_at": "2024-03-01T12:30:00Z",
   "source": {
     "git": "https://github.com/example/hello-step.git",
     "commit": "bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222"

@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/bitrise-io/stepman/models"
@@ -15,17 +14,9 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-// DefaultBinaryStorageBaseURL is today's hosted location for prebuilt step
-// binaries (matches activator/steplib/activate.go:precompiledStepsDefaultStorage).
-// step.json Executable locations are synthesized as <base>/<storage_uri>.
-const DefaultBinaryStorageBaseURL = "https://storage.googleapis.com/bitrise-steplib-storage"
-
 // Options control generator behavior. Zero values are filled with sensible
 // defaults; callers (CLI / tests) override what they need.
 type Options struct {
-	// BinaryStorageBaseURL is prepended to per-platform StorageURI values
-	// when synthesizing absolute URLs for Executables in step.json.
-	BinaryStorageBaseURL string
 	// GeneratedAt is written to meta.json and latest_versions.json.
 	// Tests should set this for deterministic output.
 	GeneratedAt time.Time
@@ -62,22 +53,21 @@ func Generate(inputDir, outputDir string, opts Options, log stepman.Logger) (Sta
 	w := &writer{outputDir: outputDir, fileCount: 0, byteCount: 0}
 
 	for _, s := range steps {
-		if err := writeStepFiles(w, inputDir, s, opts); err != nil {
+		if err := writeStepFiles(w, inputDir, s); err != nil {
 			return Stats{}, fmt.Errorf("write step %s: %w", s.id, err)
 		}
 	}
 
-	if err := writeSpecFiles(w, steps, opts, steplibYML.AssetsDownloadBaseURI); err != nil {
+	if err := writeSpecFiles(w, steps, opts); err != nil {
 		return Stats{}, fmt.Errorf("write spec files: %w", err)
 	}
 
 	meta := MetaJSON{
-		FormatVersion:         FormatVersion,
-		UpdatedAt:             opts.GeneratedAt,
-		SteplibCommitSHA:      opts.SteplibCommitSHA,
-		SteplibSource:         steplibYML.SteplibSource,
-		DownloadLocations:     steplibYML.DownloadLocations,
-		AssetsDownloadBaseURI: steplibYML.AssetsDownloadBaseURI,
+		FormatVersion:     FormatVersion,
+		UpdatedAt:         opts.GeneratedAt,
+		SteplibCommitSHA:  opts.SteplibCommitSHA,
+		SteplibSource:     steplibYML.SteplibSource,
+		DownloadLocations: steplibYML.DownloadLocations,
 	}
 	if err := w.writeJSON("meta.json", meta); err != nil {
 		return Stats{}, fmt.Errorf("write meta.json: %w", err)
@@ -98,9 +88,6 @@ func Generate(inputDir, outputDir string, opts Options, log stepman.Logger) (Sta
 
 // withDefaults fills zero-valued options.
 func withDefaults(o Options) Options {
-	if o.BinaryStorageBaseURL == "" {
-		o.BinaryStorageBaseURL = DefaultBinaryStorageBaseURL
-	}
 	if o.GeneratedAt.IsZero() {
 		o.GeneratedAt = time.Now().UTC()
 	}
@@ -306,7 +293,7 @@ func sortedSemver(m map[string]models.StepModel) []string {
 // step-level writes (steps/<id>/...)
 // ---------------------------------------------------------------------------
 
-func writeStepFiles(w *writer, inputDir string, s parsedStep, opts Options) error {
+func writeStepFiles(w *writer, inputDir string, s parsedStep) error {
 	if s.hasInfoFile || len(s.assetFiles) > 0 {
 		if err := w.writeJSON(filepath.Join("steps", s.id, "step-info.json"), s.info); err != nil {
 			return err
@@ -320,59 +307,12 @@ func writeStepFiles(w *writer, inputDir string, s parsedStep, opts Options) erro
 		}
 	}
 	for _, v := range s.versionList {
-		sj := toStepJSON(s.versions[v], s.id, v, opts)
-		if err := w.writeJSON(filepath.Join("steps", s.id, v, "step.json"), sj); err != nil {
+		step := s.versions[v]
+		if err := w.writeJSON(filepath.Join("steps", s.id, v, "step.json"), step); err != nil {
 			return err
 		}
 	}
 	return nil
-}
-
-func toStepJSON(step models.StepModel, id, version string, opts Options) StepJSON {
-	return StepJSON{
-		FormatVersion:       FormatVersion,
-		ID:                  id,
-		Version:             version,
-		Title:               derefStr(step.Title),
-		Summary:             derefStr(step.Summary),
-		Description:         derefStr(step.Description),
-		Website:             derefStr(step.Website),
-		SourceCodeURL:       derefStr(step.SourceCodeURL),
-		SupportURL:          derefStr(step.SupportURL),
-		Source:              step.Source,
-		Executables:         convertExecutables(step.Executables, opts.BinaryStorageBaseURL),
-		HostOsTags:          step.HostOsTags,
-		ProjectTypeTags:     step.ProjectTypeTags,
-		TypeTags:            step.TypeTags,
-		Toolkit:             step.Toolkit,
-		Deps:                step.Deps,
-		Dependencies:        step.Dependencies,
-		IsRequiresAdminUser: step.IsRequiresAdminUser,
-		IsAlwaysRun:         step.IsAlwaysRun,
-		IsSkippable:         step.IsSkippable,
-		RunIf:               derefStr(step.RunIf),
-		Timeout:             step.Timeout,
-		NoOutputTimeout:     step.NoOutputTimeout,
-		Meta:                step.Meta,
-		ExecutionContainer:  step.ExecutionContainer,
-		ServiceContainers:   step.ServiceContainers,
-		Inputs:              step.Inputs,
-		Outputs:             step.Outputs,
-	}
-}
-
-func convertExecutables(execs *models.Executables, base string) map[string]ExecutableJSON {
-	if execs == nil {
-		return nil
-	}
-	out := make(map[string]ExecutableJSON, len(*execs))
-	for platform, exec := range *execs {
-		out[platform] = ExecutableJSON{
-			Location: joinBinaryURL(base, exec.StorageURI),
-			Hash:     exec.Hash,
-		}
-	}
-	return out
 }
 
 func derefStr(p *string) string {
@@ -382,29 +322,16 @@ func derefStr(p *string) string {
 	return *p
 }
 
-func joinBinaryURL(base, rel string) string {
-	if rel == "" {
-		return ""
-	}
-	if strings.HasPrefix(rel, "http://") || strings.HasPrefix(rel, "https://") {
-		return rel
-	}
-	return strings.TrimRight(base, "/") + "/" + strings.TrimLeft(rel, "/")
-}
-
 // ---------------------------------------------------------------------------
 // spec/ writes (derived index files)
 // ---------------------------------------------------------------------------
 
-func writeSpecFiles(w *writer, steps []parsedStep, opts Options, assetsBaseURI string) error {
+func writeSpecFiles(w *writer, steps []parsedStep, opts Options) error {
 	ids := make([]string, len(steps))
 	for i, s := range steps {
 		ids[i] = s.id
 	}
-	if err := w.writeJSON("spec/step_ids.json", StepIDsJSON{
-		FormatVersion: FormatVersion,
-		StepIDs:       ids,
-	}); err != nil {
+	if err := w.writeJSON("spec/step_ids.json", StepIDsJSON{StepIDs: ids}); err != nil {
 		return err
 	}
 
@@ -412,14 +339,11 @@ func writeSpecFiles(w *writer, steps []parsedStep, opts Options, assetsBaseURI s
 	for _, s := range steps {
 		allVersions[s.id] = s.versionList
 	}
-	if err := w.writeJSON("spec/all_step_versions.json", AllStepVersionsJSON{
-		FormatVersion: FormatVersion,
-		Steps:         allVersions,
-	}); err != nil {
+	if err := w.writeJSON("spec/all_step_versions.json", AllStepVersionsJSON{Steps: allVersions}); err != nil {
 		return err
 	}
 
-	catalog := buildCatalog(steps, opts, assetsBaseURI)
+	catalog := buildCatalog(steps, opts)
 	if err := w.writeJSON("spec/latest_versions.json", catalog); err != nil {
 		return err
 	}
@@ -435,9 +359,8 @@ func writeSpecFiles(w *writer, steps []parsedStep, opts Options, assetsBaseURI s
 	return nil
 }
 
-func buildCatalog(steps []parsedStep, opts Options, assetsBaseURI string) LatestVersionsJSON {
+func buildCatalog(steps []parsedStep, opts Options) LatestVersionsJSON {
 	out := LatestVersionsJSON{
-		FormatVersion:    FormatVersion,
 		GeneratedAt:      opts.GeneratedAt,
 		SteplibCommitSHA: opts.SteplibCommitSHA,
 		Steps:            make(map[string]CatalogEntry, len(steps)),
@@ -448,16 +371,16 @@ func buildCatalog(steps []parsedStep, opts Options, assetsBaseURI string) Latest
 		if latestStep.PublishedAt != nil && !latestStep.PublishedAt.IsZero() {
 			publishedAt = latestStep.PublishedAt
 		}
-		// Catalog asset URLs are pre-resolved to absolute URLs (against the
-		// steplib.yml AssetsDownloadBaseURI, matching V1 behavior) so catalog
-		// consumers don't need to know the inventory base. If AssetsDownloadBaseURI
-		// is empty, the relative path from step-info.json is kept as-is.
-		// See deferred follow-up #2 in STEP-2374-plan.md.
+		// Catalog asset URLs are INVENTORY-ROOT-RELATIVE. Catalog consumers
+		// resolve them against the inventory base URL (i.e., the URL the
+		// catalog itself was fetched from, with /spec/latest_versions.json
+		// trimmed). This keeps the V2 inventory portable across hosting
+		// changes — no V1-era S3 host is baked into the catalog payload.
 		var assetURLs map[string]string
 		if len(s.info.AssetURLs) > 0 {
 			assetURLs = make(map[string]string, len(s.info.AssetURLs))
 			for filename, relPath := range s.info.AssetURLs {
-				assetURLs[filename] = resolveCatalogAssetURL(assetsBaseURI, s.id, filename, relPath)
+				assetURLs[filename] = catalogAssetURL(s.id, relPath)
 			}
 		}
 		out.Steps[s.id] = CatalogEntry{
@@ -480,14 +403,12 @@ func buildCatalog(steps []parsedStep, opts Options, assetsBaseURI string) Latest
 	return out
 }
 
-// resolveCatalogAssetURL joins an asset URL for the catalog. Returns an
-// absolute URL <base>/<stepID>/assets/<filename> when base is set; otherwise
-// returns the relative path verbatim.
-func resolveCatalogAssetURL(base, stepID, filename, relPath string) string {
-	if base == "" {
-		return relPath
-	}
-	return strings.TrimRight(base, "/") + "/" + stepID + "/assets/" + filename
+// catalogAssetURL produces the inventory-root-relative path the catalog
+// emits for a given asset. The relPath comes from step-info.json (which
+// is step-dir-relative, e.g. "assets/icon.svg"); we prepend "steps/<id>/"
+// so the result is anchored at the inventory root.
+func catalogAssetURL(stepID, relPath string) string {
+	return "steps/" + stepID + "/" + relPath
 }
 
 func buildLatestPointer(s parsedStep) LatestPointerJSON {

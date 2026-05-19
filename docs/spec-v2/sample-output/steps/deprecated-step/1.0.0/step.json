@@ -1,13 +1,11 @@
 {
-  "format_version": "2.0.0",
-  "id": "deprecated-step",
-  "version": "1.0.0",
   "title": "Deprecated Greeter",
   "summary": "Old greeter — superseded by hello-step.",
   "description": "An older greeting step. Do not use.\n",
   "website": "https://example.com/deprecated-step",
   "source_code_url": "https://github.com/example/deprecated-step",
   "support_url": "https://github.com/example/deprecated-step/issues",
+  "published_at": "2020-04-04T08:00:00Z",
   "source": {
     "git": "https://github.com/example/deprecated-step.git",
     "commit": "dddd4444dddd4444dddd4444dddd4444dddd4444"

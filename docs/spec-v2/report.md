@@ -176,10 +176,11 @@ V2 inflates the origin somewhat:
   cost is fixed at the origin; clients see massive savings on every
   build, so the trade is heavily in favor of the system as a whole.
 - **Asset copy: 2.3 MB.** V2 brings step icons / screenshots into the
-  inventory tree, replacing today's parallel S3 mirror at
-  `assets_download_base_uri`. This is the same bytes; they just move
-  homes. (See the deferred decision in STEP-2374-plan.md — we may stop
-  hosting these in V2 if we decide to keep the S3 mirror.)
+  inventory tree at `steps/<id>/assets/`. The catalog references them
+  via inventory-root-relative paths (`"steps/<id>/assets/icon.svg"`),
+  so the V2 inventory is self-sufficient and portable across hosting
+  changes. The V1 parallel S3 mirror can keep existing for V1
+  consumers; V2 no longer references it.
 
 ---
 
