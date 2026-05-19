@@ -18,6 +18,21 @@ type StepVersionsLatest struct {
 	LatestByMajor map[string]string `json:"latest_by_major"`
 }
 
+// StepGroupInfo mirrors `steps/<id>/step-info.json` from the V2 inventory layout
+// described in plan.md. Version-independent metadata for a step.
+type StepGroupInfo struct {
+	Maintainer  string            `json:"maintainer"`
+	Deprecation *Deprecation      `json:"deprecation,omitempty"`
+	AssetURLs   map[string]string `json:"asset_urls"`
+}
+
+// Deprecation carries the removal date and migration notes when a step is being
+// retired. Nil on `StepGroupInfo.Deprecation` means the step is active.
+type Deprecation struct {
+	RemovalDate string `json:"removal_date"`
+	Notes       string `json:"notes"`
+}
+
 type API interface {
 	GetAllStepIDs() ([]string, error)
 	GetLatestStepVersions(id string) (StepVersionsLatest, error)
@@ -26,6 +41,9 @@ type API interface {
 	// the per-version metadata is dropped for now since callers only need the
 	// version strings to resolve MinorLocked constraints.
 	GetAllStepVersions(id string) ([]string, error)
+	// GetStepGroupInfo returns version-independent step metadata
+	// (maintainer, deprecation, asset URLs). Mirrors `steps/<id>/step-info.json`.
+	GetStepGroupInfo(id string) (StepGroupInfo, error)
 	GetStepYMLPath(step ResolvedStepVersion) (string, error)
 	GetStepSourceZIPPath(step ResolvedStepVersion) (string, error)
 	GetStepPrecompiledPath(step ResolvedStepVersion) (string, error)
@@ -66,6 +84,23 @@ func (m MockAPI) GetAllStepVersions(id string) ([]string, error) {
 	v, ok := versions[id]
 	if !ok {
 		return nil, errors.New("not found")
+	}
+	return v, nil
+}
+
+func (m MockAPI) GetStepGroupInfo(id string) (StepGroupInfo, error) {
+	infos := map[string]StepGroupInfo{
+		"script": {
+			Maintainer:  "bitrise",
+			Deprecation: nil,
+			AssetURLs: map[string]string{
+				"icon.svg": "assets/icon.svg",
+			},
+		},
+	}
+	v, ok := infos[id]
+	if !ok {
+		return StepGroupInfo{}, errors.New("not found")
 	}
 	return v, nil
 }

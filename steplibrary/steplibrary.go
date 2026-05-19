@@ -92,11 +92,11 @@ func (s *Steplib) getStepVersionInfo(stepID, version string) (models.StepInfoMod
 	if err == nil {
 		versionConstraint, err = models.ParseRequiredVersion(version)
 		if err != nil {
-			err = fmt.Errorf("invalid step `%s` version constraint: %w", stepID, err)
+			err = fmt.Errorf("invalid step version constraint: %w", err)
 		}
 	}
 	if err == nil && versionConstraint.VersionLockType == models.InvalidVersionConstraint {
-		err = fmt.Errorf("invalid step `%s` version constraint: %s", stepID, version)
+		err = fmt.Errorf("invalid step version constraint: %s", version)
 	}
 
 	var latestVersions StepVersionsLatest
@@ -107,6 +107,14 @@ func (s *Steplib) getStepVersionInfo(stepID, version string) (models.StepInfoMod
 		}
 	}
 
+	var groupInfo StepGroupInfo
+	if err == nil {
+		groupInfo, err = s.api.GetStepGroupInfo(stepID)
+		if err != nil {
+			err = fmt.Errorf("fetching group info of `%s`: %w", stepID, err)
+		}
+	}
+
 	var resolvedVersion string
 	if err == nil {
 		switch versionConstraint.VersionLockType {
@@ -114,6 +122,8 @@ func (s *Steplib) getStepVersionInfo(stepID, version string) (models.StepInfoMod
 			resolvedVersion = latestVersions.Latest
 		case models.Fixed:
 			resolvedVersion = versionConstraint.Version.String()
+			// ToDo: check version exists, otherwise error:
+			// "%s steplib does not contain %s step %s version"
 		case models.MajorLocked:
 			majorKey := strconv.FormatUint(versionConstraint.Version.Major, 10)
 			v, ok := latestVersions.LatestByMajor[majorKey]
@@ -139,20 +149,35 @@ func (s *Steplib) getStepVersionInfo(stepID, version string) (models.StepInfoMod
 		}
 	}
 
-	// ToDo: check version exists, otherwise error:
-	// "%s steplib does not contain %s step %s version"
-
 	if err != nil {
 		return models.StepInfoModel{}, ResolvedStepVersion{}, err
 	}
-	//nolint:exhaustruct // GroupInfo, Step and DefinitionPth aren't surfaced by the v2 API yet
+	//nolint:exhaustruct // Step and DefinitionPth aren't surfaced by the v2 API yet
 	return models.StepInfoModel{
 		Library:         s.steplibURI,
 		ID:              stepID,
 		Version:         resolvedVersion,
 		OriginalVersion: version,
 		LatestVersion:   latestVersions.Latest,
+		GroupInfo:       toStepGroupInfoModel(groupInfo),
 	}, ResolvedStepVersion{ID: stepID, Version: resolvedVersion}, nil
+}
+
+// toStepGroupInfoModel flattens v2's nested `deprecation` object into v1's
+// `RemovalDate` + `DeprecateNotes` fields so the rest of the codebase keeps
+// reading the same model shape.
+func toStepGroupInfoModel(info StepGroupInfo) models.StepGroupInfoModel {
+	out := models.StepGroupInfoModel{
+		Maintainer:     info.Maintainer,
+		AssetURLs:      info.AssetURLs,
+		RemovalDate:    "",
+		DeprecateNotes: "",
+	}
+	if info.Deprecation != nil {
+		out.RemovalDate = info.Deprecation.RemovalDate
+		out.DeprecateNotes = info.Deprecation.Notes
+	}
+	return out
 }
 
 // resolveMinorLocked picks the highest patch within `versions` matching the

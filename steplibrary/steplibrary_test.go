@@ -26,6 +26,8 @@ type fakeAPI struct {
 	latestVersionsErr error
 	allVersions       map[string][]string
 	allVersionsErr    error
+	groupInfo         map[string]StepGroupInfo
+	groupInfoErr      error
 	ymlSourcePath     string
 	zipSourcePath     string
 }
@@ -54,6 +56,20 @@ func (f fakeAPI) GetAllStepVersions(id string) ([]string, error) {
 		return nil, errors.New("not found")
 	}
 	return v, nil
+}
+
+func (f fakeAPI) GetStepGroupInfo(id string) (StepGroupInfo, error) {
+	if f.groupInfoErr != nil {
+		return StepGroupInfo{}, f.groupInfoErr
+	}
+	if f.groupInfo != nil {
+		v, ok := f.groupInfo[id]
+		if !ok {
+			return StepGroupInfo{}, errors.New("not found")
+		}
+		return v, nil
+	}
+	return f.MockAPI.GetStepGroupInfo(id)
 }
 
 func (f fakeAPI) GetStepYMLPath(step ResolvedStepVersion) (string, error) {
@@ -153,7 +169,7 @@ func TestSteplib_Activate(t *testing.T) {
 			api:     scriptOnly,
 			stepID:  "script",
 			version: "not-a-version",
-			wantErr: "invalid step `script` version constraint",
+			wantErr: "invalid step version constraint",
 		},
 		{
 			name:        "empty version resolves to latest",
@@ -216,6 +232,18 @@ func TestSteplib_Activate(t *testing.T) {
 			stepID:  "script",
 			wantErr: "fetching latest versions of `script`",
 		},
+		{
+			name: "group info error propagates",
+			api: fakeAPI{
+				ids: []string{"script"},
+				latestVersions: map[string]StepVersionsLatest{
+					"script": {StepID: "script", Latest: "3.0.0"},
+				},
+				groupInfoErr: errors.New("infoboom"),
+			},
+			stepID:  "script",
+			wantErr: "fetching group info of `script`",
+		},
 	}
 
 	for _, tt := range tests {
@@ -256,6 +284,52 @@ func TestSteplib_Activate(t *testing.T) {
 			if got.StepInfo.OriginalVersion != tt.version {
 				t.Errorf("StepInfo.OriginalVersion = %q, want %q", got.StepInfo.OriginalVersion, tt.version)
 			}
+			if got.StepInfo.GroupInfo.Maintainer != "bitrise" {
+				t.Errorf("StepInfo.GroupInfo.Maintainer = %q, want %q", got.StepInfo.GroupInfo.Maintainer, "bitrise")
+			}
+			if got.StepInfo.GroupInfo.AssetURLs["icon.svg"] != "assets/icon.svg" {
+				t.Errorf("StepInfo.GroupInfo.AssetURLs[icon.svg] = %q, want %q",
+					got.StepInfo.GroupInfo.AssetURLs["icon.svg"], "assets/icon.svg")
+			}
 		})
 	}
+}
+
+func TestToStepGroupInfoModel(t *testing.T) {
+	t.Run("active step has empty deprecation fields", func(t *testing.T) {
+		got := toStepGroupInfoModel(StepGroupInfo{
+			Maintainer:  "bitrise",
+			Deprecation: nil,
+			AssetURLs:   map[string]string{"icon.svg": "assets/icon.svg"},
+		})
+		if got.Maintainer != "bitrise" {
+			t.Errorf("Maintainer = %q, want %q", got.Maintainer, "bitrise")
+		}
+		if got.RemovalDate != "" || got.DeprecateNotes != "" {
+			t.Errorf("expected empty deprecation, got RemovalDate=%q, DeprecateNotes=%q", got.RemovalDate, got.DeprecateNotes)
+		}
+		if got.AssetURLs["icon.svg"] != "assets/icon.svg" {
+			t.Errorf("AssetURLs not carried through: %v", got.AssetURLs)
+		}
+	})
+
+	t.Run("deprecated step flattens nested fields", func(t *testing.T) {
+		got := toStepGroupInfoModel(StepGroupInfo{
+			Maintainer: "community",
+			Deprecation: &Deprecation{
+				RemovalDate: "2025-12-31",
+				Notes:       "Replaced by `new-step`.",
+			},
+			AssetURLs: nil,
+		})
+		if got.RemovalDate != "2025-12-31" {
+			t.Errorf("RemovalDate = %q, want %q", got.RemovalDate, "2025-12-31")
+		}
+		if got.DeprecateNotes != "Replaced by `new-step`." {
+			t.Errorf("DeprecateNotes = %q, want %q", got.DeprecateNotes, "Replaced by `new-step`.")
+		}
+		if got.Maintainer != "community" {
+			t.Errorf("Maintainer = %q, want %q", got.Maintainer, "community")
+		}
+	})
 }
