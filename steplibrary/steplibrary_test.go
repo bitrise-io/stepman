@@ -24,6 +24,8 @@ type fakeAPI struct {
 	listErr           error
 	latestVersions    map[string]StepVersionsLatest
 	latestVersionsErr error
+	allVersions       map[string][]string
+	allVersionsErr    error
 	ymlSourcePath     string
 	zipSourcePath     string
 }
@@ -39,6 +41,17 @@ func (f fakeAPI) GetLatestStepVersions(id string) (StepVersionsLatest, error) {
 	v, ok := f.latestVersions[id]
 	if !ok {
 		return StepVersionsLatest{}, errors.New("not found")
+	}
+	return v, nil
+}
+
+func (f fakeAPI) GetAllStepVersions(id string) ([]string, error) {
+	if f.allVersionsErr != nil {
+		return nil, f.allVersionsErr
+	}
+	v, ok := f.allVersions[id]
+	if !ok {
+		return nil, errors.New("not found")
 	}
 	return v, nil
 }
@@ -107,6 +120,9 @@ func TestSteplib_Activate(t *testing.T) {
 				},
 			},
 		},
+		allVersions: map[string][]string{
+			"script": {"1.0.0", "1.1.5", "1.2.0", "2.0.0", "2.4.0", "2.4.1", "3.0.0"},
+		},
 		ymlSourcePath: sourceYML,
 		zipSourcePath: sourceZIP,
 	}
@@ -171,11 +187,19 @@ func TestSteplib_Activate(t *testing.T) {
 			wantErr: "does not contain script step with major version 99",
 		},
 		{
-			name:    "minor-locked not yet supported",
+			name:        "minor-locked resolves to highest matching patch",
+			api:         scriptOnly,
+			stepID:      "script",
+			version:     "1.1",
+			wantVersion: "1.1.5",
+			wantLatest:  "3.0.0",
+		},
+		{
+			name:    "minor-locked with no matching minor errors",
 			api:     scriptOnly,
 			stepID:  "script",
-			version: "1.2",
-			wantErr: "not yet supported",
+			version: "1.9",
+			wantErr: "no version matches 1.9.x",
 		},
 		{
 			name:    "list error propagates",

@@ -123,7 +123,17 @@ func (s *Steplib) getStepVersionInfo(stepID, version string) (models.StepInfoMod
 				resolvedVersion = v
 			}
 		case models.MinorLocked:
-			err = fmt.Errorf("version constraint %q not yet supported in steplib v2", version)
+			var allVersions []string
+			allVersions, err = s.api.GetAllStepVersions(stepID)
+			if err != nil {
+				err = fmt.Errorf("fetching all versions of `%s`: %w", stepID, err)
+			}
+			if err == nil {
+				resolvedVersion, err = resolveMinorLocked(allVersions, versionConstraint.Version)
+				if err != nil {
+					err = fmt.Errorf("%s steplib: %w", s.steplibURI, err)
+				}
+			}
 		default:
 			err = fmt.Errorf("unknown version constraint: %s", version)
 		}
@@ -143,4 +153,28 @@ func (s *Steplib) getStepVersionInfo(stepID, version string) (models.StepInfoMod
 		OriginalVersion: version,
 		LatestVersion:   latestVersions.Latest,
 	}, ResolvedStepVersion{ID: stepID, Version: resolvedVersion}, nil
+}
+
+// resolveMinorLocked picks the highest patch within `versions` matching the
+// constraint's Major+Minor. Unparseable entries are skipped.
+func resolveMinorLocked(versions []string, constraint models.Semver) (string, error) {
+	var best models.Semver
+	found := false
+	for _, raw := range versions {
+		sv, err := models.ParseSemver(raw)
+		if err != nil {
+			continue
+		}
+		if sv.Major != constraint.Major || sv.Minor != constraint.Minor {
+			continue
+		}
+		if !found || sv.Patch > best.Patch {
+			best = sv
+			found = true
+		}
+	}
+	if !found {
+		return "", fmt.Errorf("no version matches %d.%d.x", constraint.Major, constraint.Minor)
+	}
+	return best.String(), nil
 }
