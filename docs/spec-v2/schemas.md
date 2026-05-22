@@ -17,7 +17,6 @@ steps covering the variations the generator handles.
 ├─ spec/                                  # derived index files (mutable)
 │  ├─ step_ids.json
 │  ├─ latest_versions.json
-│  ├─ all_step_versions.json
 │  └─ steps/<id>/
 │     ├─ latest.json
 │     └─ versions.json
@@ -244,24 +243,6 @@ Notes:
 
 ---
 
-## `spec/all_step_versions.json`
-
-Step ID → version list. Bare index, no per-version metadata; use the per-step
-`versions.json` for that.
-
-```json
-{
-  "steps": {
-    "git-clone": ["2.0.0", "2.1.0", "...", "8.5.0"],
-    "activate-ssh-key": ["3.0.2", "3.0.3", "3.1.0", "3.1.1", "...", "4.1.1"]
-  }
-}
-```
-
-Versions are sorted ascending by semver.
-
----
-
 ## `spec/steps/<id>/latest.json`
 
 Per-step latest pointers. Answers `Latest` and `MajorLocked` constraints in
@@ -341,12 +322,11 @@ fetch `spec/step_ids.json` once per session.
 | `meta.json` | 1 | 0.5 KB | 0.3 KB | — |
 | `spec/step_ids.json` | 1 | 12.2 KB | 3.4 KB | — |
 | `spec/latest_versions.json` | 1 | 388.8 KB | 45.5 KB | — |
-| `spec/all_step_versions.json` | 1 | 68.3 KB | 8.6 KB | — |
 | `spec/steps/<id>/latest.json` | 444 | 49.4 KB | 44.2 KB | 101 B |
 | `spec/steps/<id>/versions.json` | 444 | 685.9 KB | 227.2 KB | 309 B |
 | `steps/<id>/step-info.json` | 444 | 53.6 KB | 48.5 KB | 124 B |
 | `steps/<id>/<v>/step.json` | 3565 | 21,360 KB | 6,045 KB | **1.3 KB** |
 | `steps/<id>/assets/*` (copied) | 336 | 2,346 KB | 1,185 KB | — |
-| **Total** | **5237** | **24.38 MB** | **7.43 MB** | |
+| **Total** | **5236** | **24.31 MB** | **7.42 MB** | |
 
 See [`report.md`](report.md) for the full bandwidth analysis vs V1.

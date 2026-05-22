@@ -13,8 +13,8 @@ review:
 
 | Scenario | V1 today | V2 |
 |---|---:|---:|
-| Origin total size (raw) | ~24 MB (single file) | 24.38 MB (5,237 files) |
-| Origin total size (gzipped) | ~5.7 MB | **7.43 MB** |
+| Origin total size (raw) | ~24 MB (single file) | 24.31 MB (5,236 files) |
+| Origin total size (gzipped) | ~5.7 MB | **7.42 MB** |
 | Per-workflow bandwidth — fixed versions (10 steps) | ~5,700 KB | **12.8 KB** |
 | Per-workflow bandwidth — `latest` resolution (10 steps) | ~5,700 KB | **17.3 KB** |
 | Per-workflow bandwidth — minor-locked (10 steps) | ~5,700 KB | **19.3 KB** |
@@ -43,13 +43,12 @@ actual generator output.
 | `meta.json` | 1 | 0.5 KB | 0.3 KB | 517 B | 517 B |
 | `spec/step_ids.json` | 1 | 12.2 KB | 3.4 KB | 12.4 KB | 12.4 KB |
 | `spec/latest_versions.json` (catalog) | 1 | 388.8 KB | 45.5 KB | 388.8 KB | 388.8 KB |
-| `spec/all_step_versions.json` | 1 | 68.3 KB | 8.6 KB | 68.3 KB | 68.3 KB |
 | `spec/steps/<id>/latest.json` | 444 | 49.4 KB | 44.2 KB | 114 B | 208 B |
 | `spec/steps/<id>/versions.json` | 444 | 685.9 KB | 227.2 KB | 1.58 KB | 30.5 KB |
 | `steps/<id>/step-info.json` | 444 | 53.6 KB | 48.5 KB | 124 B | 1.1 KB |
 | `steps/<id>/<v>/step.json` | 3,565 | 21,360 KB | 6,045 KB | 6.1 KB | 28.3 KB |
 | `steps/<id>/assets/*` (copied) | 336 | 2,346 KB | 1,185 KB | 7.0 KB | 168 KB |
-| **TOTAL** | **5,237** | **24.38 MB** | **7.43 MB** | | |
+| **TOTAL** | **5,236** | **24.31 MB** | **7.42 MB** | | |
 
 Per-file gzipped medians:
 
@@ -170,7 +169,7 @@ V2 inflates the origin somewhat:
   the release flow needs to upload many small files instead of one big
   one. Concurrent uploads (default `gsutil` / `aws s3 sync`) handle this
   in seconds.
-- **Gzipped total: ~5.7 MB → 7.43 MB (+30 %).** Each file gzips less
+- **Gzipped total: ~5.7 MB → 7.42 MB (+30 %).** Each file gzips less
   efficiently in isolation than one large file; we also pay for new index
   files that V1 doesn't have (per-step latest/versions/info JSONs). This
   cost is fixed at the origin; clients see massive savings on every

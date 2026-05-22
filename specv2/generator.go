@@ -335,14 +335,6 @@ func writeSpecFiles(w *writer, steps []parsedStep, opts Options) error {
 		return err
 	}
 
-	allVersions := make(map[string][]string, len(steps))
-	for _, s := range steps {
-		allVersions[s.id] = s.versionList
-	}
-	if err := w.writeJSON("spec/all_step_versions.json", AllStepVersionsJSON{Steps: allVersions}); err != nil {
-		return err
-	}
-
 	catalog := buildCatalog(steps, opts)
 	if err := w.writeJSON("spec/latest_versions.json", catalog); err != nil {
 		return err

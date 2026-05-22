@@ -74,19 +74,6 @@ func TestGenerator_step_ids_sorted(t *testing.T) {
 	assert.True(t, sort.StringsAreSorted(ids.StepIDs))
 }
 
-func TestGenerator_all_step_versions(t *testing.T) {
-	out := runGenerate(t)
-
-	var all AllStepVersionsJSON
-	readJSON(t, filepath.Join(out, "spec/all_step_versions.json"), &all)
-
-	assert.Equal(t, []string{"1.0.0", "1.1.0", "2.0.0"}, all.Steps["hello-step"])
-	assert.Equal(t, []string{"1.0.0"}, all.Steps["bash-step"])
-	assert.Equal(t, []string{"3.2.1"}, all.Steps["multi-platform-step"])
-	assert.Equal(t, []string{"1.0.0"}, all.Steps["no-info-step"])
-	assert.Equal(t, []string{"1.0.0"}, all.Steps["deprecated-step"])
-}
-
 func TestGenerator_normal_step_info_and_asset_copy(t *testing.T) {
 	out := runGenerate(t)
 

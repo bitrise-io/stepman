@@ -63,7 +63,6 @@ Everything else in `step.yml` is **passed through verbatim** via `copyStepYML` t
 │  │                                       cache: ETag + short TTL (60s, must-revalidate)
 │  ├─ step_ids.json                       ← bare list of step IDs
 │  ├─ latest_versions.json                ← fat catalog: 1 entry per step (browse view)
-│  ├─ all_step_versions.json              ← step_id → [version, …] only
 │  └─ steps/
 │     └─ <id>/
 │        ├─ latest.json                   ← latest + latest_by_major (resolves Latest/MajorLocked)
@@ -330,21 +329,6 @@ Fat catalog: one entry per step, carrying everything WFE / Integrations Page / `
 **Intentional duplication with `step.json`** (title, summary, maintainer, source_code_url, support_url, asset_urls): justified because the catalog must be one-fetch-self-sufficient. Versions are immutable, so no drift risk; the generator regenerates this on every release.
 
 **Size estimate:** ~450 steps × ~500 bytes ≈ 220 KB raw / ~60–80 KB gzipped.
-
-### `spec/all_step_versions.json`
-
-Step ID → version list. Bare minimum to answer "what versions exist for `<id>`?" across all steps in one fetch.
-
-```json
-{
-  "steps": {
-    "git-clone": ["7.0.2", "7.0.3", "8.0.0", "8.0.1", "...", "8.5.0"],
-    "activate-ssh-key": ["3.0.2", "3.0.3", "3.1.0", "3.1.1", "4.0.1", "...", "4.1.1"]
-  }
-}
-```
-
-**Size estimate:** 3559 versions × ~7 bytes/version + step IDs ≈ 40 KB raw / ~12 KB gzipped.
 
 ### `spec/steps/<id>/latest.json`
 

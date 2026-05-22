@@ -98,12 +98,6 @@ type CatalogEntry struct {
 	Deprecation     *DeprecationJSON  `json:"deprecation"`
 }
 
-// AllStepVersionsJSON is spec/all_step_versions.json: step_id → list of versions.
-// Bare index, no per-version metadata; use spec/steps/<id>/versions.json for that.
-type AllStepVersionsJSON struct {
-	Steps map[string][]string `json:"steps"`
-}
-
 // LatestPointerJSON is spec/steps/<id>/latest.json: per-step latest pointers.
 // Answers Latest and MajorLocked constraints in a single small fetch.
 type LatestPointerJSON struct {
