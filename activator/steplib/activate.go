@@ -16,7 +16,6 @@ import (
 
 const precompiledStepsEnv = "BITRISE_EXPERIMENT_PRECOMPILED_STEPS"
 const precompiledStepsStorageURLsEnv = "BITRISE_PRECOMPILED_STEPS_STORAGE_URLS"
-const precompiledStepsPrimaryStorageEnvDeprecated = "BITRISE_PRECOMPILED_STEPS_PRIMARY_STORAGE"
 
 var precompiledStepsDefaultStorageURLs = []string{
 	"https://storage.googleapis.com/bitrise-steplib-storage",

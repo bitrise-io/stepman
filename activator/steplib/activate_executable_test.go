@@ -66,13 +66,14 @@ func TestValidateHash(t *testing.T) {
 func TestBuildDownloadURLs(t *testing.T) {
 	tests := []struct {
 		name         string
-		storageURLs  string
+		bases        []string
 		executable   models.Executable
 		expectedURLs []string
 		expectedErr  error
 	}{
 		{
-			name: "Default list: GCS first, gateway second",
+			name:  "Default list: GCS first, gateway second",
+			bases: precompiledStepsDefaultStorageURLs,
 			executable: models.Executable{
 				StorageURI: "steps/step1.tar.gz",
 			},
@@ -82,8 +83,8 @@ func TestBuildDownloadURLs(t *testing.T) {
 			},
 		},
 		{
-			name:        "Override list via env var",
-			storageURLs: "https://a.example.com,https://b.example.com",
+			name:  "Multiple bases",
+			bases: []string{"https://a.example.com", "https://b.example.com"},
 			executable: models.Executable{
 				StorageURI: "steps/step2.tar.gz",
 			},
@@ -93,8 +94,8 @@ func TestBuildDownloadURLs(t *testing.T) {
 			},
 		},
 		{
-			name:        "URL normalization: trailing slashes and leading StorageURI slash",
-			storageURLs: "https://a.example.com/// , https://b.example.com///",
+			name:  "URL normalization: trailing slashes and leading StorageURI slash",
+			bases: []string{"https://a.example.com/// ", " https://b.example.com///"},
 			executable: models.Executable{
 				StorageURI: "/steps/step3.tar.gz",
 			},
@@ -104,8 +105,8 @@ func TestBuildDownloadURLs(t *testing.T) {
 			},
 		},
 		{
-			name:        "Input parsing: spaces and empty entries",
-			storageURLs: ", https://a.example.com , , https://b.example.com ,",
+			name:  "Input parsing: spaces and empty entries",
+			bases: []string{"", " https://a.example.com ", "", " https://b.example.com ", ""},
 			executable: models.Executable{
 				StorageURI: "steps/step4.tar.gz",
 			},
@@ -115,16 +116,16 @@ func TestBuildDownloadURLs(t *testing.T) {
 			},
 		},
 		{
-			name:        "http URL is rejected",
-			storageURLs: "http://a.example.com",
+			name:  "http URL is rejected",
+			bases: []string{"http://a.example.com"},
 			executable: models.Executable{
 				StorageURI: "steps/step5.tar.gz",
 			},
 			expectedErr: fmt.Errorf("http URL is unsupported, please use https: http://a.example.com/steps/step5.tar.gz"),
 		},
 		{
-			name:        "All-empty list yields a configuration error",
-			storageURLs: ",,",
+			name:  "All-empty list yields a configuration error",
+			bases: []string{"", "", ""},
 			executable: models.Executable{
 				StorageURI: "steps/step6.tar.gz",
 			},
@@ -134,10 +135,7 @@ func TestBuildDownloadURLs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv(precompiledStepsStorageURLsEnv, tt.storageURLs)
-			t.Setenv(precompiledStepsPrimaryStorageEnvDeprecated, "")
-
-			got, err := buildDownloadURLs(tt.executable)
+			got, err := buildDownloadURLs(tt.bases, tt.executable)
 			if tt.expectedErr != nil {
 				require.EqualError(t, err, tt.expectedErr.Error())
 			} else {
@@ -148,23 +146,6 @@ func TestBuildDownloadURLs(t *testing.T) {
 	}
 }
 
-func TestBuildDownloadURLs_DeprecatedEnvVar(t *testing.T) {
-	t.Setenv(precompiledStepsStorageURLsEnv, "")
-	t.Setenv(precompiledStepsPrimaryStorageEnvDeprecated, "https://legacy.example.com")
-
-	got, err := buildDownloadURLs(models.Executable{StorageURI: "steps/step.tar.gz"})
-	require.NoError(t, err)
-	require.Equal(t, []string{"https://legacy.example.com/steps/step.tar.gz"}, got)
-}
-
-func TestBuildDownloadURLs_NewEnvVarWinsOverDeprecated(t *testing.T) {
-	t.Setenv(precompiledStepsStorageURLsEnv, "https://new.example.com")
-	t.Setenv(precompiledStepsPrimaryStorageEnvDeprecated, "https://legacy.example.com")
-
-	got, err := buildDownloadURLs(models.Executable{StorageURI: "steps/step.tar.gz"})
-	require.NoError(t, err)
-	require.Equal(t, []string{"https://new.example.com/steps/step.tar.gz"}, got)
-}
 
 func TestDownloadFromURLs(t *testing.T) {
 	t.Run("primary succeeds, secondary is not called", func(t *testing.T) {

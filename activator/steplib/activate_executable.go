@@ -100,15 +100,7 @@ func validateHash(filePath string, expectedHash string) error {
 	return nil
 }
 
-func buildDownloadURLs(executable models.Executable) ([]string, error) {
-	bases := precompiledStepsDefaultStorageURLs
-	if override := os.Getenv(precompiledStepsStorageURLsEnv); override != "" {
-		bases = strings.Split(override, ",")
-	} else if legacy := os.Getenv(precompiledStepsPrimaryStorageEnvDeprecated); legacy != "" {
-		log.Warnf("%s is deprecated, use %s (comma-separated list) instead\n", precompiledStepsPrimaryStorageEnvDeprecated, precompiledStepsStorageURLsEnv)
-		bases = []string{legacy}
-	}
-
+func buildDownloadURLs(bases []string, executable models.Executable) ([]string, error) {
 	uri := strings.TrimLeft(executable.StorageURI, "/")
 	var urls []string
 	for _, base := range bases {
@@ -130,7 +122,12 @@ func buildDownloadURLs(executable models.Executable) ([]string, error) {
 }
 
 func downloadExecutable(executable models.Executable) (io.ReadCloser, error) {
-	urls, err := buildDownloadURLs(executable)
+	bases := precompiledStepsDefaultStorageURLs
+	if override := os.Getenv(precompiledStepsStorageURLsEnv); override != "" {
+		bases = strings.Split(override, ",")
+	}
+
+	urls, err := buildDownloadURLs(bases, executable)
 	if err != nil {
 		return nil, err
 	}
@@ -146,7 +143,7 @@ func downloadFromURLs(urls []string) (io.ReadCloser, error) {
 		}
 
 		if err != nil {
-			log.Warnf("Failed to download from %s: %s\n", url, err)
+			log.Warnf("Failed to download step from %s: %s\n", url, err)
 			errs = append(errs, fmt.Errorf("%s: %w", url, err))
 		} else {
 			if closeErr := resp.Body.Close(); closeErr != nil {
