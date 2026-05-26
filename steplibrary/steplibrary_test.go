@@ -21,7 +21,7 @@ func (discardLogger) Warnf(string, ...any)  {}
 func (discardLogger) Infof(string, ...any)  {}
 
 type fakeAPI struct {
-	MockAPI
+	FakeAPI
 	ids               []string
 	listErr           error
 	latestVersions    map[string]StepVersionsLatest
@@ -71,7 +71,7 @@ func (f fakeAPI) GetStepGroupInfo(ctx context.Context, id string) (StepGroupInfo
 		}
 		return v, nil
 	}
-	return f.MockAPI.GetStepGroupInfo(ctx, id)
+	return f.FakeAPI.GetStepGroupInfo(ctx, id)
 }
 
 func (f fakeAPI) GetStepModel(ctx context.Context, step ResolvedStepVersion) (models.StepModel, error) {
@@ -82,14 +82,14 @@ func (f fakeAPI) GetStepModel(ctx context.Context, step ResolvedStepVersion) (mo
 		}
 		return v, nil
 	}
-	return f.MockAPI.GetStepModel(ctx, step)
+	return f.FakeAPI.GetStepModel(ctx, step)
 }
 
 func (f fakeAPI) GetStepSourceZIPPath(ctx context.Context, step ResolvedStepVersion) (string, error) {
 	if f.zipSourcePath != "" {
 		return f.zipSourcePath, nil
 	}
-	return f.MockAPI.GetStepSourceZIPPath(ctx, step)
+	return f.FakeAPI.GetStepSourceZIPPath(ctx, step)
 }
 
 func writeSeedZip(t *testing.T, path string) {

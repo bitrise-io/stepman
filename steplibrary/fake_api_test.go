@@ -9,15 +9,15 @@ import (
 	"github.com/bitrise-io/stepman/models"
 )
 
-// MockAPI is an in-memory API implementation used as the default in `New` and
-// as a base for test fakes that embed it.
-type MockAPI struct{}
+// FakeAPI is an in-memory API implementation used as a base for test fakes
+// that embed it and selectively override methods.
+type FakeAPI struct{}
 
-func (m MockAPI) GetAllStepIDs(_ context.Context) ([]string, error) {
+func (m FakeAPI) GetAllStepIDs(_ context.Context) ([]string, error) {
 	return []string{"xcode-test", "script"}, nil
 }
 
-func (m MockAPI) GetLatestStepVersions(_ context.Context, id string) (StepVersionsLatest, error) {
+func (m FakeAPI) GetLatestStepVersions(_ context.Context, id string) (StepVersionsLatest, error) {
 	versions := map[string]StepVersionsLatest{
 		"script": {
 			StepID: "script",
@@ -37,7 +37,7 @@ func (m MockAPI) GetLatestStepVersions(_ context.Context, id string) (StepVersio
 	return v, nil
 }
 
-func (m MockAPI) GetAllStepVersions(_ context.Context, id string) ([]string, error) {
+func (m FakeAPI) GetAllStepVersions(_ context.Context, id string) ([]string, error) {
 	versions := map[string][]string{
 		"script": {"1.0.0", "1.1.5", "1.2.0", "2.0.0", "2.4.0", "2.4.1", "3.0.0"},
 	}
@@ -48,7 +48,7 @@ func (m MockAPI) GetAllStepVersions(_ context.Context, id string) ([]string, err
 	return v, nil
 }
 
-func (m MockAPI) GetStepGroupInfo(_ context.Context, id string) (StepGroupInfo, error) {
+func (m FakeAPI) GetStepGroupInfo(_ context.Context, id string) (StepGroupInfo, error) {
 	infos := map[string]StepGroupInfo{
 		"script": {
 			Maintainer:  "bitrise",
@@ -65,7 +65,7 @@ func (m MockAPI) GetStepGroupInfo(_ context.Context, id string) (StepGroupInfo, 
 	return v, nil
 }
 
-func (m MockAPI) GetStepModel(_ context.Context, step ResolvedStepVersion) (models.StepModel, error) {
+func (m FakeAPI) GetStepModel(_ context.Context, step ResolvedStepVersion) (models.StepModel, error) {
 	if step.ID != "script" {
 		return models.StepModel{}, errors.New("not found")
 	}
@@ -76,10 +76,6 @@ func (m MockAPI) GetStepModel(_ context.Context, step ResolvedStepVersion) (mode
 	}, nil
 }
 
-func (m MockAPI) GetStepSourceZIPPath(_ context.Context, step ResolvedStepVersion) (string, error) {
+func (m FakeAPI) GetStepSourceZIPPath(_ context.Context, step ResolvedStepVersion) (string, error) {
 	return fmt.Sprintf("/mock/steplib/%s/%s/src.zip", step.ID, step.Version), nil
-}
-
-func (m MockAPI) GetStepPrecompiledPath(_ context.Context, step ResolvedStepVersion) (string, error) {
-	return fmt.Sprintf("/mock/steplib/%s/%s/bin", step.ID, step.Version), nil
 }

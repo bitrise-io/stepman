@@ -104,13 +104,6 @@ func (h *HTTPAPI) GetStepSourceZIPPath(ctx context.Context, step ResolvedStepVer
 	)
 }
 
-// GetStepPrecompiledPath errors with not-implemented for now: the precompiled
-// binary URL lives inside step.json's `executables[<platform>]` map, so this
-// requires fetching step.json first and resolving by runtime OS+arch.
-func (h *HTTPAPI) GetStepPrecompiledPath(_ context.Context, _ ResolvedStepVersion) (string, error) {
-	return "", fmt.Errorf("not implemented")
-}
-
 func (h *HTTPAPI) fetchJSON(ctx context.Context, path string, dst any) (err error) {
 	body, err := h.get(ctx, path)
 	if err != nil {

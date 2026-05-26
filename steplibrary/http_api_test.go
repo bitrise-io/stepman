@@ -122,19 +122,6 @@ func TestHTTPAPI(t *testing.T) {
 		}
 	})
 
-	t.Run("GetStepPrecompiledPath errors with not implemented", func(t *testing.T) {
-		path, err := api.GetStepPrecompiledPath(ctx, ResolvedStepVersion{ID: "hello-step", Version: "2.0.0"})
-		if err == nil {
-			t.Fatalf("expected error, got nil (path=%q)", path)
-		}
-		if !strings.Contains(err.Error(), "not implemented") {
-			t.Errorf("error = %q, want substring %q", err.Error(), "not implemented")
-		}
-		if path != "" {
-			t.Errorf("path = %q, want empty", path)
-		}
-	})
-
 	t.Run("404 surfaces unexpected status", func(t *testing.T) {
 		_, err := api.GetLatestStepVersions(ctx, "missing-step")
 		if err == nil {
