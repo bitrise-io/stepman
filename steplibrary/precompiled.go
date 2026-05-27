@@ -2,11 +2,8 @@ package steplibrary
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -64,40 +61,11 @@ func precompiledURLs(e models.Executable) ([]string, error) {
 	return urls, nil
 }
 
-// validateSHA256 verifies that the file at path matches the given hash. The
-// expected hash must be a "sha256-<hex>" string (the convention carried over
-// from V1 step.yml).
-func validateSHA256(path, expected string) (err error) {
-	if expected == "" {
-		return fmt.Errorf("hash is empty")
-	}
-	if !strings.HasPrefix(expected, "sha256-") {
-		return fmt.Errorf("only sha256 hashes supported, got: %s", expected)
-	}
-	expected = strings.TrimPrefix(expected, "sha256-")
-
-	f, err := os.Open(path)
-	if err != nil {
-		return fmt.Errorf("open %s: %w", path, err)
-	}
-	defer func() { err = errors.Join(err, f.Close()) }()
-
-	h := sha256.New()
-	if _, err := io.Copy(h, f); err != nil {
-		return fmt.Errorf("hash %s: %w", path, err)
-	}
-	got := hex.EncodeToString(h.Sum(nil))
-	if got != expected {
-		return fmt.Errorf("hash mismatch for %s: expected sha256-%s, got sha256-%s", path, expected, got)
-	}
-	return nil
-}
-
-// downloadFromURLs tries each url in order, returning on the first success.
-func (s *Steplib) downloadFromURLs(ctx context.Context, destPath string, urls []string) error {
+// downloadFromURLs tries each url in order, verifying expectedHash on success.
+func (s *Steplib) downloadFromURLs(ctx context.Context, destPath, expectedHash string, urls []string) error {
 	var errs []error
 	for _, url := range urls {
-		if err := s.fetcher.Download(ctx, destPath, url); err == nil {
+		if err := s.fetcher.DownloadWithHash(ctx, destPath, url, expectedHash); err == nil {
 			return nil
 		} else {
 			s.log.Warnf("Failed to download from %s: %s\n", url, err)
@@ -117,7 +85,7 @@ func (s *Steplib) downloadPrecompiled(ctx context.Context, stepID string, execut
 	}
 
 	binPath = filepath.Join(destDir, stepID)
-	if err = s.downloadFromURLs(ctx, binPath, urls); err != nil {
+	if err = s.downloadFromURLs(ctx, binPath, executable.Hash, urls); err != nil {
 		return "", err
 	}
 	defer func() {
@@ -126,12 +94,8 @@ func (s *Steplib) downloadPrecompiled(ctx context.Context, stepID string, execut
 		}
 	}()
 
-	if err = validateSHA256(binPath, executable.Hash); err != nil {
-		return "", err
-	}
 	if err = os.Chmod(binPath, 0o755); err != nil {
 		return "", fmt.Errorf("chmod %s: %w", binPath, err)
 	}
-
 	return binPath, nil
 }

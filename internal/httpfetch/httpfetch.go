@@ -6,6 +6,8 @@ package httpfetch
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -28,6 +30,11 @@ type Client interface {
 	// destPath and renamed on success so partial downloads never appear at
 	// the final path.
 	Download(ctx context.Context, destPath, url string) error
+	// DownloadWithHash behaves like Download but also verifies that the
+	// downloaded content matches expectedHash ("sha256-<hex>"). The temp file
+	// is removed and an error is returned if the hash does not match, so a
+	// mismatched file never appears at destPath.
+	DownloadWithHash(ctx context.Context, destPath, url, expectedHash string) error
 }
 
 type client struct {
@@ -67,7 +74,7 @@ func (c *client) Download(ctx context.Context, destPath, url string) error {
 		return fmt.Errorf("create dest dir for %s: %w", destPath, err)
 	}
 
-	tmpPath, err := c.fetchToTemp(ctx, filepath.Dir(destPath), url)
+	tmpPath, _, err := c.fetchToTemp(ctx, filepath.Dir(destPath), url)
 	if err != nil {
 		return err
 	}
@@ -78,14 +85,37 @@ func (c *client) Download(ctx context.Context, destPath, url string) error {
 	return nil
 }
 
-// fetchToTemp streams url into a new temp file under dir and returns its path.
-// On error the temp file is removed and path is empty; on success the caller owns cleanup.
-func (c *client) fetchToTemp(ctx context.Context, dir, url string) (path string, err error) {
+func (c *client) DownloadWithHash(ctx context.Context, destPath, url, expectedHash string) error {
+	if err := os.MkdirAll(filepath.Dir(destPath), 0o755); err != nil {
+		return fmt.Errorf("create dest dir for %s: %w", destPath, err)
+	}
+
+	tmpPath, hash, err := c.fetchToTemp(ctx, filepath.Dir(destPath), url)
+	if err != nil {
+		return err
+	}
+
+	if hash != expectedHash {
+		return errors.Join(
+			fmt.Errorf("hash mismatch: expected %s, got %s", expectedHash, hash),
+			os.Remove(tmpPath),
+		)
+	}
+	if renameErr := os.Rename(tmpPath, destPath); renameErr != nil {
+		return errors.Join(fmt.Errorf("rename %s to %s: %w", tmpPath, destPath, renameErr), os.Remove(tmpPath))
+	}
+	return nil
+}
+
+// fetchToTemp streams url into a new temp file under dir and returns its path
+// and sha256 hash ("sha256-<hex>"). On error the temp file is removed and
+// path/hash are empty; on success the caller owns cleanup.
+func (c *client) fetchToTemp(ctx context.Context, dir, url string) (path string, hash string, err error) {
 	// Place the temp file alongside destPath so the final rename stays on
 	// one filesystem (cross-filesystem renames fail on most kernels).
 	tmp, err := os.CreateTemp(dir, "download-*.tmp")
 	if err != nil {
-		return "", fmt.Errorf("create temp file in %s: %w", dir, err)
+		return "", "", fmt.Errorf("create temp file in %s: %w", dir, err)
 	}
 	defer func() {
 		if closeErr := tmp.Close(); closeErr != nil {
@@ -94,12 +124,13 @@ func (c *client) fetchToTemp(ctx context.Context, dir, url string) (path string,
 		if err != nil {
 			err = errors.Join(err, os.Remove(tmp.Name()))
 			path = ""
+			hash = ""
 		}
 	}()
 
 	body, err := c.Get(ctx, url)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	defer func() {
 		if closeErr := body.Close(); closeErr != nil {
@@ -107,9 +138,9 @@ func (c *client) fetchToTemp(ctx context.Context, dir, url string) (path string,
 		}
 	}()
 
-	if _, copyErr := io.Copy(tmp, body); copyErr != nil {
-		return "", fmt.Errorf("write to %s: %w", tmp.Name(), copyErr)
+	h := sha256.New()
+	if _, copyErr := io.Copy(io.MultiWriter(tmp, h), body); copyErr != nil {
+		return "", "", fmt.Errorf("write to %s: %w", tmp.Name(), copyErr)
 	}
-	path = tmp.Name()
-	return
+	return tmp.Name(), "sha256-" + hex.EncodeToString(h.Sum(nil)), nil
 }
