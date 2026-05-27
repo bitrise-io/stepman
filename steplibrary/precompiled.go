@@ -107,45 +107,31 @@ func (s *Steplib) downloadFromURLs(ctx context.Context, destPath string, urls []
 	return fmt.Errorf("failed to download executable: %w", errors.Join(errs...))
 }
 
-// fetchBinary downloads url, validates its hash, and marks it executable,
-// leaving the result at a staging path inside destDir. On error the staging
-// file is removed; on success the caller owns cleanup.
-func (s *Steplib) fetchBinary(ctx context.Context, executable models.Executable, destDir, stepID string) (_ string, err error) {
+// downloadPrecompiled fetches `executable` for the current platform, verifies
+// its SHA256, makes the file executable, and places it at destDir/<stepID>.
+// Returns the final binary path.
+func (s *Steplib) downloadPrecompiled(ctx context.Context, stepID string, executable models.Executable, destDir string) (binPath string, err error) {
 	urls, err := precompiledURLs(executable)
 	if err != nil {
 		return "", err
 	}
-	stagingPath := filepath.Join(destDir, stepID+".staging")
-	if dlErr := s.downloadFromURLs(ctx, stagingPath, urls); dlErr != nil {
-		return "", dlErr
+
+	binPath = filepath.Join(destDir, stepID)
+	if err = s.downloadFromURLs(ctx, binPath, urls); err != nil {
+		return "", err
 	}
 	defer func() {
 		if err != nil {
-			err = errors.Join(err, os.Remove(stagingPath))
+			err = errors.Join(err, os.Remove(binPath))
 		}
 	}()
 
-	if err = validateSHA256(stagingPath, executable.Hash); err != nil {
+	if err = validateSHA256(binPath, executable.Hash); err != nil {
 		return "", err
 	}
-	if err = os.Chmod(stagingPath, 0o755); err != nil {
-		return "", fmt.Errorf("chmod %s: %w", stagingPath, err)
-	}
-	return stagingPath, nil
-}
-
-// downloadPrecompiled fetches `executable` for the current platform, verifies
-// its SHA256, makes the file executable, and atomically renames it into
-// destDir as `<stepID>`. Returns the final binary path.
-func (s *Steplib) downloadPrecompiled(ctx context.Context, stepID string, executable models.Executable, destDir string) (string, error) {
-	stagingPath, err := s.fetchBinary(ctx, executable, destDir, stepID)
-	if err != nil {
-		return "", err
+	if err = os.Chmod(binPath, 0o755); err != nil {
+		return "", fmt.Errorf("chmod %s: %w", binPath, err)
 	}
 
-	binPath := filepath.Join(destDir, stepID)
-	if renameErr := os.Rename(stagingPath, binPath); renameErr != nil {
-		return "", errors.Join(fmt.Errorf("rename to %s: %w", binPath, renameErr), os.Remove(stagingPath))
-	}
 	return binPath, nil
 }
