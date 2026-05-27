@@ -12,10 +12,10 @@ import (
 	"strconv"
 
 	"github.com/bitrise-io/go-utils/command"
-	"github.com/bitrise-io/go-utils/v2/filedownloader"
 	"github.com/bitrise-io/go-utils/v2/fileutil"
 	v2log "github.com/bitrise-io/go-utils/v2/log"
 	"github.com/bitrise-io/stepman/activator/result"
+	"github.com/bitrise-io/stepman/internal/httpfetch"
 	"github.com/bitrise-io/stepman/models"
 	"github.com/bitrise-io/stepman/stepman"
 	"gopkg.in/yaml.v2"
@@ -27,7 +27,7 @@ type Steplib struct {
 	isOfflineMode bool
 	api           API
 	fileManager   fileutil.FileManager
-	downloader    filedownloader.Downloader
+	fetcher       httpfetch.Client
 }
 
 type ActivateOutputPaths struct {
@@ -44,7 +44,7 @@ func New(log stepman.Logger, steplibURI string, isOfflineMode bool, fileManager 
 		fileManager:   fileManager,
 		// Used for downloading precompiled step binaries from arbitrary URLs
 		// (storage_uri is rooted at a different host than the inventory).
-		downloader: filedownloader.NewDownloader(v2log.NewLogger(v2log.WithOutput(io.Discard))),
+		fetcher: httpfetch.NewClient(nil, v2log.NewLogger(v2log.WithOutput(io.Discard))),
 	}
 }
 

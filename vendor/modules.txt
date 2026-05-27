@@ -20,7 +20,6 @@ github.com/bitrise-io/go-utils/stringutil
 github.com/bitrise-io/go-utils/urlutil
 # github.com/bitrise-io/go-utils/v2 v2.0.0-alpha.34
 ## explicit; go 1.21
-github.com/bitrise-io/go-utils/v2/filedownloader
 github.com/bitrise-io/go-utils/v2/fileutil
 github.com/bitrise-io/go-utils/v2/log
 github.com/bitrise-io/go-utils/v2/log/colorstring

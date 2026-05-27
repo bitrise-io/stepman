@@ -89,16 +89,26 @@ func (s *Steplib) downloadPrecompiled(ctx context.Context, stepID string, execut
 		return "", fmt.Errorf("create temp file in %s: %w", destDir, err)
 	}
 	tmpPath := tmp.Name()
-	if err := tmp.Close(); err != nil {
-		_ = os.Remove(tmpPath)
-		return "", fmt.Errorf("close temp file %s: %w", tmpPath, err)
-	}
 
 	url := precompiledURL(executable)
-	if err := s.downloader.Download(ctx, tmpPath, url); err != nil {
+	body, err := s.fetcher.Get(ctx, url)
+	if err != nil {
+		_ = tmp.Close()
 		_ = os.Remove(tmpPath)
 		return "", fmt.Errorf("download %s: %w", url, err)
 	}
+	_, copyErr := io.Copy(tmp, body)
+	_ = body.Close()
+	if copyErr != nil {
+		_ = tmp.Close()
+		_ = os.Remove(tmpPath)
+		return "", fmt.Errorf("write to %s: %w", tmpPath, copyErr)
+	}
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(tmpPath)
+		return "", fmt.Errorf("close %s: %w", tmpPath, err)
+	}
+
 	if err := validateSHA256(tmpPath, executable.Hash); err != nil {
 		_ = os.Remove(tmpPath)
 		return "", err

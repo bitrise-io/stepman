@@ -1,6 +1,7 @@
 package steplibrary
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -15,29 +16,25 @@ import (
 	"github.com/bitrise-io/stepman/models"
 )
 
-// fakeDownloader implements filedownloader.Downloader by writing a fixed
-// byte payload to the destination path. It only satisfies the Download
-// method that Steplib actually uses.
-type fakeDownloader struct {
+// fakeFetcher implements httpfetch.Client by returning a fixed byte payload
+// from Get. Steplib uses Get for the precompiled binary path; Download is
+// unused here and left unimplemented.
+type fakeFetcher struct {
 	payload []byte
 	gotURL  string
 	err     error
 }
 
-func (f *fakeDownloader) Download(_ context.Context, destination, source string) error {
+func (f *fakeFetcher) Get(_ context.Context, source string) (io.ReadCloser, error) {
 	f.gotURL = source
 	if f.err != nil {
-		return f.err
+		return nil, f.err
 	}
-	return os.WriteFile(destination, f.payload, 0o644)
+	return io.NopCloser(bytes.NewReader(f.payload)), nil
 }
 
-func (f *fakeDownloader) DownloadWithFallback(ctx context.Context, destination, source string, _ ...string) error {
-	return f.Download(ctx, destination, source)
-}
-
-func (f *fakeDownloader) Get(_ context.Context, _ string) (io.ReadCloser, error) {
-	return nil, errors.New("Get not supported in fakeDownloader")
+func (f *fakeFetcher) Download(_ context.Context, _, _ string) error {
+	return errors.New("Download not used by Steplib precompiled flow")
 }
 
 func sha256OfBytes(b []byte) string {
@@ -69,7 +66,7 @@ func TestSteplib_Activate_Precompiled(t *testing.T) {
 		stepModel: map[string]models.StepModel{"script": stepModel},
 	}
 
-	dl := &fakeDownloader{payload: payload}
+	dl := &fakeFetcher{payload: payload}
 
 	outDir := t.TempDir()
 	s := &Steplib{
@@ -77,7 +74,7 @@ func TestSteplib_Activate_Precompiled(t *testing.T) {
 		steplibURI:  "https://github.com/bitrise-io/bitrise-steplib.git",
 		api:         api,
 		fileManager: fileutil.NewFileManager(),
-		downloader:  dl,
+		fetcher:     dl,
 	}
 
 	got, err := s.Activate(context.Background(), "script", "", ActivateOutputPaths{
@@ -160,7 +157,7 @@ func TestSteplib_Activate_PrecompiledHashMismatch_FallsBackToSource(t *testing.T
 		steplibURI:  "https://github.com/bitrise-io/bitrise-steplib.git",
 		api:         api,
 		fileManager: fileutil.NewFileManager(),
-		downloader:  &fakeDownloader{payload: payload},
+		fetcher:     &fakeFetcher{payload: payload},
 	}
 
 	got, err := s.Activate(context.Background(), "script", "", ActivateOutputPaths{

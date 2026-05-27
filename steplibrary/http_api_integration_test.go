@@ -123,7 +123,7 @@ func TestHTTPAPI_Integration(t *testing.T) {
 		if err == nil {
 			t.Fatal("expected error for missing src.zip, got nil")
 		}
-		// filedownloader wraps non-2xx as "status code 404" in its error chain.
+		// httpfetch surfaces non-2xx as "unexpected status 404" in its error chain.
 		if !strings.Contains(err.Error(), "404") {
 			t.Errorf("error = %q, want substring %q", err.Error(), "404")
 		}
