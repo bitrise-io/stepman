@@ -6,6 +6,7 @@ package httpfetch
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -59,41 +60,57 @@ func (c *client) Get(ctx context.Context, url string) (io.ReadCloser, error) {
 	return resp.Body, nil
 }
 
-func (c *client) Download(ctx context.Context, destPath, url string) (err error) {
+func (c *client) Download(ctx context.Context, destPath, url string) error {
 	if err := os.MkdirAll(filepath.Dir(destPath), 0o755); err != nil {
 		return fmt.Errorf("create dest dir for %s: %w", destPath, err)
 	}
 
-	// Place the temp file alongside destPath so the final rename stays on
-	// one filesystem (cross-filesystem renames fail on most kernels).
-	tmp, err := os.CreateTemp(filepath.Dir(destPath), "download-*.tmp")
+	tmpPath, err := c.fetchToTemp(ctx, filepath.Dir(destPath), url)
 	if err != nil {
-		return fmt.Errorf("create temp file in %s: %w", filepath.Dir(destPath), err)
+		return err
 	}
-	tmpPath := tmp.Name()
-	cleanup := func() { _ = os.Remove(tmpPath) }
+	// fetchToTemp cleans up on its own error; we own the file from here.
+	// After a successful Rename tmpPath no longer exists, so Remove is a no-op.
+	defer func() { _ = os.Remove(tmpPath) }()
 
-	body, gerr := c.Get(ctx, url)
-	if gerr != nil {
-		_ = tmp.Close()
-		cleanup()
-		return gerr
-	}
-
-	_, copyErr := io.Copy(tmp, body)
-	_ = body.Close()
-	if copyErr != nil {
-		_ = tmp.Close()
-		cleanup()
-		return fmt.Errorf("write to %s: %w", tmpPath, copyErr)
-	}
-	if cerr := tmp.Close(); cerr != nil {
-		cleanup()
-		return fmt.Errorf("close %s: %w", tmpPath, cerr)
-	}
-	if rerr := os.Rename(tmpPath, destPath); rerr != nil {
-		cleanup()
-		return fmt.Errorf("rename %s to %s: %w", tmpPath, destPath, rerr)
+	if err := os.Rename(tmpPath, destPath); err != nil {
+		return fmt.Errorf("rename %s to %s: %w", tmpPath, destPath, err)
 	}
 	return nil
+}
+
+// fetchToTemp streams url into a new temp file under dir and returns its path.
+// On error the temp file is removed and path is empty; on success the caller owns cleanup.
+func (c *client) fetchToTemp(ctx context.Context, dir, url string) (path string, err error) {
+	// Place the temp file alongside destPath so the final rename stays on
+	// one filesystem (cross-filesystem renames fail on most kernels).
+	tmp, err := os.CreateTemp(dir, "download-*.tmp")
+	if err != nil {
+		return "", fmt.Errorf("create temp file in %s: %w", dir, err)
+	}
+	defer func() {
+		if closeErr := tmp.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("close %s: %w", tmp.Name(), closeErr))
+		}
+		if err != nil {
+			_ = os.Remove(tmp.Name())
+			path = ""
+		}
+	}()
+
+	body, err := c.Get(ctx, url)
+	if err != nil {
+		return "", err
+	}
+	defer func() {
+		if closeErr := body.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("close response body: %w", closeErr))
+		}
+	}()
+
+	if _, copyErr := io.Copy(tmp, body); copyErr != nil {
+		return "", fmt.Errorf("write to %s: %w", tmp.Name(), copyErr)
+	}
+	path = tmp.Name()
+	return
 }
