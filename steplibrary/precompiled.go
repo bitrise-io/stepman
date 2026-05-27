@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -50,7 +51,7 @@ func precompiledURL(e models.Executable) string {
 // validateSHA256 verifies that the file at path matches the given hash. The
 // expected hash must be a "sha256-<hex>" string (the convention carried over
 // from V1 step.yml).
-func validateSHA256(path, expected string) error {
+func validateSHA256(path, expected string) (err error) {
 	if expected == "" {
 		return fmt.Errorf("hash is empty")
 	}
@@ -63,7 +64,7 @@ func validateSHA256(path, expected string) error {
 	if err != nil {
 		return fmt.Errorf("open %s: %w", path, err)
 	}
-	defer func() { _ = f.Close() }()
+	defer func() { err = errors.Join(err, f.Close()) }()
 
 	h := sha256.New()
 	if _, err := io.Copy(h, f); err != nil {
@@ -76,52 +77,42 @@ func validateSHA256(path, expected string) error {
 	return nil
 }
 
+// fetchBinary downloads url, validates its hash, and marks it executable,
+// leaving the result at a staging path inside destDir. On error the staging
+// file is removed; on success the caller owns cleanup.
+func (s *Steplib) fetchBinary(ctx context.Context, executable models.Executable, destDir, stepID string) (_ string, err error) {
+	url := precompiledURL(executable)
+	stagingPath := filepath.Join(destDir, stepID+".staging")
+	if dlErr := s.fetcher.Download(ctx, stagingPath, url); dlErr != nil {
+		return "", fmt.Errorf("download %s: %w", url, dlErr)
+	}
+	defer func() {
+		if err != nil {
+			err = errors.Join(err, os.Remove(stagingPath))
+		}
+	}()
+
+	if err = validateSHA256(stagingPath, executable.Hash); err != nil {
+		return "", err
+	}
+	if err = os.Chmod(stagingPath, 0o755); err != nil {
+		return "", fmt.Errorf("chmod %s: %w", stagingPath, err)
+	}
+	return stagingPath, nil
+}
+
 // downloadPrecompiled fetches `executable` for the current platform, verifies
 // its SHA256, makes the file executable, and atomically renames it into
 // destDir as `<stepID>`. Returns the final binary path.
 func (s *Steplib) downloadPrecompiled(ctx context.Context, stepID string, executable models.Executable, destDir string) (string, error) {
-	if err := os.MkdirAll(destDir, 0o755); err != nil {
-		return "", fmt.Errorf("create dest dir %s: %w", destDir, err)
-	}
-
-	tmp, err := os.CreateTemp(destDir, "bin-*.tmp")
+	stagingPath, err := s.fetchBinary(ctx, executable, destDir, stepID)
 	if err != nil {
-		return "", fmt.Errorf("create temp file in %s: %w", destDir, err)
-	}
-	tmpPath := tmp.Name()
-
-	url := precompiledURL(executable)
-	body, err := s.fetcher.Get(ctx, url)
-	if err != nil {
-		_ = tmp.Close()
-		_ = os.Remove(tmpPath)
-		return "", fmt.Errorf("download %s: %w", url, err)
-	}
-	_, copyErr := io.Copy(tmp, body)
-	_ = body.Close()
-	if copyErr != nil {
-		_ = tmp.Close()
-		_ = os.Remove(tmpPath)
-		return "", fmt.Errorf("write to %s: %w", tmpPath, copyErr)
-	}
-	if err := tmp.Close(); err != nil {
-		_ = os.Remove(tmpPath)
-		return "", fmt.Errorf("close %s: %w", tmpPath, err)
-	}
-
-	if err := validateSHA256(tmpPath, executable.Hash); err != nil {
-		_ = os.Remove(tmpPath)
 		return "", err
-	}
-	if err := os.Chmod(tmpPath, 0o755); err != nil {
-		_ = os.Remove(tmpPath)
-		return "", fmt.Errorf("chmod %s: %w", tmpPath, err)
 	}
 
 	binPath := filepath.Join(destDir, stepID)
-	if err := os.Rename(tmpPath, binPath); err != nil {
-		_ = os.Remove(tmpPath)
-		return "", fmt.Errorf("rename to %s: %w", binPath, err)
+	if renameErr := os.Rename(stagingPath, binPath); renameErr != nil {
+		return "", errors.Join(fmt.Errorf("rename to %s: %w", binPath, renameErr), os.Remove(stagingPath))
 	}
 	return binPath, nil
 }

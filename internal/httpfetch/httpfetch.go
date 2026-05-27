@@ -54,8 +54,10 @@ func (c *client) Get(ctx context.Context, url string) (io.ReadCloser, error) {
 		return nil, fmt.Errorf("GET %s: %w", url, err)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		_ = resp.Body.Close()
-		return nil, fmt.Errorf("GET %s: unexpected status %d", url, resp.StatusCode)
+		return nil, errors.Join(
+			fmt.Errorf("GET %s: unexpected status %d", url, resp.StatusCode),
+			resp.Body.Close(),
+		)
 	}
 	return resp.Body, nil
 }
@@ -69,12 +71,9 @@ func (c *client) Download(ctx context.Context, destPath, url string) error {
 	if err != nil {
 		return err
 	}
-	// fetchToTemp cleans up on its own error; we own the file from here.
-	// After a successful Rename tmpPath no longer exists, so Remove is a no-op.
-	defer func() { _ = os.Remove(tmpPath) }()
 
-	if err := os.Rename(tmpPath, destPath); err != nil {
-		return fmt.Errorf("rename %s to %s: %w", tmpPath, destPath, err)
+	if renameErr := os.Rename(tmpPath, destPath); renameErr != nil {
+		return errors.Join(fmt.Errorf("rename %s to %s: %w", tmpPath, destPath, renameErr), os.Remove(tmpPath))
 	}
 	return nil
 }
@@ -93,7 +92,7 @@ func (c *client) fetchToTemp(ctx context.Context, dir, url string) (path string,
 			err = errors.Join(err, fmt.Errorf("close %s: %w", tmp.Name(), closeErr))
 		}
 		if err != nil {
-			_ = os.Remove(tmp.Name())
+			err = errors.Join(err, os.Remove(tmp.Name()))
 			path = ""
 		}
 	}()
