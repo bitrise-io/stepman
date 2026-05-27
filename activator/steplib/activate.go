@@ -14,15 +14,18 @@ import (
 	"github.com/bitrise-io/stepman/stepman"
 )
 
-const (
-	// PrecompiledStepsEnv toggles the precompiled-step download path on (`true`/`1`).
-	PrecompiledStepsEnv = "BITRISE_EXPERIMENT_PRECOMPILED_STEPS"
-	// PrecompiledStepsDefaultStorage is the fallback storage URL for precompiled
-	// step binaries when PrecompiledStepsPrimaryStorageEnv is unset.
-	PrecompiledStepsDefaultStorage = "https://storage.googleapis.com/bitrise-steplib-storage"
-	// PrecompiledStepsPrimaryStorageEnv overrides the storage URL at runtime.
-	PrecompiledStepsPrimaryStorageEnv = "BITRISE_PRECOMPILED_STEPS_PRIMARY_STORAGE"
-)
+const precompiledStepsEnv = "BITRISE_EXPERIMENT_PRECOMPILED_STEPS"
+
+// PrecompiledStepsStorageURLsEnv overrides the ordered list of storage base URLs at runtime
+// (comma-separated). Shared with steplibrary.
+const PrecompiledStepsStorageURLsEnv = "BITRISE_PRECOMPILED_STEPS_STORAGE_URLS"
+
+// PrecompiledStepsDefaultStorageURLs is the ordered list of storage base URLs used when
+// PrecompiledStepsStorageURLsEnv is unset. Shared with steplibrary.
+var PrecompiledStepsDefaultStorageURLs = []string{
+	"https://storage.googleapis.com/bitrise-steplib-storage",
+	"https://storage-gateway.services.bitrise.io",
+}
 
 func ActivateStep(stepLibURI, id, version, destination, destinationStepYML string, log stepman.Logger, isOfflineMode bool) (string, error) {
 	stepCollection, err := stepman.ReadStepSpec(stepLibURI)
@@ -35,7 +38,7 @@ func ActivateStep(stepLibURI, id, version, destination, destinationStepYML strin
 		return "", fmt.Errorf("failed to find step: %s", err)
 	}
 
-	if (os.Getenv(PrecompiledStepsEnv) == "true" || os.Getenv(PrecompiledStepsEnv) == "1") && step.Executables != nil {
+	if (os.Getenv(precompiledStepsEnv) == "true" || os.Getenv(precompiledStepsEnv) == "1") && step.Executables != nil {
 		platform := fmt.Sprintf("%s-%s", runtime.GOOS, runtime.GOARCH)
 		executableForPlatform, ok := (*step.Executables)[platform]
 		if ok && executableForPlatform.Hash != "" && executableForPlatform.StorageURI != "" {

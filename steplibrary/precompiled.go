@@ -36,16 +36,32 @@ func resolveExecutable(step models.StepModel) (models.Executable, bool) {
 	return e, true
 }
 
-// precompiledURL resolves an Executable's storage_uri against the configured
-// primary storage (BITRISE_PRECOMPILED_STEPS_PRIMARY_STORAGE) or the default
-// GCS bucket.
-func precompiledURL(e models.Executable) string {
-	base := os.Getenv(steplib.PrecompiledStepsPrimaryStorageEnv)
-	if base == "" {
-		base = steplib.PrecompiledStepsDefaultStorage
+// precompiledURLs builds the ordered list of download URLs for an executable.
+// Bases come from BITRISE_PRECOMPILED_STEPS_STORAGE_URLS (comma-separated) or
+// the two built-in defaults (GCS bucket + storage gateway).
+func precompiledURLs(e models.Executable) ([]string, error) {
+	bases := steplib.PrecompiledStepsDefaultStorageURLs
+	if override := os.Getenv(steplib.PrecompiledStepsStorageURLsEnv); override != "" {
+		bases = strings.Split(override, ",")
 	}
-	base = strings.TrimRight(base, "/")
-	return fmt.Sprintf("%s/%s", base, strings.TrimLeft(e.StorageURI, "/"))
+
+	uri := strings.TrimLeft(e.StorageURI, "/")
+	var urls []string
+	for _, base := range bases {
+		base = strings.TrimRight(strings.TrimSpace(base), "/")
+		if base == "" {
+			continue
+		}
+		url := fmt.Sprintf("%s/%s", base, uri)
+		if strings.HasPrefix(url, "http://") {
+			return nil, fmt.Errorf("http URL is unsupported, please use https: %s", url)
+		}
+		urls = append(urls, url)
+	}
+	if len(urls) == 0 {
+		return nil, fmt.Errorf("no storage URLs configured")
+	}
+	return urls, nil
 }
 
 // validateSHA256 verifies that the file at path matches the given hash. The
@@ -77,14 +93,31 @@ func validateSHA256(path, expected string) (err error) {
 	return nil
 }
 
+// downloadFromURLs tries each url in order, returning on the first success.
+func (s *Steplib) downloadFromURLs(ctx context.Context, destPath string, urls []string) error {
+	var errs []error
+	for _, url := range urls {
+		if err := s.fetcher.Download(ctx, destPath, url); err == nil {
+			return nil
+		} else {
+			s.log.Warnf("Failed to download from %s: %s\n", url, err)
+			errs = append(errs, fmt.Errorf("%s: %w", url, err))
+		}
+	}
+	return fmt.Errorf("failed to download executable: %w", errors.Join(errs...))
+}
+
 // fetchBinary downloads url, validates its hash, and marks it executable,
 // leaving the result at a staging path inside destDir. On error the staging
 // file is removed; on success the caller owns cleanup.
 func (s *Steplib) fetchBinary(ctx context.Context, executable models.Executable, destDir, stepID string) (_ string, err error) {
-	url := precompiledURL(executable)
+	urls, err := precompiledURLs(executable)
+	if err != nil {
+		return "", err
+	}
 	stagingPath := filepath.Join(destDir, stepID+".staging")
-	if dlErr := s.fetcher.Download(ctx, stagingPath, url); dlErr != nil {
-		return "", fmt.Errorf("download %s: %w", url, dlErr)
+	if dlErr := s.downloadFromURLs(ctx, stagingPath, urls); dlErr != nil {
+		return "", dlErr
 	}
 	defer func() {
 		if err != nil {
