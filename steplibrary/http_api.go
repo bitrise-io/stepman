@@ -4,13 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"path/filepath"
 	"strings"
 
-	"github.com/bitrise-io/go-utils/v2/log"
 	"github.com/bitrise-io/stepman/internal/httpfetch"
 	"github.com/bitrise-io/stepman/models"
 )
@@ -25,10 +23,10 @@ type HTTPAPI struct {
 	CacheDir string
 }
 
-func NewHTTPAPI(baseURL, cacheDir string, client *http.Client) *HTTPAPI {
+func NewHTTPAPI(baseURL, cacheDir string, client *http.Client, logger httpfetch.Logger) *HTTPAPI {
 	return &HTTPAPI{
 		BaseURL:  strings.TrimRight(baseURL, "/"),
-		Fetcher:  httpfetch.NewClient(client, log.NewLogger(log.WithOutput(io.Discard))),
+		Fetcher:  httpfetch.NewClient(client, logger),
 		CacheDir: cacheDir,
 	}
 }

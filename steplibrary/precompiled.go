@@ -61,7 +61,7 @@ func precompiledURLs(e models.Executable) ([]string, error) {
 	return urls, nil
 }
 
-// downloadFromURLs tries each url in order, verifying expectedHash on success.
+// downloadFromURLs tries each url in order, verifying expectedHash on each attempt.
 func (s *Steplib) downloadFromURLs(ctx context.Context, destPath, expectedHash string, urls []string) error {
 	var errs []error
 	for _, url := range urls {
@@ -79,6 +79,9 @@ func (s *Steplib) downloadFromURLs(ctx context.Context, destPath, expectedHash s
 // its SHA256, makes the file executable, and places it at destDir/<stepID>.
 // Returns the final binary path.
 func (s *Steplib) downloadPrecompiled(ctx context.Context, stepID string, executable models.Executable, destDir string) (binPath string, err error) {
+	if executable.Hash == "" {
+		return "", fmt.Errorf("hash is empty")
+	}
 	urls, err := precompiledURLs(executable)
 	if err != nil {
 		return "", err

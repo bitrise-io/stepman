@@ -15,8 +15,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/bitrise-io/go-utils/v2/log"
-	"github.com/bitrise-io/go-utils/v2/retryhttp"
+	"github.com/hashicorp/go-retryablehttp"
 )
 
 // Client streams or atomically downloads HTTP resources. Implementations
@@ -37,6 +36,18 @@ type Client interface {
 	DownloadWithHash(ctx context.Context, destPath, url, expectedHash string) error
 }
 
+// Logger is the minimal logging interface required by Client.
+// Both stepman.Logger and go-utils/v2/log.Logger satisfy it.
+type Logger interface {
+	Debugf(format string, v ...any)
+	Warnf(format string, v ...any)
+}
+
+// retryhttpLogger adapts Logger to the retryablehttp.Logger interface (Printf only).
+type retryhttpLogger struct{ l Logger }
+
+func (r *retryhttpLogger) Printf(f string, v ...interface{}) { r.l.Debugf(f, v...) }
+
 type client struct {
 	httpClient *http.Client
 }
@@ -44,9 +55,12 @@ type client struct {
 // NewClient returns a Client backed by httpClient. When httpClient is nil
 // a retryablehttp-backed client is used, so production callers get
 // transient-failure retries by default.
-func NewClient(httpClient *http.Client, logger log.Logger) Client {
+func NewClient(httpClient *http.Client, logger Logger) Client {
 	if httpClient == nil {
-		httpClient = retryhttp.NewClient(logger).StandardClient()
+		rc := retryablehttp.NewClient()
+		rc.Logger = &retryhttpLogger{l: logger}
+		rc.ErrorHandler = retryablehttp.PassthroughErrorHandler
+		httpClient = rc.StandardClient()
 	}
 	return &client{httpClient: httpClient}
 }
@@ -86,10 +100,12 @@ func (c *client) Download(ctx context.Context, destPath, url string) error {
 }
 
 func (c *client) DownloadWithHash(ctx context.Context, destPath, url, expectedHash string) error {
+	if expectedHash == "" {
+		return fmt.Errorf("hash is empty")
+	}
 	if err := os.MkdirAll(filepath.Dir(destPath), 0o755); err != nil {
 		return fmt.Errorf("create dest dir for %s: %w", destPath, err)
 	}
-
 	tmpPath, hash, err := c.fetchToTemp(ctx, filepath.Dir(destPath), url)
 	if err != nil {
 		return err
@@ -97,7 +113,7 @@ func (c *client) DownloadWithHash(ctx context.Context, destPath, url, expectedHa
 
 	if hash != expectedHash {
 		return errors.Join(
-			fmt.Errorf("hash mismatch: expected %s, got %s", expectedHash, hash),
+			fmt.Errorf("hash mismatch (%s) expected %s, got %s", url, expectedHash, hash),
 			os.Remove(tmpPath),
 		)
 	}

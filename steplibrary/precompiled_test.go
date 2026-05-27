@@ -1,11 +1,11 @@
 package steplibrary
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -16,9 +16,8 @@ import (
 	"github.com/bitrise-io/stepman/models"
 )
 
-// fakeFetcher implements httpfetch.Client by returning a fixed byte payload
-// from Get. Steplib uses Get for the precompiled binary path; Download is
-// unused here and left unimplemented.
+// fakeFetcher implements httpfetch.Client by writing a fixed byte payload on
+// DownloadWithHash. Get and Download are not used by the precompiled flow.
 type fakeFetcher struct {
 	payload []byte
 	gotURL  string
@@ -26,15 +25,26 @@ type fakeFetcher struct {
 }
 
 func (f *fakeFetcher) Get(_ context.Context, source string) (io.ReadCloser, error) {
-	f.gotURL = source
-	if f.err != nil {
-		return nil, f.err
-	}
-	return io.NopCloser(bytes.NewReader(f.payload)), nil
+	return nil, errors.New("Get not used by Steplib precompiled flow")
 }
 
 func (f *fakeFetcher) Download(_ context.Context, _, _ string) error {
 	return errors.New("Download not used by Steplib precompiled flow")
+}
+
+func (f *fakeFetcher) DownloadWithHash(_ context.Context, destPath, url, expectedHash string) error {
+	f.gotURL = url
+	if f.err != nil {
+		return f.err
+	}
+	actual := sha256OfBytes(f.payload)
+	if actual != expectedHash {
+		return fmt.Errorf("hash mismatch: expected %s, got %s", expectedHash, actual)
+	}
+	if err := os.MkdirAll(filepath.Dir(destPath), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(destPath, f.payload, 0o644)
 }
 
 func sha256OfBytes(b []byte) string {

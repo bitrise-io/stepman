@@ -6,14 +6,12 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"io"
 	"path/filepath"
 	"slices"
 	"strconv"
 
 	"github.com/bitrise-io/go-utils/command"
 	"github.com/bitrise-io/go-utils/v2/fileutil"
-	v2log "github.com/bitrise-io/go-utils/v2/log"
 	"github.com/bitrise-io/stepman/activator/result"
 	"github.com/bitrise-io/stepman/internal/httpfetch"
 	"github.com/bitrise-io/stepman/models"
@@ -35,16 +33,14 @@ type ActivateOutputPaths struct {
 }
 
 func New(log stepman.Logger, steplibURI string, isOfflineMode bool, fileManager fileutil.FileManager) *Steplib {
-	api := NewHTTPAPI(steplibURI, v2CacheDir(steplibURI), nil)
+	api := NewHTTPAPI(steplibURI, v2CacheDir(steplibURI), nil, log)
 	return &Steplib{
 		log:           log,
 		steplibURI:    steplibURI,
 		isOfflineMode: isOfflineMode,
 		api:           api,
 		fileManager:   fileManager,
-		// Used for downloading precompiled step binaries from arbitrary URLs
-		// (storage_uri is rooted at a different host than the inventory).
-		fetcher: httpfetch.NewClient(nil, v2log.NewLogger(v2log.WithOutput(io.Discard))),
+		fetcher:       httpfetch.NewClient(nil, log),
 	}
 }
 

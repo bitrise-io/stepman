@@ -35,7 +35,7 @@ func TestHTTPAPI(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	cacheDir := t.TempDir()
-	api := NewHTTPAPI(srv.URL, cacheDir, srv.Client())
+	api := NewHTTPAPI(srv.URL, cacheDir, srv.Client(), discardLogger{})
 	ctx := context.Background()
 
 	t.Run("GetAllStepIDs", func(t *testing.T) {
