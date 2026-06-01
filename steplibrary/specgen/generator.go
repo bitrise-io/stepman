@@ -3,12 +3,13 @@ package specgen
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"time"
 
+	"github.com/bitrise-io/go-utils/v2/fileutil"
 	"github.com/bitrise-io/stepman/models"
 	"github.com/bitrise-io/stepman/stepman"
 	"gopkg.in/yaml.v2"
@@ -50,7 +51,7 @@ func Generate(inputDir, outputDir string, opts Options, log stepman.Logger) (Sta
 		return Stats{}, err
 	}
 
-	w := &writer{outputDir: outputDir, fileCount: 0, byteCount: 0}
+	w := &writer{outputDir: outputDir, fm: fileutil.NewFileManager()}
 
 	for _, s := range steps {
 		if err := writeStepFiles(w, inputDir, s); err != nil {
@@ -417,7 +418,7 @@ func buildLatestPointer(s parsedStep) LatestPointerJSON {
 		if err != nil {
 			continue
 		}
-		majorKey := fmt.Sprintf("%d", sv.Major)
+		majorKey := strconv.FormatUint(sv.Major, 10)
 		cur, ok := byMajor[majorKey]
 		if !ok || models.CmpSemver(sv, cur) > 0 {
 			byMajor[majorKey] = sv
@@ -468,6 +469,7 @@ func buildVersionsJSON(s parsedStep) VersionsJSON {
 
 type writer struct {
 	outputDir string
+	fm        fileutil.FileManager
 	fileCount int
 	byteCount int64
 }
@@ -495,21 +497,14 @@ func (w *writer) copyFile(src, relDst string) error {
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return err
 	}
-	in, err := os.Open(src)
-	if err != nil {
+	if err := w.fm.CopyFile(src, dst, &fileutil.CopyOptions{Overwrite: true}); err != nil {
 		return err
 	}
-	defer func() { _ = in.Close() }()
-	out, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = out.Close() }()
-	n, err := io.Copy(out, in)
+	info, err := os.Stat(dst)
 	if err != nil {
 		return err
 	}
 	w.fileCount++
-	w.byteCount += n
+	w.byteCount += info.Size()
 	return nil
 }
