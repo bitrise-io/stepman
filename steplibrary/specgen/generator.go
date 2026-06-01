@@ -53,7 +53,7 @@ func GenerateFromSteplibClone(inputFS fs.FS, outputDir string, opts Options, log
 		return Stats{}, err
 	}
 
-	w := &writer{outputDir: outputDir}
+	w := &writer{outputDir: outputDir, fw: realFileWriter{}, fileCount: 0, byteCount: 0}
 
 	for _, s := range steps {
 		if err := writeStepFiles(w, inputFS, s); err != nil {
@@ -466,8 +466,25 @@ func buildVersionsJSON(s parsedStep) VersionsJSON {
 // writer — tracks file count + byte count for Stats
 // ---------------------------------------------------------------------------
 
+// fileWriter abstracts the OS calls used by writeJSON, making them injectable
+// for testing without affecting the fs.FS-based read path.
+type fileWriter interface {
+	MkdirAll(path string, perm os.FileMode) error
+	WriteFile(name string, data []byte, perm os.FileMode) error
+}
+
+type realFileWriter struct{}
+
+func (realFileWriter) MkdirAll(path string, perm os.FileMode) error {
+	return os.MkdirAll(path, perm)
+}
+func (realFileWriter) WriteFile(name string, data []byte, perm os.FileMode) error {
+	return os.WriteFile(name, data, perm)
+}
+
 type writer struct {
 	outputDir string
+	fw        fileWriter
 	fileCount int
 	byteCount int64
 }
@@ -479,10 +496,10 @@ func (w *writer) writeJSON(relPath string, v any) error {
 	}
 	bytes = append(bytes, '\n')
 	full := filepath.Join(w.outputDir, relPath)
-	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+	if err := w.fw.MkdirAll(filepath.Dir(full), 0o755); err != nil {
 		return err
 	}
-	if err := os.WriteFile(full, bytes, 0o644); err != nil {
+	if err := w.fw.WriteFile(full, bytes, 0o644); err != nil {
 		return err
 	}
 	w.fileCount++
