@@ -2,14 +2,16 @@ package specgen
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"time"
 
-	"github.com/bitrise-io/go-utils/v2/fileutil"
 	"github.com/bitrise-io/stepman/models"
 	"github.com/bitrise-io/stepman/stepman"
 	"gopkg.in/yaml.v2"
@@ -34,27 +36,27 @@ type Stats struct {
 	Duration     time.Duration
 }
 
-// GenerateFromSteplibClone reads a bitrise-steplib clone at inputDir and writes the V2 inventory
+// GenerateFromSteplibClone reads a bitrise-steplib clone from inputFS and writes the V2 inventory
 // tree to outputDir. It is destructive in the sense that it writes files; it
 // does NOT delete existing files outside the paths it owns.
-func GenerateFromSteplibClone(inputDir, outputDir string, opts Options, log stepman.Logger) (Stats, error) {
+func GenerateFromSteplibClone(inputFS fs.FS, outputDir string, opts Options, log stepman.Logger) (Stats, error) {
 	start := time.Now()
 	opts = withDefaults(opts)
 
-	steplibYML, err := readSteplibYML(inputDir)
+	steplibYML, err := readSteplibYML(inputFS)
 	if err != nil {
 		return Stats{}, fmt.Errorf("read steplib.yml: %w", err)
 	}
 
-	steps, err := collectSteps(inputDir, log)
+	steps, err := collectSteps(inputFS, log)
 	if err != nil {
 		return Stats{}, err
 	}
 
-	w := &writer{outputDir: outputDir, fm: fileutil.NewFileManager()}
+	w := &writer{outputDir: outputDir}
 
 	for _, s := range steps {
-		if err := writeStepFiles(w, inputDir, s); err != nil {
+		if err := writeStepFiles(w, inputFS, s); err != nil {
 			return Stats{}, fmt.Errorf("write step %s: %w", s.id, err)
 		}
 	}
@@ -107,11 +109,10 @@ type parsedStep struct {
 	latest      string   // highest semver in versionList
 }
 
-func collectSteps(inputDir string, log stepman.Logger) ([]parsedStep, error) {
-	stepsDir := filepath.Join(inputDir, "steps")
-	entries, err := os.ReadDir(stepsDir)
+func collectSteps(inputFS fs.FS, log stepman.Logger) ([]parsedStep, error) {
+	entries, err := fs.ReadDir(inputFS, "steps")
 	if err != nil {
-		return nil, fmt.Errorf("read %s: %w", stepsDir, err)
+		return nil, fmt.Errorf("read steps: %w", err)
 	}
 
 	var out []parsedStep
@@ -119,7 +120,7 @@ func collectSteps(inputDir string, log stepman.Logger) ([]parsedStep, error) {
 		if !e.IsDir() {
 			continue
 		}
-		s, err := collectStep(stepsDir, e.Name(), log)
+		s, err := collectStep(inputFS, e.Name(), log)
 		if err != nil {
 			return nil, err
 		}
@@ -133,7 +134,7 @@ func collectSteps(inputDir string, log stepman.Logger) ([]parsedStep, error) {
 	return out, nil
 }
 
-func collectStep(stepsDir, id string, log stepman.Logger) (parsedStep, error) {
+func collectStep(inputFS fs.FS, id string, log stepman.Logger) (parsedStep, error) {
 	s := parsedStep{
 		id:          id,
 		info:        StepInfoJSON{Maintainer: "", Deprecation: nil, AssetURLs: nil},
@@ -143,16 +144,16 @@ func collectStep(stepsDir, id string, log stepman.Logger) (parsedStep, error) {
 		versionList: nil,
 		latest:      "",
 	}
-	stepDir := filepath.Join(stepsDir, id)
+	stepDir := "steps/" + id
 
-	info, hasInfo, err := readStepGroupInfo(filepath.Join(stepDir, "step-info.yml"))
+	info, hasInfo, err := readStepGroupInfo(inputFS, stepDir+"/step-info.yml")
 	if err != nil {
 		return s, fmt.Errorf("read step-info.yml for %s: %w", id, err)
 	}
 	s.info = info
 	s.hasInfoFile = hasInfo
 
-	assetFiles, err := listAssets(filepath.Join(stepDir, "assets"))
+	assetFiles, err := listAssets(inputFS, stepDir+"/assets")
 	if err != nil {
 		return s, fmt.Errorf("list assets for %s: %w", id, err)
 	}
@@ -166,7 +167,7 @@ func collectStep(stepsDir, id string, log stepman.Logger) (parsedStep, error) {
 		}
 	}
 
-	subEntries, err := os.ReadDir(stepDir)
+	subEntries, err := fs.ReadDir(inputFS, stepDir)
 	if err != nil {
 		return s, fmt.Errorf("read %s: %w", stepDir, err)
 	}
@@ -181,8 +182,7 @@ func collectStep(stepsDir, id string, log stepman.Logger) (parsedStep, error) {
 			log.Warnf("step %s: version dir %q is not semver, skipping", id, sub.Name())
 			continue
 		}
-		stepYML := filepath.Join(stepDir, sub.Name(), "step.yml")
-		step, err := parseStepYML(stepYML)
+		step, err := parseStepYML(inputFS, stepDir+"/"+sub.Name()+"/step.yml")
 		if err != nil {
 			return s, fmt.Errorf("parse %s/%s: %w", id, sub.Name(), err)
 		}
@@ -196,9 +196,8 @@ func collectStep(stepsDir, id string, log stepman.Logger) (parsedStep, error) {
 	return s, nil
 }
 
-func readSteplibYML(inputDir string) (models.StepCollectionModel, error) {
-	pth := filepath.Join(inputDir, "steplib.yml")
-	bytes, err := os.ReadFile(pth)
+func readSteplibYML(inputFS fs.FS) (models.StepCollectionModel, error) {
+	bytes, err := fs.ReadFile(inputFS, "steplib.yml")
 	if err != nil {
 		return models.StepCollectionModel{}, err
 	}
@@ -209,10 +208,10 @@ func readSteplibYML(inputDir string) (models.StepCollectionModel, error) {
 	return c, nil
 }
 
-func readStepGroupInfo(path string) (StepInfoJSON, bool, error) {
-	bytes, err := os.ReadFile(path)
+func readStepGroupInfo(inputFS fs.FS, path string) (StepInfoJSON, bool, error) {
+	bytes, err := fs.ReadFile(inputFS, path)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return StepInfoJSON{}, false, nil
 		}
 		return StepInfoJSON{}, false, err
@@ -235,10 +234,10 @@ func readStepGroupInfo(path string) (StepInfoJSON, bool, error) {
 	return out, true, nil
 }
 
-func listAssets(dir string) ([]string, error) {
-	entries, err := os.ReadDir(dir)
+func listAssets(inputFS fs.FS, dir string) ([]string, error) {
+	entries, err := fs.ReadDir(inputFS, dir)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return nil, nil
 		}
 		return nil, err
@@ -254,8 +253,8 @@ func listAssets(dir string) ([]string, error) {
 	return out, nil
 }
 
-func parseStepYML(path string) (models.StepModel, error) {
-	bytes, err := os.ReadFile(path)
+func parseStepYML(inputFS fs.FS, path string) (models.StepModel, error) {
+	bytes, err := fs.ReadFile(inputFS, path)
 	if err != nil {
 		return models.StepModel{}, err
 	}
@@ -294,16 +293,16 @@ func sortedSemver(m map[string]models.StepModel) []string {
 // step-level writes (steps/<id>/...)
 // ---------------------------------------------------------------------------
 
-func writeStepFiles(w *writer, inputDir string, s parsedStep) error {
+func writeStepFiles(w *writer, inputFS fs.FS, s parsedStep) error {
 	if s.hasInfoFile || len(s.assetFiles) > 0 {
 		if err := w.writeJSON(filepath.Join("steps", s.id, "step-info.json"), s.info); err != nil {
 			return err
 		}
 	}
 	for _, f := range s.assetFiles {
-		src := filepath.Join(inputDir, "steps", s.id, "assets", f)
+		src := "steps/" + s.id + "/assets/" + f
 		dst := filepath.Join("steps", s.id, "assets", f)
-		if err := w.copyFile(src, dst); err != nil {
+		if err := w.copyFileFromFS(inputFS, src, dst); err != nil {
 			return fmt.Errorf("copy asset %s: %w", src, err)
 		}
 	}
@@ -469,7 +468,6 @@ func buildVersionsJSON(s parsedStep) VersionsJSON {
 
 type writer struct {
 	outputDir string
-	fm        fileutil.FileManager
 	fileCount int
 	byteCount int64
 }
@@ -492,19 +490,30 @@ func (w *writer) writeJSON(relPath string, v any) error {
 	return nil
 }
 
-func (w *writer) copyFile(src, relDst string) error {
+func (w *writer) copyFileFromFS(srcFS fs.FS, srcPath, relDst string) error {
 	dst := filepath.Join(w.outputDir, relDst)
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return err
 	}
-	if err := w.fm.CopyFile(src, dst, &fileutil.CopyOptions{Overwrite: true}); err != nil {
+	in, err := srcFS.Open(srcPath)
+	if err != nil {
 		return err
 	}
-	info, err := os.Stat(dst)
+	defer func() { _ = in.Close() }()
+	info, err := in.Stat()
+	if err != nil {
+		return err
+	}
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, info.Mode())
+	if err != nil {
+		return err
+	}
+	defer func() { _ = out.Close() }()
+	n, err := io.Copy(out, in)
 	if err != nil {
 		return err
 	}
 	w.fileCount++
-	w.byteCount += info.Size()
+	w.byteCount += n
 	return nil
 }

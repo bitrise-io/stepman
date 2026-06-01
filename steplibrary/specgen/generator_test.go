@@ -30,7 +30,7 @@ func runGenerateFromSteplibClone(t *testing.T) string {
 	t.Helper()
 	out := t.TempDir()
 	_, err := GenerateFromSteplibClone(
-		"testdata/input",
+		os.DirFS("testdata/input"),
 		out,
 		Options{GeneratedAt: fixedTime, SteplibCommitSHA: "deadbeefcafef00d"},
 		testLogger{t},
@@ -242,7 +242,7 @@ func TestGenerator_catalog_entry(t *testing.T) {
 func TestGenerator_stats(t *testing.T) {
 	out := t.TempDir()
 	stats, err := GenerateFromSteplibClone(
-		"testdata/input",
+		os.DirFS("testdata/input"),
 		out,
 		Options{GeneratedAt: fixedTime},
 		testLogger{t},
@@ -276,7 +276,7 @@ func ExampleGenerateFromSteplibClone() {
 	}
 	defer func() { _ = os.RemoveAll(tmp) }()
 
-	stats, err := GenerateFromSteplibClone("testdata/input", tmp, Options{GeneratedAt: fixedTime}, exampleLogger{})
+	stats, err := GenerateFromSteplibClone(os.DirFS("testdata/input"), tmp, Options{GeneratedAt: fixedTime}, exampleLogger{})
 	if err != nil {
 		fmt.Println(err)
 		return
