@@ -4,8 +4,6 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -104,23 +102,6 @@ func TestHTTPAPI(t *testing.T) {
 		}
 	})
 
-	t.Run("GetStepSourceZIPPath downloads to cache dir", func(t *testing.T) {
-		path, err := api.GetStepSourceZIPPath(ctx, ResolvedStepVersion{ID: "hello-step", Version: "2.0.0"})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		want := filepath.Join(cacheDir, "steps", "hello-step", "2.0.0", "src.zip")
-		if path != want {
-			t.Errorf("path = %q, want %q", path, want)
-		}
-		body, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatalf("read downloaded file: %v", err)
-		}
-		if !strings.HasPrefix(string(body), "PK\x03\x04") {
-			t.Errorf("downloaded body missing zip magic: %q", body)
-		}
-	})
 
 	t.Run("404 surfaces unexpected status", func(t *testing.T) {
 		_, err := api.GetLatestStepVersions(ctx, "missing-step")

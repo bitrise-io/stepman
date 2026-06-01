@@ -32,7 +32,6 @@ type fakeAPI struct {
 	groupInfo         map[string]spec.StepInfo
 	groupInfoErr      error
 	stepModel         map[string]models.StepModel
-	zipSourcePath     string
 }
 
 func (f fakeAPI) GetAllStepIDs(_ context.Context) ([]string, error) {
@@ -86,12 +85,6 @@ func (f fakeAPI) GetStepModel(ctx context.Context, step ResolvedStepVersion) (mo
 	return f.FakeAPI.GetStepModel(ctx, step)
 }
 
-func (f fakeAPI) GetStepSourceZIPPath(ctx context.Context, step ResolvedStepVersion) (string, error) {
-	if f.zipSourcePath != "" {
-		return f.zipSourcePath, nil
-	}
-	return f.FakeAPI.GetStepSourceZIPPath(ctx, step)
-}
 
 func writeSeedZip(t *testing.T, path string) {
 	t.Helper()
@@ -141,7 +134,6 @@ func TestSteplib_Activate(t *testing.T) {
 		allVersions: map[string][]string{
 			"script": {"1.0.0", "1.1.5", "1.2.0", "2.0.0", "2.4.0", "2.4.1", "3.0.0"},
 		},
-		zipSourcePath: sourceZIP,
 	}
 
 	tests := []struct {
@@ -250,10 +242,11 @@ func TestSteplib_Activate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &Steplib{
-				log:         discardLogger{},
-				steplibURI:  "https://github.com/bitrise-io/bitrise-steplib.git",
-				api:         tt.api,
-				fileManager: fileutil.NewFileManager(),
+				log:              discardLogger{},
+				steplibURI:       "https://github.com/bitrise-io/bitrise-steplib.git",
+				api:              tt.api,
+				fileManager:      fileutil.NewFileManager(),
+				fetchSourceZIPFn: func(_ context.Context, _ ResolvedStepVersion) (string, error) { return sourceZIP, nil },
 			}
 			outDir := t.TempDir()
 			outPaths := ActivateOutputPaths{

@@ -25,5 +25,4 @@ type API interface {
 	// GetStepModel fetches the V2 per-version step manifest (mirrors
 	// `steps/<id>/<version>/step.json`, which serializes models.StepModel).
 	GetStepModel(ctx context.Context, step ResolvedStepVersion) (models.StepModel, error)
-	GetStepSourceZIPPath(ctx context.Context, step ResolvedStepVersion) (string, error)
 }

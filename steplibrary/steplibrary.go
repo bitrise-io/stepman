@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"net/url"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -21,12 +22,13 @@ import (
 )
 
 type Steplib struct {
-	log           stepman.Logger
-	steplibURI    string
-	isOfflineMode bool
-	api           API
-	fileManager   fileutil.FileManager
-	fetcher       httpfetch.Client
+	log              stepman.Logger
+	steplibURI       string
+	isOfflineMode    bool
+	api              API
+	fileManager      fileutil.FileManager
+	fetcher          httpfetch.Client
+	fetchSourceZIPFn func(ctx context.Context, step ResolvedStepVersion) (string, error)
 }
 
 type ActivateOutputPaths struct {
@@ -35,14 +37,17 @@ type ActivateOutputPaths struct {
 
 func New(log stepman.Logger, steplibURI string, isOfflineMode bool, fileManager fileutil.FileManager) *Steplib {
 	api := NewHTTPAPI(steplibURI, v2CacheDir(steplibURI), nil, log)
-	return &Steplib{
-		log:           log,
-		steplibURI:    steplibURI,
-		isOfflineMode: isOfflineMode,
-		api:           api,
-		fileManager:   fileManager,
-		fetcher:       httpfetch.NewClient(nil, log),
+	s := &Steplib{
+		log:              log,
+		steplibURI:       steplibURI,
+		isOfflineMode:    isOfflineMode,
+		api:              api,
+		fileManager:      fileManager,
+		fetcher:          httpfetch.NewClient(nil, log),
+		fetchSourceZIPFn: nil,
 	}
+	s.fetchSourceZIPFn = s.getStepSourceZIPPath
+	return s
 }
 
 // v2CacheDir returns a stable on-disk cache directory for a given steplib URL.
@@ -78,7 +83,7 @@ func (s *Steplib) Activate(ctx context.Context, stepID, version string, outputPa
 
 	if err == nil && execPath == "" {
 		var stepSourceZIPPath string
-		stepSourceZIPPath, err = s.api.GetStepSourceZIPPath(ctx, resolved)
+		stepSourceZIPPath, err = s.fetchSourceZIPFn(ctx, resolved)
 		if err == nil {
 			if uerr := command.UnZIP(stepSourceZIPPath, outputPaths.CodePath); uerr != nil {
 				err = fmt.Errorf("unzip step source %s: %w", stepSourceZIPPath, uerr)
@@ -110,6 +115,15 @@ func (s *Steplib) Activate(ctx context.Context, stepID, version string, outputPa
 		ActivationType:   activationType,
 		DidStepLibUpdate: false, // deprecated
 	}, nil
+}
+
+func (s *Steplib) getStepSourceZIPPath(ctx context.Context, step ResolvedStepVersion) (string, error) {
+	destPath := filepath.Join(v2CacheDir(s.steplibURI), "steps", step.ID, step.Version, "src.zip")
+	src := s.steplibURI + fmt.Sprintf("/steps/%s/%s/src.zip", url.PathEscape(step.ID), url.PathEscape(step.Version))
+	if err := s.fetcher.Download(ctx, destPath, src); err != nil {
+		return "", err
+	}
+	return destPath, nil
 }
 
 func (s *Steplib) getStepVersionInfo(ctx context.Context, stepID, version string) (models.StepInfoModel, ResolvedStepVersion, error) {

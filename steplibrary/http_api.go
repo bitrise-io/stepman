@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"path/filepath"
 	"strings"
 
 	"github.com/bitrise-io/stepman/internal/httpfetch"
@@ -76,15 +75,6 @@ func (h *HTTPAPI) GetStepModel(ctx context.Context, step ResolvedStepVersion) (m
 		&out,
 	)
 	return out, err
-}
-
-func (h *HTTPAPI) GetStepSourceZIPPath(ctx context.Context, step ResolvedStepVersion) (string, error) {
-	destPath := filepath.Join(h.CacheDir, "steps", step.ID, step.Version, "src.zip")
-	src := h.BaseURL + fmt.Sprintf("/steps/%s/%s/src.zip", url.PathEscape(step.ID), url.PathEscape(step.Version))
-	if err := h.Fetcher.Download(ctx, destPath, src); err != nil {
-		return "", err
-	}
-	return destPath, nil
 }
 
 func (h *HTTPAPI) fetchJSON(ctx context.Context, path string, dst any) (err error) {

@@ -3,7 +3,6 @@ package steplibrary
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/bitrise-io/go-utils/pointers"
 	"github.com/bitrise-io/stepman/models"
@@ -77,6 +76,3 @@ func (m FakeAPI) GetStepModel(_ context.Context, step ResolvedStepVersion) (mode
 	}, nil
 }
 
-func (m FakeAPI) GetStepSourceZIPPath(_ context.Context, step ResolvedStepVersion) (string, error) {
-	return fmt.Sprintf("/mock/steplib/%s/%s/src.zip", step.ID, step.Version), nil
-}

@@ -117,15 +117,4 @@ func TestHTTPAPI_Integration(t *testing.T) {
 		}
 	})
 
-	t.Run("GetStepSourceZIPPath errors when sample lacks src.zip", func(t *testing.T) {
-		// The sample-output tree intentionally omits src.zip blobs.
-		_, err := api.GetStepSourceZIPPath(ctx, ResolvedStepVersion{ID: "hello-step", Version: "2.0.0"})
-		if err == nil {
-			t.Fatal("expected error for missing src.zip, got nil")
-		}
-		// httpfetch surfaces non-2xx as "unexpected status 404" in its error chain.
-		if !strings.Contains(err.Error(), "404") {
-			t.Errorf("error = %q, want substring %q", err.Error(), "404")
-		}
-	})
 }

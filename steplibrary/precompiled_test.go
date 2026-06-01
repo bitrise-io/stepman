@@ -158,17 +158,17 @@ func TestSteplib_Activate_PrecompiledHashMismatch_FallsBackToSource(t *testing.T
 		latestVersions: map[string]spec.LatestPointer{
 			"script": {StepID: "script", Latest: "3.0.0"},
 		},
-		stepModel:     map[string]models.StepModel{"script": stepModel},
-		zipSourcePath: sourceZIP,
+		stepModel: map[string]models.StepModel{"script": stepModel},
 	}
 
 	outDir := t.TempDir()
 	s := &Steplib{
-		log:         discardLogger{},
-		steplibURI:  "https://github.com/bitrise-io/bitrise-steplib.git",
-		api:         api,
-		fileManager: fileutil.NewFileManager(),
-		fetcher:     &fakeFetcher{payload: payload},
+		log:              discardLogger{},
+		steplibURI:       "https://github.com/bitrise-io/bitrise-steplib.git",
+		api:              api,
+		fileManager:      fileutil.NewFileManager(),
+		fetcher:          &fakeFetcher{payload: payload},
+		fetchSourceZIPFn: func(_ context.Context, _ ResolvedStepVersion) (string, error) { return sourceZIP, nil },
 	}
 
 	got, err := s.Activate(context.Background(), "script", "", ActivateOutputPaths{
