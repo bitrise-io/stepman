@@ -105,13 +105,19 @@ func TestGenerator_deprecated_step(t *testing.T) {
 }
 
 func TestGenerator_no_info_step_skips_step_info_file(t *testing.T) {
-	out := runGenerateFromSteplibClone(t)
+	inputFS := fstest.MapFS{
+		"steplib.yml":                        {Data: []byte("format_version: '0.9.0'\n")},
+		"steps/no-info-step/1.0.0/step.yml": {Data: []byte("title: No Info\n")},
+	}
+	out := t.TempDir()
+	_, err := GenerateFromSteplibClone(inputFS, out, Options{GeneratedAt: fixedTime}, testLogger{t})
+	require.NoError(t, err)
 
-	// step-info.json must NOT exist for a step without step-info.yml AND no assets.
-	_, err := os.Stat(filepath.Join(out, "steps/no-info-step/step-info.json"))
-	assert.True(t, os.IsNotExist(err), "step-info.json should not exist for no-info-step; got err=%v", err)
+	// step-info.json must NOT exist: no step-info.yml and no assets.
+	_, err = os.Stat(filepath.Join(out, "steps/no-info-step/step-info.json"))
+	assert.True(t, os.IsNotExist(err), "step-info.json should not exist; got err=%v", err)
 
-	// But step.json must exist.
+	// step.json must still be written.
 	_, err = os.Stat(filepath.Join(out, "steps/no-info-step/1.0.0/step.json"))
 	assert.NoError(t, err)
 }
