@@ -34,10 +34,10 @@ type Stats struct {
 	Duration     time.Duration
 }
 
-// Generate reads a bitrise-steplib clone at inputDir and writes the V2 inventory
+// GenerateFromSteplibClone reads a bitrise-steplib clone at inputDir and writes the V2 inventory
 // tree to outputDir. It is destructive in the sense that it writes files; it
 // does NOT delete existing files outside the paths it owns.
-func Generate(inputDir, outputDir string, opts Options, log stepman.Logger) (Stats, error) {
+func GenerateFromSteplibClone(inputDir, outputDir string, opts Options, log stepman.Logger) (Stats, error) {
 	start := time.Now()
 	opts = withDefaults(opts)
 
@@ -145,7 +145,7 @@ func collectStep(stepsDir, id string, log stepman.Logger) (parsedStep, error) {
 	}
 	stepDir := filepath.Join(stepsDir, id)
 
-	info, hasInfo, err := readStepInfo(filepath.Join(stepDir, "step-info.yml"))
+	info, hasInfo, err := readStepGroupInfo(filepath.Join(stepDir, "step-info.yml"))
 	if err != nil {
 		return s, fmt.Errorf("read step-info.yml for %s: %w", id, err)
 	}
@@ -209,7 +209,7 @@ func readSteplibYML(inputDir string) (models.StepCollectionModel, error) {
 	return c, nil
 }
 
-func readStepInfo(path string) (StepInfoJSON, bool, error) {
+func readStepGroupInfo(path string) (StepInfoJSON, bool, error) {
 	bytes, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {

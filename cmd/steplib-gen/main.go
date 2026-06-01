@@ -56,7 +56,7 @@ func main() {
 		SteplibCommitSHA: *commitSHA,
 	}
 
-	stats, err := specgen.Generate(*input, *output, opts, stderrLogger{})
+	stats, err := specgen.GenerateFromSteplibClone(*input, *output, opts, stderrLogger{})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %s\n", err)
 		os.Exit(1)

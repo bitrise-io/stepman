@@ -26,10 +26,10 @@ func (l testLogger) Errorf(format string, v ...any) { l.t.Logf("ERROR "+format, 
 
 // runGenerate runs the generator against the checked-in testdata using a
 // fresh temp output dir. Returns the output dir for assertions.
-func runGenerate(t *testing.T) string {
+func runGenerateFromSteplibClone(t *testing.T) string {
 	t.Helper()
 	out := t.TempDir()
-	_, err := Generate(
+	_, err := GenerateFromSteplibClone(
 		"testdata/input",
 		out,
 		Options{GeneratedAt: fixedTime, SteplibCommitSHA: "deadbeefcafef00d"},
@@ -47,7 +47,7 @@ func readJSON(t *testing.T, path string, into any) {
 }
 
 func TestGenerator_meta(t *testing.T) {
-	out := runGenerate(t)
+	out := runGenerateFromSteplibClone(t)
 
 	var meta MetaJSON
 	readJSON(t, filepath.Join(out, "meta.json"), &meta)
@@ -64,7 +64,7 @@ func TestGenerator_meta(t *testing.T) {
 }
 
 func TestGenerator_step_ids_sorted(t *testing.T) {
-	out := runGenerate(t)
+	out := runGenerateFromSteplibClone(t)
 
 	var ids StepIDsJSON
 	readJSON(t, filepath.Join(out, "spec/step_ids.json"), &ids)
@@ -75,7 +75,7 @@ func TestGenerator_step_ids_sorted(t *testing.T) {
 }
 
 func TestGenerator_normal_step_info_and_asset_copy(t *testing.T) {
-	out := runGenerate(t)
+	out := runGenerateFromSteplibClone(t)
 
 	var info StepInfoJSON
 	readJSON(t, filepath.Join(out, "steps/hello-step/step-info.json"), &info)
@@ -90,7 +90,7 @@ func TestGenerator_normal_step_info_and_asset_copy(t *testing.T) {
 }
 
 func TestGenerator_deprecated_step(t *testing.T) {
-	out := runGenerate(t)
+	out := runGenerateFromSteplibClone(t)
 
 	var info StepInfoJSON
 	readJSON(t, filepath.Join(out, "steps/deprecated-step/step-info.json"), &info)
@@ -104,7 +104,7 @@ func TestGenerator_deprecated_step(t *testing.T) {
 }
 
 func TestGenerator_no_info_step_skips_step_info_file(t *testing.T) {
-	out := runGenerate(t)
+	out := runGenerateFromSteplibClone(t)
 
 	// step-info.json must NOT exist for a step without step-info.yml AND no assets.
 	_, err := os.Stat(filepath.Join(out, "steps/no-info-step/step-info.json"))
@@ -116,7 +116,7 @@ func TestGenerator_no_info_step_skips_step_info_file(t *testing.T) {
 }
 
 func TestGenerator_multi_platform_executables(t *testing.T) {
-	out := runGenerate(t)
+	out := runGenerateFromSteplibClone(t)
 
 	// step.json is a models.StepModel marshaled as JSON — same shape as V1 step.yml.
 	var step models.StepModel
@@ -146,7 +146,7 @@ func TestGenerator_multi_platform_executables(t *testing.T) {
 }
 
 func TestGenerator_bash_step_has_no_executables(t *testing.T) {
-	out := runGenerate(t)
+	out := runGenerateFromSteplibClone(t)
 
 	var step models.StepModel
 	readJSON(t, filepath.Join(out, "steps/bash-step/1.0.0/step.json"), &step)
@@ -158,7 +158,7 @@ func TestGenerator_bash_step_has_no_executables(t *testing.T) {
 }
 
 func TestGenerator_per_step_latest_pointer(t *testing.T) {
-	out := runGenerate(t)
+	out := runGenerateFromSteplibClone(t)
 
 	var latest LatestPointerJSON
 	readJSON(t, filepath.Join(out, "spec/steps/hello-step/latest.json"), &latest)
@@ -172,7 +172,7 @@ func TestGenerator_per_step_latest_pointer(t *testing.T) {
 }
 
 func TestGenerator_per_step_versions_newest_first(t *testing.T) {
-	out := runGenerate(t)
+	out := runGenerateFromSteplibClone(t)
 
 	var versions VersionsJSON
 	readJSON(t, filepath.Join(out, "spec/steps/hello-step/versions.json"), &versions)
@@ -195,7 +195,7 @@ func TestGenerator_per_step_versions_newest_first(t *testing.T) {
 }
 
 func TestGenerator_per_step_versions_has_executable(t *testing.T) {
-	out := runGenerate(t)
+	out := runGenerateFromSteplibClone(t)
 
 	var versions VersionsJSON
 	readJSON(t, filepath.Join(out, "spec/steps/multi-platform-step/versions.json"), &versions)
@@ -205,7 +205,7 @@ func TestGenerator_per_step_versions_has_executable(t *testing.T) {
 }
 
 func TestGenerator_catalog_entry(t *testing.T) {
-	out := runGenerate(t)
+	out := runGenerateFromSteplibClone(t)
 
 	var catalog LatestVersionsJSON
 	readJSON(t, filepath.Join(out, "spec/latest_versions.json"), &catalog)
@@ -241,7 +241,7 @@ func TestGenerator_catalog_entry(t *testing.T) {
 
 func TestGenerator_stats(t *testing.T) {
 	out := t.TempDir()
-	stats, err := Generate(
+	stats, err := GenerateFromSteplibClone(
 		"testdata/input",
 		out,
 		Options{GeneratedAt: fixedTime},
@@ -268,7 +268,7 @@ func TestCatalogAssetURL(t *testing.T) {
 	)
 }
 
-func ExampleGenerate() {
+func ExampleGenerateFromSteplibClone() {
 	tmp, err := os.MkdirTemp("", "specv2-example-")
 	if err != nil {
 		fmt.Println(err)
@@ -276,7 +276,7 @@ func ExampleGenerate() {
 	}
 	defer func() { _ = os.RemoveAll(tmp) }()
 
-	stats, err := Generate("testdata/input", tmp, Options{GeneratedAt: fixedTime}, exampleLogger{})
+	stats, err := GenerateFromSteplibClone("testdata/input", tmp, Options{GeneratedAt: fixedTime}, exampleLogger{})
 	if err != nil {
 		fmt.Println(err)
 		return
