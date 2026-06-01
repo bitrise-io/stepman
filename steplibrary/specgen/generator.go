@@ -358,41 +358,48 @@ func buildCatalog(steps []parsedStep, opts Options) LatestVersionsJSON {
 		Steps:            make(map[string]CatalogEntry, len(steps)),
 	}
 	for _, s := range steps {
-		latestStep := s.versions[s.latest]
-		var publishedAt *time.Time
-		if latestStep.PublishedAt != nil && !latestStep.PublishedAt.IsZero() {
-			publishedAt = latestStep.PublishedAt
-		}
-		// Catalog asset URLs are INVENTORY-ROOT-RELATIVE. Catalog consumers
-		// resolve them against the inventory base URL (i.e., the URL the
-		// catalog itself was fetched from, with /spec/latest_versions.json
-		// trimmed). This keeps the V2 inventory portable across hosting
-		// changes — no V1-era S3 host is baked into the catalog payload.
-		var assetURLs map[string]string
-		if len(s.info.AssetURLs) > 0 {
-			assetURLs = make(map[string]string, len(s.info.AssetURLs))
-			for filename, relPath := range s.info.AssetURLs {
-				assetURLs[filename] = catalogAssetURL(s.id, relPath)
-			}
-		}
-		out.Steps[s.id] = CatalogEntry{
-			LatestVersion:   s.latest,
-			PublishedAt:     publishedAt,
-			Title:           derefStr(latestStep.Title),
-			Summary:         derefStr(latestStep.Summary),
-			Maintainer:      s.info.Maintainer,
-			TypeTags:        latestStep.TypeTags,
-			ProjectTypeTags: latestStep.ProjectTypeTags,
-			HostOsTags:      latestStep.HostOsTags,
-			Website:         derefStr(latestStep.Website),
-			SourceCodeURL:   derefStr(latestStep.SourceCodeURL),
-			SupportURL:      derefStr(latestStep.SupportURL),
-			AssetURLs:       assetURLs,
-			HasExecutable:   latestStep.Executables != nil && len(*latestStep.Executables) > 0,
-			Deprecation:     s.info.Deprecation,
-		}
+		out.Steps[s.id] = buildCatalogEntry(s)
 	}
 	return out
+}
+
+func buildCatalogEntry(s parsedStep) CatalogEntry {
+	latestStep := s.versions[s.latest]
+
+	var publishedAt *time.Time
+	if latestStep.PublishedAt != nil && !latestStep.PublishedAt.IsZero() {
+		publishedAt = latestStep.PublishedAt
+	}
+
+	// Catalog asset URLs are INVENTORY-ROOT-RELATIVE. Catalog consumers
+	// resolve them against the inventory base URL (i.e., the URL the
+	// catalog itself was fetched from, with /spec/latest_versions.json
+	// trimmed). This keeps the V2 inventory portable across hosting
+	// changes — no V1-era S3 host is baked into the catalog payload.
+	var assetURLs map[string]string
+	if len(s.info.AssetURLs) > 0 {
+		assetURLs = make(map[string]string, len(s.info.AssetURLs))
+		for filename, relPath := range s.info.AssetURLs {
+			assetURLs[filename] = catalogAssetURL(s.id, relPath)
+		}
+	}
+
+	return CatalogEntry{
+		LatestVersion:   s.latest,
+		PublishedAt:     publishedAt,
+		Title:           derefStr(latestStep.Title),
+		Summary:         derefStr(latestStep.Summary),
+		Maintainer:      s.info.Maintainer,
+		TypeTags:        latestStep.TypeTags,
+		ProjectTypeTags: latestStep.ProjectTypeTags,
+		HostOsTags:      latestStep.HostOsTags,
+		Website:         derefStr(latestStep.Website),
+		SourceCodeURL:   derefStr(latestStep.SourceCodeURL),
+		SupportURL:      derefStr(latestStep.SupportURL),
+		AssetURLs:       assetURLs,
+		HasExecutable:   latestStep.Executables != nil && len(*latestStep.Executables) > 0,
+		Deprecation:     s.info.Deprecation,
+	}
 }
 
 // catalogAssetURL produces the inventory-root-relative path the catalog
