@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"github.com/bitrise-io/stepman/models"
@@ -252,8 +253,113 @@ func TestGenerator_stats(t *testing.T) {
 	assert.Equal(t, 5, stats.StepCount)
 	// hello-step:3 + deprecated:1 + multi-platform:1 + bash:1 + no-info:1
 	assert.Equal(t, 7, stats.VersionCount)
-	assert.Positive(t, stats.FilesWritten)
+	// step-level: bash(2) + deprecated(2) + hello(5) + multi-platform(3) + no-info(1) = 13
+	// spec/:      step_ids + latest_versions + 5×(latest+versions) = 12
+	// meta.json:  1
+	assert.Equal(t, 26, stats.FilesWritten)
 	assert.Positive(t, stats.BytesWritten)
+}
+
+func TestGenerator_asset_permissions_preserved(t *testing.T) {
+	out := runGenerateFromSteplibClone(t)
+
+	src := "testdata/input/steps/hello-step/assets/icon.svg"
+	dst := filepath.Join(out, "steps/hello-step/assets/icon.svg")
+
+	srcInfo, err := os.Stat(src)
+	require.NoError(t, err)
+	dstInfo, err := os.Stat(dst)
+	require.NoError(t, err)
+
+	assert.Equal(t, srcInfo.Mode(), dstInfo.Mode(), "copied asset should preserve source file permissions")
+}
+
+func TestGenerator_step_info_written_for_assets_only_step(t *testing.T) {
+	// step-info.json should be written when a step has assets but no step-info.yml.
+	inputFS := fstest.MapFS{
+		"steplib.yml": {Data: []byte("format_version: '0.9.0'\nsteplib_source: 'https://example.com'\n")},
+		"steps/asset-only-step/1.0.0/step.yml": {Data: []byte("title: Asset Only\n")},
+		"steps/asset-only-step/assets/icon.svg": {Data: []byte("<svg/>"), Mode: 0o644},
+	}
+	out := t.TempDir()
+	_, err := GenerateFromSteplibClone(inputFS, out, Options{GeneratedAt: fixedTime}, testLogger{t})
+	require.NoError(t, err)
+
+	// step-info.json must exist even without step-info.yml because there are assets.
+	var info StepInfoJSON
+	readJSON(t, filepath.Join(out, "steps/asset-only-step/step-info.json"), &info)
+	assert.Equal(t, map[string]string{"icon.svg": "assets/icon.svg"}, info.AssetURLs)
+	assert.Empty(t, info.Maintainer)
+	assert.Nil(t, info.Deprecation)
+}
+
+func TestGenerator_invalid_version_dir_skipped(t *testing.T) {
+	inputFS := fstest.MapFS{
+		"steplib.yml":                              {Data: []byte("format_version: '0.9.0'\n")},
+		"steps/my-step/1.0.0/step.yml":             {Data: []byte("title: My Step\n")},
+		"steps/my-step/not-a-semver/step.yml":      {Data: []byte("title: Should be skipped\n")},
+		"steps/my-step/also-not-semver/step.yml":   {Data: []byte("title: Also skipped\n")},
+	}
+	out := t.TempDir()
+	stats, err := GenerateFromSteplibClone(inputFS, out, Options{GeneratedAt: fixedTime}, testLogger{t})
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, stats.StepCount)
+	assert.Equal(t, 1, stats.VersionCount)
+
+	// Only the valid version is written.
+	_, err = os.Stat(filepath.Join(out, "steps/my-step/1.0.0/step.json"))
+	assert.NoError(t, err)
+	_, err = os.Stat(filepath.Join(out, "steps/my-step/not-a-semver/step.json"))
+	assert.True(t, os.IsNotExist(err))
+}
+
+func TestGenerator_single_version_latest_pointer(t *testing.T) {
+	out := runGenerateFromSteplibClone(t)
+
+	// bash-step has exactly one version (1.0.0) in a single major.
+	var latest LatestPointerJSON
+	readJSON(t, filepath.Join(out, "spec/steps/bash-step/latest.json"), &latest)
+
+	assert.Equal(t, "bash-step", latest.StepID)
+	assert.Equal(t, "1.0.0", latest.Latest)
+	assert.Equal(t, map[string]string{"1": "1.0.0"}, latest.LatestByMajor)
+}
+
+func TestGenerator_catalog_no_info_and_bash_entries(t *testing.T) {
+	out := runGenerateFromSteplibClone(t)
+
+	var catalog LatestVersionsJSON
+	readJSON(t, filepath.Join(out, "spec/latest_versions.json"), &catalog)
+
+	noInfo, ok := catalog.Steps["no-info-step"]
+	require.True(t, ok)
+	assert.Equal(t, "1.0.0", noInfo.LatestVersion)
+	assert.Empty(t, noInfo.Maintainer)
+	assert.Nil(t, noInfo.Deprecation)
+	assert.Empty(t, noInfo.AssetURLs)
+	assert.False(t, noInfo.HasExecutable)
+
+	bash, ok := catalog.Steps["bash-step"]
+	require.True(t, ok)
+	assert.Equal(t, "1.0.0", bash.LatestVersion)
+	assert.Equal(t, "community", bash.Maintainer)
+	assert.Nil(t, bash.Deprecation)
+	assert.False(t, bash.HasExecutable)
+}
+
+func TestWithDefaults_fills_zero_generated_at(t *testing.T) {
+	before := time.Now()
+	opts := withDefaults(Options{SteplibCommitSHA: "abc"})
+	after := time.Now()
+
+	assert.WithinRange(t, opts.GeneratedAt, before, after)
+	assert.Equal(t, "abc", opts.SteplibCommitSHA, "non-zero fields must not be overwritten")
+}
+
+func TestWithDefaults_preserves_non_zero_generated_at(t *testing.T) {
+	opts := withDefaults(Options{GeneratedAt: fixedTime})
+	assert.Equal(t, fixedTime, opts.GeneratedAt)
 }
 
 func TestCatalogAssetURL(t *testing.T) {
