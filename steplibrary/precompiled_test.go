@@ -14,6 +14,7 @@ import (
 
 	"github.com/bitrise-io/go-utils/v2/fileutil"
 	"github.com/bitrise-io/stepman/models"
+	"github.com/bitrise-io/stepman/steplibrary/spec"
 )
 
 // fakeFetcher implements httpfetch.Client by writing a fixed byte payload on
@@ -70,7 +71,7 @@ func TestSteplib_Activate_Precompiled(t *testing.T) {
 
 	api := fakeAPI{
 		ids: []string{"script"},
-		latestVersions: map[string]StepVersionsLatest{
+		latestVersions: map[string]spec.LatestPointer{
 			"script": {StepID: "script", Latest: "3.0.0"},
 		},
 		stepModel: map[string]models.StepModel{"script": stepModel},
@@ -154,7 +155,7 @@ func TestSteplib_Activate_PrecompiledHashMismatch_FallsBackToSource(t *testing.T
 
 	api := fakeAPI{
 		ids: []string{"script"},
-		latestVersions: map[string]StepVersionsLatest{
+		latestVersions: map[string]spec.LatestPointer{
 			"script": {StepID: "script", Latest: "3.0.0"},
 		},
 		stepModel:     map[string]models.StepModel{"script": stepModel},

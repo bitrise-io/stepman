@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/bitrise-io/stepman/models"
+	"github.com/bitrise-io/stepman/steplibrary/spec"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -50,10 +51,10 @@ func readJSON(t *testing.T, path string, into any) {
 func TestGenerator_meta(t *testing.T) {
 	out := runGenerateFromSteplibClone(t)
 
-	var meta MetaJSON
+	var meta spec.Meta
 	readJSON(t, filepath.Join(out, "meta.json"), &meta)
 
-	assert.Equal(t, FormatVersion, meta.FormatVersion)
+	assert.Equal(t, spec.FormatVersion, meta.FormatVersion)
 	assert.Equal(t, 2, meta.FormatVersion)
 	assert.Equal(t, fixedTime, meta.UpdatedAt)
 	assert.Equal(t, "deadbeefcafef00d", meta.SteplibCommitSHA)
@@ -67,7 +68,7 @@ func TestGenerator_meta(t *testing.T) {
 func TestGenerator_step_ids_sorted(t *testing.T) {
 	out := runGenerateFromSteplibClone(t)
 
-	var ids StepIDsJSON
+	var ids spec.StepIDs
 	readJSON(t, filepath.Join(out, "spec/step_ids.json"), &ids)
 
 	want := []string{"bash-step", "deprecated-step", "hello-step", "multi-platform-step", "no-info-step"}
@@ -78,7 +79,7 @@ func TestGenerator_step_ids_sorted(t *testing.T) {
 func TestGenerator_normal_step_info_and_asset_copy(t *testing.T) {
 	out := runGenerateFromSteplibClone(t)
 
-	var info StepInfoJSON
+	var info spec.StepInfo
 	readJSON(t, filepath.Join(out, "steps/hello-step/step-info.json"), &info)
 
 	assert.Equal(t, "bitrise", info.Maintainer)
@@ -93,7 +94,7 @@ func TestGenerator_normal_step_info_and_asset_copy(t *testing.T) {
 func TestGenerator_deprecated_step(t *testing.T) {
 	out := runGenerateFromSteplibClone(t)
 
-	var info StepInfoJSON
+	var info spec.StepInfo
 	readJSON(t, filepath.Join(out, "steps/deprecated-step/step-info.json"), &info)
 
 	assert.Equal(t, "community", info.Maintainer)
@@ -167,7 +168,7 @@ func TestGenerator_bash_step_has_no_executables(t *testing.T) {
 func TestGenerator_per_step_latest_pointer(t *testing.T) {
 	out := runGenerateFromSteplibClone(t)
 
-	var latest LatestPointerJSON
+	var latest spec.LatestPointer
 	readJSON(t, filepath.Join(out, "spec/steps/hello-step/latest.json"), &latest)
 
 	assert.Equal(t, "hello-step", latest.StepID)
@@ -181,7 +182,7 @@ func TestGenerator_per_step_latest_pointer(t *testing.T) {
 func TestGenerator_per_step_versions_newest_first(t *testing.T) {
 	out := runGenerateFromSteplibClone(t)
 
-	var versions VersionsJSON
+	var versions spec.Versions
 	readJSON(t, filepath.Join(out, "spec/steps/hello-step/versions.json"), &versions)
 
 	assert.Equal(t, "hello-step", versions.StepID)
@@ -204,7 +205,7 @@ func TestGenerator_per_step_versions_newest_first(t *testing.T) {
 func TestGenerator_per_step_versions_has_executable(t *testing.T) {
 	out := runGenerateFromSteplibClone(t)
 
-	var versions VersionsJSON
+	var versions spec.Versions
 	readJSON(t, filepath.Join(out, "spec/steps/multi-platform-step/versions.json"), &versions)
 
 	require.Len(t, versions.Versions, 1)
@@ -214,7 +215,7 @@ func TestGenerator_per_step_versions_has_executable(t *testing.T) {
 func TestGenerator_catalog_entry(t *testing.T) {
 	out := runGenerateFromSteplibClone(t)
 
-	var catalog LatestVersionsJSON
+	var catalog spec.Catalog
 	readJSON(t, filepath.Join(out, "spec/latest_versions.json"), &catalog)
 
 	assert.Equal(t, fixedTime, catalog.GeneratedAt)
@@ -292,7 +293,7 @@ func TestGenerator_step_info_written_for_assets_only_step(t *testing.T) {
 	require.NoError(t, err)
 
 	// step-info.json must exist even without step-info.yml because there are assets.
-	var info StepInfoJSON
+	var info spec.StepInfo
 	readJSON(t, filepath.Join(out, "steps/asset-only-step/step-info.json"), &info)
 	assert.Equal(t, map[string]string{"icon.svg": "assets/icon.svg"}, info.AssetURLs)
 	assert.Empty(t, info.Maintainer)
@@ -324,7 +325,7 @@ func TestGenerator_single_version_latest_pointer(t *testing.T) {
 	out := runGenerateFromSteplibClone(t)
 
 	// bash-step has exactly one version (1.0.0) in a single major.
-	var latest LatestPointerJSON
+	var latest spec.LatestPointer
 	readJSON(t, filepath.Join(out, "spec/steps/bash-step/latest.json"), &latest)
 
 	assert.Equal(t, "bash-step", latest.StepID)
@@ -335,7 +336,7 @@ func TestGenerator_single_version_latest_pointer(t *testing.T) {
 func TestGenerator_catalog_no_info_and_bash_entries(t *testing.T) {
 	out := runGenerateFromSteplibClone(t)
 
-	var catalog LatestVersionsJSON
+	var catalog spec.Catalog
 	readJSON(t, filepath.Join(out, "spec/latest_versions.json"), &catalog)
 
 	noInfo, ok := catalog.Steps["no-info-step"]

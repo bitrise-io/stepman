@@ -14,6 +14,7 @@ import (
 
 	"github.com/bitrise-io/stepman/models"
 	"github.com/bitrise-io/stepman/stepman"
+	"github.com/bitrise-io/stepman/steplibrary/spec"
 	"gopkg.in/yaml.v2"
 )
 
@@ -65,8 +66,8 @@ func GenerateFromSteplibClone(inputFS fs.FS, outputDir string, opts Options, log
 		return Stats{}, fmt.Errorf("write spec files: %w", err)
 	}
 
-	meta := MetaJSON{
-		FormatVersion:     FormatVersion,
+	meta := spec.Meta{
+		FormatVersion:     spec.FormatVersion,
 		UpdatedAt:         opts.GeneratedAt,
 		SteplibCommitSHA:  opts.SteplibCommitSHA,
 		SteplibSource:     steplibYML.SteplibSource,
@@ -101,7 +102,7 @@ func withDefaults(o Options) Options {
 // phase, used by the write phase to emit per-step and index files.
 type parsedStep struct {
 	id          string
-	info        StepInfoJSON // step-info.yml + assets/ listing
+	info        spec.StepInfo // step-info.yml + assets/ listing
 	hasInfoFile bool         // whether step-info.yml existed
 	assetFiles  []string     // relative paths under assets/, sorted
 	versions    map[string]models.StepModel
@@ -137,7 +138,7 @@ func collectSteps(inputFS fs.FS, log stepman.Logger) ([]parsedStep, error) {
 func collectStep(inputFS fs.FS, id string, log stepman.Logger) (parsedStep, error) {
 	s := parsedStep{
 		id:          id,
-		info:        StepInfoJSON{Maintainer: "", Deprecation: nil, AssetURLs: nil},
+		info:        spec.StepInfo{Maintainer: "", Deprecation: nil, AssetURLs: nil},
 		hasInfoFile: false,
 		assetFiles:  nil,
 		versions:    map[string]models.StepModel{},
@@ -208,25 +209,25 @@ func readSteplibYML(inputFS fs.FS) (models.StepCollectionModel, error) {
 	return c, nil
 }
 
-func readStepGroupInfo(inputFS fs.FS, path string) (StepInfoJSON, bool, error) {
+func readStepGroupInfo(inputFS fs.FS, path string) (spec.StepInfo, bool, error) {
 	bytes, err := fs.ReadFile(inputFS, path)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return StepInfoJSON{}, false, nil
+			return spec.StepInfo{}, false, nil
 		}
-		return StepInfoJSON{}, false, err
+		return spec.StepInfo{}, false, err
 	}
 	var sgi models.StepGroupInfoModel
 	if err := yaml.Unmarshal(bytes, &sgi); err != nil {
-		return StepInfoJSON{}, true, err
+		return spec.StepInfo{}, true, err
 	}
-	out := StepInfoJSON{
+	out := spec.StepInfo{
 		Maintainer:  sgi.Maintainer,
 		Deprecation: nil,
 		AssetURLs:   nil,
 	}
 	if sgi.RemovalDate != "" || sgi.DeprecateNotes != "" {
-		out.Deprecation = &DeprecationJSON{
+		out.Deprecation = &spec.Deprecation{
 			RemovalDate: sgi.RemovalDate,
 			Notes:       sgi.DeprecateNotes,
 		}
@@ -331,7 +332,7 @@ func writeSpecFiles(w *writer, steps []parsedStep, opts Options) error {
 	for i, s := range steps {
 		ids[i] = s.id
 	}
-	if err := w.writeJSON("spec/step_ids.json", StepIDsJSON{StepIDs: ids}); err != nil {
+	if err := w.writeJSON("spec/step_ids.json", spec.StepIDs{StepIDs: ids}); err != nil {
 		return err
 	}
 
@@ -351,11 +352,11 @@ func writeSpecFiles(w *writer, steps []parsedStep, opts Options) error {
 	return nil
 }
 
-func buildCatalog(steps []parsedStep, opts Options) LatestVersionsJSON {
-	out := LatestVersionsJSON{
+func buildCatalog(steps []parsedStep, opts Options) spec.Catalog {
+	out := spec.Catalog{
 		GeneratedAt:      opts.GeneratedAt,
 		SteplibCommitSHA: opts.SteplibCommitSHA,
-		Steps:            make(map[string]CatalogEntry, len(steps)),
+		Steps:            make(map[string]spec.CatalogEntry, len(steps)),
 	}
 	for _, s := range steps {
 		out.Steps[s.id] = buildCatalogEntry(s)
@@ -363,7 +364,7 @@ func buildCatalog(steps []parsedStep, opts Options) LatestVersionsJSON {
 	return out
 }
 
-func buildCatalogEntry(s parsedStep) CatalogEntry {
+func buildCatalogEntry(s parsedStep) spec.CatalogEntry {
 	latestStep := s.versions[s.latest]
 
 	var publishedAt *time.Time
@@ -384,7 +385,7 @@ func buildCatalogEntry(s parsedStep) CatalogEntry {
 		}
 	}
 
-	return CatalogEntry{
+	return spec.CatalogEntry{
 		LatestVersion:   s.latest,
 		PublishedAt:     publishedAt,
 		Title:           derefStr(latestStep.Title),
@@ -410,7 +411,7 @@ func catalogAssetURL(stepID, relPath string) string {
 	return "steps/" + stepID + "/" + relPath
 }
 
-func buildLatestPointer(s parsedStep) LatestPointerJSON {
+func buildLatestPointer(s parsedStep) spec.LatestPointer {
 	byMajor := map[string]models.Semver{}
 	for _, v := range s.versionList {
 		sv, err := models.ParseSemver(v)
@@ -427,15 +428,15 @@ func buildLatestPointer(s parsedStep) LatestPointerJSON {
 	for k, v := range byMajor {
 		latestByMajor[k] = v.String()
 	}
-	return LatestPointerJSON{
+	return spec.LatestPointer{
 		StepID:        s.id,
 		Latest:        s.latest,
 		LatestByMajor: latestByMajor,
 	}
 }
 
-func buildVersionsJSON(s parsedStep) VersionsJSON {
-	entries := make([]VersionEntry, 0, len(s.versionList))
+func buildVersionsJSON(s parsedStep) spec.Versions {
+	entries := make([]spec.VersionEntry, 0, len(s.versionList))
 	// Newest-first order: walk versionList in reverse.
 	for i := len(s.versionList) - 1; i >= 0; i-- {
 		v := s.versionList[i]
@@ -448,14 +449,14 @@ func buildVersionsJSON(s parsedStep) VersionsJSON {
 		if step.Source != nil {
 			commit = step.Source.Commit
 		}
-		entries = append(entries, VersionEntry{
+		entries = append(entries, spec.VersionEntry{
 			Version:       v,
 			PublishedAt:   publishedAt,
 			HasExecutable: step.Executables != nil && len(*step.Executables) > 0,
 			Commit:        commit,
 		})
 	}
-	return VersionsJSON{
+	return spec.Versions{
 		StepID:   s.id,
 		Latest:   s.latest,
 		Versions: entries,

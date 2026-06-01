@@ -11,6 +11,7 @@ import (
 
 	"github.com/bitrise-io/go-utils/v2/fileutil"
 	"github.com/bitrise-io/stepman/models"
+	"github.com/bitrise-io/stepman/steplibrary/spec"
 )
 
 type discardLogger struct{}
@@ -24,11 +25,11 @@ type fakeAPI struct {
 	FakeAPI
 	ids               []string
 	listErr           error
-	latestVersions    map[string]StepVersionsLatest
+	latestVersions    map[string]spec.LatestPointer
 	latestVersionsErr error
 	allVersions       map[string][]string
 	allVersionsErr    error
-	groupInfo         map[string]StepGroupInfo
+	groupInfo         map[string]spec.StepInfo
 	groupInfoErr      error
 	stepModel         map[string]models.StepModel
 	zipSourcePath     string
@@ -38,13 +39,13 @@ func (f fakeAPI) GetAllStepIDs(_ context.Context) ([]string, error) {
 	return f.ids, f.listErr
 }
 
-func (f fakeAPI) GetLatestStepVersions(_ context.Context, id string) (StepVersionsLatest, error) {
+func (f fakeAPI) GetLatestStepVersions(_ context.Context, id string) (spec.LatestPointer, error) {
 	if f.latestVersionsErr != nil {
-		return StepVersionsLatest{}, f.latestVersionsErr
+		return spec.LatestPointer{}, f.latestVersionsErr
 	}
 	v, ok := f.latestVersions[id]
 	if !ok {
-		return StepVersionsLatest{}, errors.New("not found")
+		return spec.LatestPointer{}, errors.New("not found")
 	}
 	return v, nil
 }
@@ -60,14 +61,14 @@ func (f fakeAPI) GetAllStepVersions(_ context.Context, id string) ([]string, err
 	return v, nil
 }
 
-func (f fakeAPI) GetStepGroupInfo(ctx context.Context, id string) (StepGroupInfo, error) {
+func (f fakeAPI) GetStepGroupInfo(ctx context.Context, id string) (spec.StepInfo, error) {
 	if f.groupInfoErr != nil {
-		return StepGroupInfo{}, f.groupInfoErr
+		return spec.StepInfo{}, f.groupInfoErr
 	}
 	if f.groupInfo != nil {
 		v, ok := f.groupInfo[id]
 		if !ok {
-			return StepGroupInfo{}, errors.New("not found")
+			return spec.StepInfo{}, errors.New("not found")
 		}
 		return v, nil
 	}
@@ -126,7 +127,7 @@ func TestSteplib_Activate(t *testing.T) {
 
 	scriptOnly := fakeAPI{
 		ids: []string{"script"},
-		latestVersions: map[string]StepVersionsLatest{
+		latestVersions: map[string]spec.LatestPointer{
 			"script": {
 				StepID: "script",
 				Latest: "3.0.0",
@@ -236,7 +237,7 @@ func TestSteplib_Activate(t *testing.T) {
 			name: "group info error propagates",
 			api: fakeAPI{
 				ids: []string{"script"},
-				latestVersions: map[string]StepVersionsLatest{
+				latestVersions: map[string]spec.LatestPointer{
 					"script": {StepID: "script", Latest: "3.0.0"},
 				},
 				groupInfoErr: errors.New("infoboom"),
@@ -297,7 +298,7 @@ func TestSteplib_Activate(t *testing.T) {
 
 func TestToStepGroupInfoModel(t *testing.T) {
 	t.Run("active step has empty deprecation fields", func(t *testing.T) {
-		got := toStepGroupInfoModel(StepGroupInfo{
+		got := toStepGroupInfoModel(spec.StepInfo{
 			Maintainer:  "bitrise",
 			Deprecation: nil,
 			AssetURLs:   map[string]string{"icon.svg": "assets/icon.svg"},
@@ -314,9 +315,9 @@ func TestToStepGroupInfoModel(t *testing.T) {
 	})
 
 	t.Run("deprecated step flattens nested fields", func(t *testing.T) {
-		got := toStepGroupInfoModel(StepGroupInfo{
+		got := toStepGroupInfoModel(spec.StepInfo{
 			Maintainer: "community",
-			Deprecation: &Deprecation{
+			Deprecation: &spec.Deprecation{
 				RemovalDate: "2025-12-31",
 				Notes:       "Replaced by `new-step`.",
 			},

@@ -16,6 +16,7 @@ import (
 	"github.com/bitrise-io/stepman/internal/httpfetch"
 	"github.com/bitrise-io/stepman/models"
 	"github.com/bitrise-io/stepman/stepman"
+	"github.com/bitrise-io/stepman/steplibrary/spec"
 	"gopkg.in/yaml.v2"
 )
 
@@ -139,7 +140,7 @@ func (s *Steplib) getStepVersionInfo(ctx context.Context, stepID, version string
 		err = fmt.Errorf("invalid step version constraint: %s", version)
 	}
 
-	var latestVersions StepVersionsLatest
+	var latestVersions spec.LatestPointer
 	if err == nil {
 		latestVersions, err = s.api.GetLatestStepVersions(ctx, stepID)
 		if err != nil {
@@ -147,7 +148,7 @@ func (s *Steplib) getStepVersionInfo(ctx context.Context, stepID, version string
 		}
 	}
 
-	var groupInfo StepGroupInfo
+	var groupInfo spec.StepInfo
 	if err == nil {
 		groupInfo, err = s.api.GetStepGroupInfo(ctx, stepID)
 		if err != nil {
@@ -206,7 +207,7 @@ func (s *Steplib) getStepVersionInfo(ctx context.Context, stepID, version string
 // toStepGroupInfoModel flattens v2's nested `deprecation` object into v1's
 // `RemovalDate` + `DeprecateNotes` fields so the rest of the codebase keeps
 // reading the same model shape.
-func toStepGroupInfoModel(info StepGroupInfo) models.StepGroupInfoModel {
+func toStepGroupInfoModel(info spec.StepInfo) models.StepGroupInfoModel {
 	out := models.StepGroupInfoModel{
 		Maintainer:     info.Maintainer,
 		AssetURLs:      info.AssetURLs,

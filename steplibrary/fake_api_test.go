@@ -7,6 +7,7 @@ import (
 
 	"github.com/bitrise-io/go-utils/pointers"
 	"github.com/bitrise-io/stepman/models"
+	"github.com/bitrise-io/stepman/steplibrary/spec"
 )
 
 // FakeAPI is an in-memory API implementation used as a base for test fakes
@@ -17,8 +18,8 @@ func (m FakeAPI) GetAllStepIDs(_ context.Context) ([]string, error) {
 	return []string{"xcode-test", "script"}, nil
 }
 
-func (m FakeAPI) GetLatestStepVersions(_ context.Context, id string) (StepVersionsLatest, error) {
-	versions := map[string]StepVersionsLatest{
+func (m FakeAPI) GetLatestStepVersions(_ context.Context, id string) (spec.LatestPointer, error) {
+	versions := map[string]spec.LatestPointer{
 		"script": {
 			StepID: "script",
 			Latest: "3.0.0",
@@ -32,7 +33,7 @@ func (m FakeAPI) GetLatestStepVersions(_ context.Context, id string) (StepVersio
 
 	v, ok := versions[id]
 	if !ok {
-		return StepVersionsLatest{}, errors.New("not found")
+		return spec.LatestPointer{}, errors.New("not found")
 	}
 	return v, nil
 }
@@ -48,8 +49,8 @@ func (m FakeAPI) GetAllStepVersions(_ context.Context, id string) ([]string, err
 	return v, nil
 }
 
-func (m FakeAPI) GetStepGroupInfo(_ context.Context, id string) (StepGroupInfo, error) {
-	infos := map[string]StepGroupInfo{
+func (m FakeAPI) GetStepGroupInfo(_ context.Context, id string) (spec.StepInfo, error) {
+	infos := map[string]spec.StepInfo{
 		"script": {
 			Maintainer:  "bitrise",
 			Deprecation: nil,
@@ -60,7 +61,7 @@ func (m FakeAPI) GetStepGroupInfo(_ context.Context, id string) (StepGroupInfo, 
 	}
 	v, ok := infos[id]
 	if !ok {
-		return StepGroupInfo{}, errors.New("not found")
+		return spec.StepInfo{}, errors.New("not found")
 	}
 	return v, nil
 }

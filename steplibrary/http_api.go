@@ -11,6 +11,7 @@ import (
 
 	"github.com/bitrise-io/stepman/internal/httpfetch"
 	"github.com/bitrise-io/stepman/models"
+	"github.com/bitrise-io/stepman/steplibrary/spec"
 )
 
 // HTTPAPI fetches the V2 inventory layout (step_ids.json, latest.json,
@@ -32,30 +33,21 @@ func NewHTTPAPI(baseURL, cacheDir string, client *http.Client, logger httpfetch.
 }
 
 func (h *HTTPAPI) GetAllStepIDs(ctx context.Context) ([]string, error) {
-	var payload struct {
-		FormatVersion string   `json:"format_version"`
-		StepIDs       []string `json:"step_ids"`
-	}
+	var payload spec.StepIDs
 	if err := h.fetchJSON(ctx, "/spec/step_ids.json", &payload); err != nil {
 		return nil, err
 	}
 	return payload.StepIDs, nil
 }
 
-func (h *HTTPAPI) GetLatestStepVersions(ctx context.Context, id string) (StepVersionsLatest, error) {
-	var out StepVersionsLatest
+func (h *HTTPAPI) GetLatestStepVersions(ctx context.Context, id string) (spec.LatestPointer, error) {
+	var out spec.LatestPointer
 	err := h.fetchJSON(ctx, fmt.Sprintf("/spec/steps/%s/latest.json", url.PathEscape(id)), &out)
 	return out, err
 }
 
 func (h *HTTPAPI) GetAllStepVersions(ctx context.Context, id string) ([]string, error) {
-	var payload struct {
-		StepID   string `json:"step_id"`
-		Latest   string `json:"latest"`
-		Versions []struct {
-			Version string `json:"version"`
-		} `json:"versions"`
-	}
+	var payload spec.Versions
 	if err := h.fetchJSON(ctx, fmt.Sprintf("/spec/steps/%s/versions.json", url.PathEscape(id)), &payload); err != nil {
 		return nil, err
 	}
@@ -66,9 +58,9 @@ func (h *HTTPAPI) GetAllStepVersions(ctx context.Context, id string) ([]string, 
 	return out, nil
 }
 
-func (h *HTTPAPI) GetStepGroupInfo(ctx context.Context, id string) (StepGroupInfo, error) {
+func (h *HTTPAPI) GetStepGroupInfo(ctx context.Context, id string) (spec.StepInfo, error) {
 	//nolint:exhaustruct // Deprecation is optional, nil means active
-	out := StepGroupInfo{}
+	out := spec.StepInfo{}
 	err := h.fetchJSON(ctx, fmt.Sprintf("/steps/%s/step-info.json", url.PathEscape(id)), &out)
 	return out, err
 }
