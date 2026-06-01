@@ -1,4 +1,4 @@
-package specv2
+package specgen
 
 import (
 	"encoding/json"

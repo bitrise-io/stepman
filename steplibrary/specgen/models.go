@@ -9,7 +9,7 @@
 // are V1's models.StepModel marshaled as JSON — same shape, different
 // encoding. The other types below describe the new inventory-level and
 // index files that have no V1 equivalent.
-package specv2
+package specgen
 
 import (
 	"time"

@@ -12,7 +12,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/bitrise-io/stepman/specv2"
+	"github.com/bitrise-io/stepman/steplibrary/specgen"
 )
 
 type stderrLogger struct{}
@@ -51,12 +51,12 @@ func main() {
 		generatedAt = ts
 	}
 
-	opts := specv2.Options{
+	opts := specgen.Options{
 		GeneratedAt:      generatedAt,
 		SteplibCommitSHA: *commitSHA,
 	}
 
-	stats, err := specv2.Generate(*input, *output, opts, stderrLogger{})
+	stats, err := specgen.Generate(*input, *output, opts, stderrLogger{})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %s\n", err)
 		os.Exit(1)
