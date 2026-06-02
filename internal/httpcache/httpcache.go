@@ -140,6 +140,7 @@ func (t *Transport) fetchAndStore(req *http.Request, key string) (*http.Response
 // so buffering in memory keeps the write atomic and the code simple.
 func (t *Transport) store200(req *http.Request, key string, resp *http.Response) (*http.Response, error) {
 	fetchedAt := time.Now()
+	//nolint:exhaustruct // freshness/validator fields are filled by applyCacheHeaders; hash/size below
 	meta := Meta{
 		URL:         req.URL.String(),
 		Method:      req.Method,
@@ -191,6 +192,7 @@ func (t *Transport) serveBytes(req *http.Request, meta Meta, body []byte, reason
 	setIfNotEmpty(header, "Last-Modified", meta.LastModified)
 	header.Set("X-From-Cache", "1")
 
+	//nolint:exhaustruct // a synthesized response only needs status, headers, and body
 	return &http.Response{
 		Status:        "200 OK",
 		StatusCode:    http.StatusOK,
