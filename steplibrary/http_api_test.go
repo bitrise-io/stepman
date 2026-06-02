@@ -35,8 +35,7 @@ func TestHTTPAPI(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
-	cacheDir := t.TempDir()
-	api := NewHTTPAPI(srv.URL, cacheDir, srv.Client(), discardLogger{})
+	api := NewHTTPAPI(srv.URL, srv.Client(), discardLogger{})
 	ctx := context.Background()
 
 	t.Run("GetAllStepIDs", func(t *testing.T) {
@@ -85,7 +84,6 @@ func TestHTTPAPI(t *testing.T) {
 // pattern in fetchJSON: when decoding succeeds but closing the body fails, the
 // close error must surface as the call's error.
 func TestHTTPAPI_fetchJSON_propagatesCloseError(t *testing.T) {
-	//nolint:exhaustruct // CacheDir is irrelevant to this JSON-decoding path
 	api := &HTTPAPI{
 		BaseURL: "http://example.test",
 		Fetcher: fakeGetFetcher{body: `{"step_ids":["a","b"]}`, closeErr: errors.New("boom")},

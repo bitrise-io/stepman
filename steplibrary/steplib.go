@@ -2,9 +2,6 @@ package steplibrary
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	"path/filepath"
 
 	"github.com/bitrise-io/go-utils/v2/fileutil"
 	"github.com/bitrise-io/stepman/internal/httpfetch"
@@ -35,7 +32,7 @@ type ActivateOutputPaths struct {
 // the base URL the V2 inventory JSON is fetched from. They differ for the
 // official steplib, whose git identity is rewritten to a compiled-in V2 host.
 func New(log stepman.Logger, steplibURI, inventoryURL string, isOfflineMode bool, fileManager fileutil.FileManager) *Steplib {
-	api := NewHTTPAPI(inventoryURL, v2CacheDir(inventoryURL), nil, log)
+	api := NewHTTPAPI(inventoryURL, nil, log)
 	s := &Steplib{
 		log:              log,
 		steplibURI:       steplibURI,
@@ -47,12 +44,4 @@ func New(log stepman.Logger, steplibURI, inventoryURL string, isOfflineMode bool
 	}
 	s.fetchSourceDirFn = s.getStepSourceDir
 	return s
-}
-
-// v2CacheDir returns a stable on-disk cache directory for a given steplib URL.
-// Keyed by a sha256 prefix so different URLs don't collide and the directory
-// name is filesystem-safe.
-func v2CacheDir(steplibURI string) string {
-	sum := sha256.Sum256([]byte(steplibURI))
-	return filepath.Join(stepman.GetStepmanDirPath(), "v2-cache", hex.EncodeToString(sum[:8]))
 }

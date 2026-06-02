@@ -24,8 +24,7 @@ func TestHTTPAPI_Integration(t *testing.T) {
 	srv := httptest.NewServer(http.FileServer(http.Dir(sampleDir)))
 	t.Cleanup(srv.Close)
 
-	cacheDir := t.TempDir()
-	api := NewHTTPAPI(srv.URL, cacheDir, srv.Client(), discardLogger{})
+	api := NewHTTPAPI(srv.URL, srv.Client(), discardLogger{})
 	ctx := context.Background()
 
 	t.Run("GetAllStepIDs returns sample step IDs", func(t *testing.T) {

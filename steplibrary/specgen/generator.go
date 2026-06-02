@@ -1,3 +1,6 @@
+// Package specgen generates the V2 step library inventory tree from a
+// bitrise-steplib source. The wire-format types it emits live in
+// steplibrary/spec.
 package specgen
 
 import (
