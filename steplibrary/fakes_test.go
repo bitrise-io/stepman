@@ -86,64 +86,6 @@ func (m FakeAPI) GetStepModel(_ context.Context, step ResolvedStepVersion) (mode
 	}, nil
 }
 
-// fakeAPI embeds FakeAPI and overrides methods with table-driven fixtures and
-// injectable errors for the Activate/resolve tests.
-type fakeAPI struct {
-	FakeAPI
-	ids               []string
-	listErr           error
-	latestVersions    map[string]spec.LatestPointer
-	latestVersionsErr error
-	allVersions       map[string][]string
-	allVersionsErr    error
-	groupInfoErr      error
-	stepModel         map[string]models.StepModel
-}
-
-func (f fakeAPI) GetAllStepIDs(_ context.Context) ([]string, error) {
-	return f.ids, f.listErr
-}
-
-func (f fakeAPI) GetLatestStepVersions(_ context.Context, id string) (spec.LatestPointer, error) {
-	if f.latestVersionsErr != nil {
-		return spec.LatestPointer{}, f.latestVersionsErr
-	}
-	v, ok := f.latestVersions[id]
-	if !ok {
-		return spec.LatestPointer{}, errors.New("not found")
-	}
-	return v, nil
-}
-
-func (f fakeAPI) GetAllStepVersions(_ context.Context, id string) ([]string, error) {
-	if f.allVersionsErr != nil {
-		return nil, f.allVersionsErr
-	}
-	v, ok := f.allVersions[id]
-	if !ok {
-		return nil, errors.New("not found")
-	}
-	return v, nil
-}
-
-func (f fakeAPI) GetStepGroupInfo(ctx context.Context, id string) (spec.StepInfo, error) {
-	if f.groupInfoErr != nil {
-		return spec.StepInfo{}, f.groupInfoErr
-	}
-	return f.FakeAPI.GetStepGroupInfo(ctx, id)
-}
-
-func (f fakeAPI) GetStepModel(ctx context.Context, step ResolvedStepVersion) (models.StepModel, error) {
-	if f.stepModel != nil {
-		v, ok := f.stepModel[step.ID]
-		if !ok {
-			return models.StepModel{}, errors.New("not found")
-		}
-		return v, nil
-	}
-	return f.FakeAPI.GetStepModel(ctx, step)
-}
-
 // fakeGetFetcher implements httpfetch.Client.Get, returning a fixed body whose
 // Close returns closeErr. Used to exercise fetchJSON's close-error path.
 type fakeGetFetcher struct {
