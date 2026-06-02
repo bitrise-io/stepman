@@ -21,6 +21,7 @@ import (
 	"io"
 	"net/http"
 	"path"
+	"strings"
 	"time"
 )
 
@@ -253,11 +254,21 @@ func cacheKey(req *http.Request) string {
 	return hex.EncodeToString(sum[:]) + "-" + bodyFilename(req)
 }
 
-// bodyFilename is the last path segment of the URL ("body" if there is none),
-// used as the on-disk body filename so cached files keep their real names.
+// maxBodyFilenameLen caps the human-readable suffix so the full entry dir name
+// ("<64 hex>-<basename>") stays well under the 255-byte NAME_MAX on common
+// filesystems.
+const maxBodyFilenameLen = 100
+
+// bodyFilename is the last path segment of the URL, used as the on-disk body
+// filename so cached files keep their real names. It falls back to "body" for
+// any segment that isn't safe as a single path component — empty, ".", "..",
+// containing a separator, or too long — since the segment is only a
+// human-readable convenience (the sha256 in the dir name guarantees
+// uniqueness), it never needs to round-trip back to the URL.
 func bodyFilename(req *http.Request) string {
 	base := path.Base(req.URL.Path)
-	if base == "." || base == "/" || base == "" {
+	if base == "." || base == ".." || base == "" ||
+		strings.ContainsAny(base, `/\`) || len(base) > maxBodyFilenameLen {
 		return "body"
 	}
 	return base

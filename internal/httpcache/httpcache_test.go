@@ -369,6 +369,26 @@ func TestNoStoreNotCached(t *testing.T) {
 	})
 }
 
+func TestBodyFilename(t *testing.T) {
+	cases := []struct {
+		url  string
+		want string
+	}{
+		{"https://h/spec/steps/git-clone/latest.json", "latest.json"},
+		{"https://h/steps/git-clone/8.5.0/step.json", "step.json"},
+		{"https://h/a/b/", "b"},                           // path.Base strips trailing slash
+		{"https://h/", "body"},                            // no segment
+		{"https://h", "body"},                             // empty path
+		{"https://h/a/..", "body"},                        // dot-dot segment
+		{"https://h/" + strings.Repeat("x", 200), "body"}, // over length cap
+	}
+	for _, c := range cases {
+		req, err := http.NewRequest(http.MethodGet, c.url, nil)
+		require.NoError(t, err, c.url)
+		assert.Equal(t, c.want, bodyFilename(req), c.url)
+	}
+}
+
 func TestNonGETPassThrough(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		h := newHarness(t, func(_ *http.Request, _ int) (*http.Response, error) {
