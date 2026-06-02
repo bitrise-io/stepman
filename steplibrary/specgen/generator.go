@@ -1,25 +1,25 @@
 // Package specgen generates the V2 step library inventory tree from a
 // bitrise-steplib source. The wire-format types it emits live in
 // steplibrary/spec.
+//
+// The work splits across files by phase:
+//   - generator.go — public API (Generate, GenerateFromSteplibClone) + orchestration
+//   - collect.go   — read the steplib source into []parsedStep
+//   - index.go     — build the derived spec/ index files and write step files
+//   - writer.go    — the file-emitting writer with byte/file accounting
 package specgen
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
-	"sort"
-	"strconv"
 	"time"
 
 	"github.com/bitrise-io/go-utils/command/git"
-	"github.com/bitrise-io/stepman/models"
 	"github.com/bitrise-io/stepman/steplibrary/spec"
 	"github.com/bitrise-io/stepman/stepman"
-	"gopkg.in/yaml.v2"
 )
 
 // Options control generator behavior. Zero values are filled with sensible
@@ -45,32 +45,12 @@ type Stats struct {
 	Duration     time.Duration
 }
 
-// Generate sets up the steplib identified by steplibURI (cloning it into
-// stepman's local cache via stepman.SetupLibrary if not already present) and
-// writes the V2 inventory tree to outputDir. It is the URI-based entry point
-// used by the CLI; GenerateFromSteplibClone is the lower-level core that reads
-// from an already-available filesystem.
-func Generate(steplibURI, outputDir string, opts Options, log stepman.Logger) (Stats, error) {
-	if err := stepman.SetupLibrary(steplibURI, log); err != nil {
-		return Stats{}, fmt.Errorf("setup steplib %s: %w", steplibURI, err)
+// withDefaults fills zero-valued options.
+func withDefaults(o Options) Options {
+	if o.GeneratedAt.IsZero() {
+		o.GeneratedAt = time.Now().UTC()
 	}
-	route, found := stepman.ReadRoute(steplibURI)
-	if !found {
-		return Stats{}, fmt.Errorf("no route for steplib %s after setup", steplibURI)
-	}
-	libDir := stepman.GetLibraryBaseDirPath(route)
-
-	// Default the recorded commit SHA to the checked-out library's HEAD when
-	// the caller didn't pin one.
-	if opts.SteplibCommitSHA == "" {
-		sha, err := headCommitSHA(libDir)
-		if err != nil {
-			return Stats{}, fmt.Errorf("resolve steplib HEAD commit: %w", err)
-		}
-		opts.SteplibCommitSHA = sha
-	}
-
-	return GenerateFromSteplibClone(os.DirFS(libDir), outputDir, opts, log)
+	return o
 }
 
 // headCommitSHA returns the HEAD commit hash of the git working copy at dir.
@@ -163,436 +143,30 @@ func GenerateFromSteplibClone(inputFS fs.FS, outputDir string, opts Options, log
 	}, nil
 }
 
-// withDefaults fills zero-valued options.
-func withDefaults(o Options) Options {
-	if o.GeneratedAt.IsZero() {
-		o.GeneratedAt = time.Now().UTC()
+// Generate sets up the steplib identified by steplibURI (cloning it into
+// stepman's local cache via stepman.SetupLibrary if not already present) and
+// writes the V2 inventory tree to outputDir. It is the URI-based entry point
+// used by the CLI; GenerateFromSteplibClone is the lower-level core that reads
+// from an already-available filesystem.
+func Generate(steplibURI, outputDir string, opts Options, log stepman.Logger) (Stats, error) {
+	if err := stepman.SetupLibrary(steplibURI, log); err != nil {
+		return Stats{}, fmt.Errorf("setup steplib %s: %w", steplibURI, err)
 	}
-	return o
-}
-
-// parsedStep is the intermediate representation collected during the walk
-// phase, used by the write phase to emit per-step and index files.
-type parsedStep struct {
-	id          string
-	info        spec.StepInfo   // step-info.yml + assets/ listing
-	hasInfoFile bool            // whether step-info.yml existed
-	assetFiles  []string        // relative paths under assets/, sorted
-	versions    []parsedVersion // sorted ascending by semver; last is latest
-}
-
-// parsedVersion is a single step version with its semver parsed once at collect
-// time, so the write/index phase never re-parses the version string.
-type parsedVersion struct {
-	version string
-	semver  models.Semver
-	model   models.StepModel
-}
-
-// latest returns the highest-semver version. Only valid for steps with at least
-// one version (collectSteps drops versionless steps before they reach here).
-func (s parsedStep) latest() parsedVersion { return s.versions[len(s.versions)-1] }
-
-func collectSteps(inputFS fs.FS, log stepman.Logger) ([]parsedStep, error) {
-	entries, err := fs.ReadDir(inputFS, "steps")
-	if err != nil {
-		return nil, fmt.Errorf("read steps: %w", err)
+	route, found := stepman.ReadRoute(steplibURI)
+	if !found {
+		return Stats{}, fmt.Errorf("no route for steplib %s after setup", steplibURI)
 	}
+	libDir := stepman.GetLibraryBaseDirPath(route)
 
-	var out []parsedStep
-	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
-		s, err := collectStep(inputFS, e.Name(), log)
+	// Default the recorded commit SHA to the checked-out library's HEAD when
+	// the caller didn't pin one.
+	if opts.SteplibCommitSHA == "" {
+		sha, err := headCommitSHA(libDir)
 		if err != nil {
-			return nil, err
+			return Stats{}, fmt.Errorf("resolve steplib HEAD commit: %w", err)
 		}
-		if len(s.versions) == 0 {
-			log.Warnf("step %s has no parseable versions, skipping", s.id)
-			continue
-		}
-		out = append(out, s)
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].id < out[j].id })
-	return out, nil
-}
-
-func collectStep(inputFS fs.FS, id string, log stepman.Logger) (parsedStep, error) {
-	s := parsedStep{
-		id:          id,
-		info:        spec.StepInfo{Maintainer: "", Deprecation: nil, AssetURLs: nil},
-		hasInfoFile: false,
-		assetFiles:  nil,
-		versions:    nil,
-	}
-	stepDir := "steps/" + id
-
-	info, hasInfo, err := readStepGroupInfo(inputFS, stepDir+"/step-info.yml")
-	if err != nil {
-		return s, fmt.Errorf("read step-info.yml for %s: %w", id, err)
-	}
-	s.info = info
-	s.hasInfoFile = hasInfo
-
-	assetFiles, err := listAssets(inputFS, stepDir+"/assets")
-	if err != nil {
-		return s, fmt.Errorf("list assets for %s: %w", id, err)
-	}
-	s.assetFiles = assetFiles
-	if len(assetFiles) > 0 {
-		if s.info.AssetURLs == nil {
-			s.info.AssetURLs = make(map[string]string, len(assetFiles))
-		}
-		for _, f := range assetFiles {
-			s.info.AssetURLs[f] = "assets/" + f
-		}
+		opts.SteplibCommitSHA = sha
 	}
 
-	subEntries, err := fs.ReadDir(inputFS, stepDir)
-	if err != nil {
-		return s, fmt.Errorf("read %s: %w", stepDir, err)
-	}
-	for _, sub := range subEntries {
-		if !sub.IsDir() || sub.Name() == "assets" {
-			continue
-		}
-		sv, err := models.ParseSemver(sub.Name())
-		if err != nil {
-			log.Warnf("step %s: version dir %q is not semver, skipping", id, sub.Name())
-			continue
-		}
-		model, err := parseStepYML(inputFS, stepDir+"/"+sub.Name()+"/step.yml")
-		if err != nil {
-			return s, fmt.Errorf("parse %s/%s: %w", id, sub.Name(), err)
-		}
-		s.versions = append(s.versions, parsedVersion{version: sub.Name(), semver: sv, model: model})
-	}
-
-	sort.Slice(s.versions, func(i, j int) bool {
-		return models.CmpSemver(s.versions[i].semver, s.versions[j].semver) < 0
-	})
-	return s, nil
-}
-
-func readSteplibYML(inputFS fs.FS) (models.StepCollectionModel, error) {
-	bytes, err := fs.ReadFile(inputFS, "steplib.yml")
-	if err != nil {
-		return models.StepCollectionModel{}, err
-	}
-	var c models.StepCollectionModel
-	if err := yaml.Unmarshal(bytes, &c); err != nil {
-		return models.StepCollectionModel{}, err
-	}
-	return c, nil
-}
-
-func readStepGroupInfo(inputFS fs.FS, path string) (spec.StepInfo, bool, error) {
-	bytes, err := fs.ReadFile(inputFS, path)
-	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return spec.StepInfo{}, false, nil
-		}
-		return spec.StepInfo{}, false, err
-	}
-	var sgi models.StepGroupInfoModel
-	if err := yaml.Unmarshal(bytes, &sgi); err != nil {
-		return spec.StepInfo{}, true, err
-	}
-	out := spec.StepInfo{
-		Maintainer:  sgi.Maintainer,
-		Deprecation: nil,
-		AssetURLs:   nil,
-	}
-	if sgi.RemovalDate != "" || sgi.DeprecateNotes != "" {
-		out.Deprecation = &spec.Deprecation{
-			RemovalDate: sgi.RemovalDate,
-			Notes:       sgi.DeprecateNotes,
-		}
-	}
-	return out, true, nil
-}
-
-func listAssets(inputFS fs.FS, dir string) ([]string, error) {
-	entries, err := fs.ReadDir(inputFS, dir)
-	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	var out []string
-	for _, e := range entries {
-		if e.IsDir() {
-			continue
-		}
-		out = append(out, e.Name())
-	}
-	sort.Strings(out)
-	return out, nil
-}
-
-func parseStepYML(inputFS fs.FS, path string) (models.StepModel, error) {
-	bytes, err := fs.ReadFile(inputFS, path)
-	if err != nil {
-		return models.StepModel{}, err
-	}
-	var step models.StepModel
-	if err := yaml.Unmarshal(bytes, &step); err != nil {
-		return models.StepModel{}, fmt.Errorf("yaml unmarshal: %w", err)
-	}
-	if err := step.Normalize(); err != nil {
-		return models.StepModel{}, fmt.Errorf("normalize: %w", err)
-	}
-	// Mirror the canonical V1 parse pipeline (stepman.ParseStepDefinition):
-	// Normalize + FillMissingDefaults. Without this, optional fields the V1
-	// spec.json fills (IsAlwaysRun, IsSkippable, IsRequiresAdminUser, Timeout,
-	// empty-string metadata) would serialize as null in the V2 step.json, so
-	// the same step.yml would yield different output across V1 and V2.
-	if err := step.FillMissingDefaults(); err != nil {
-		return models.StepModel{}, fmt.Errorf("fill missing defaults: %w", err)
-	}
-	return step, nil
-}
-
-// ---------------------------------------------------------------------------
-// step-level writes (steps/<id>/...)
-// ---------------------------------------------------------------------------
-
-func writeStepFiles(w *writer, inputFS fs.FS, s parsedStep) error {
-	if s.hasInfoFile || len(s.assetFiles) > 0 {
-		if err := w.writeJSON(filepath.Join("steps", s.id, "step-info.json"), s.info); err != nil {
-			return err
-		}
-	}
-	for _, f := range s.assetFiles {
-		src := "steps/" + s.id + "/assets/" + f
-		dst := filepath.Join("steps", s.id, "assets", f)
-		if err := w.copyFileFromFS(inputFS, src, dst); err != nil {
-			return fmt.Errorf("copy asset %s: %w", src, err)
-		}
-	}
-	for _, v := range s.versions {
-		if err := w.writeJSON(filepath.Join("steps", s.id, v.version, "step.json"), v.model); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func derefStr(p *string) string {
-	if p == nil {
-		return ""
-	}
-	return *p
-}
-
-// ---------------------------------------------------------------------------
-// spec/ writes (derived index files)
-// ---------------------------------------------------------------------------
-
-func writeSpecFiles(w *writer, steps []parsedStep, opts Options) error {
-	ids := make([]string, len(steps))
-	for i, s := range steps {
-		ids[i] = s.id
-	}
-	if err := w.writeJSON("spec/step_ids.json", spec.StepIDs{StepIDs: ids}); err != nil {
-		return err
-	}
-
-	catalog := buildCatalog(steps, opts)
-	if err := w.writeJSON("spec/latest_versions.json", catalog); err != nil {
-		return err
-	}
-
-	for _, s := range steps {
-		if err := w.writeJSON(filepath.Join("spec", "steps", s.id, "latest.json"), buildLatestPointer(s)); err != nil {
-			return err
-		}
-		if err := w.writeJSON(filepath.Join("spec", "steps", s.id, "versions.json"), buildVersionsJSON(s)); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func buildCatalog(steps []parsedStep, opts Options) spec.Catalog {
-	out := spec.Catalog{
-		GeneratedAt:      opts.GeneratedAt,
-		SteplibCommitSHA: opts.SteplibCommitSHA,
-		Steps:            make(map[string]spec.CatalogEntry, len(steps)),
-	}
-	for _, s := range steps {
-		out.Steps[s.id] = buildCatalogEntry(s)
-	}
-	return out
-}
-
-func buildCatalogEntry(s parsedStep) spec.CatalogEntry {
-	latest := s.latest()
-	latestStep := latest.model
-
-	var publishedAt *time.Time
-	if latestStep.PublishedAt != nil && !latestStep.PublishedAt.IsZero() {
-		publishedAt = latestStep.PublishedAt
-	}
-
-	// Catalog asset URLs are INVENTORY-ROOT-RELATIVE. Catalog consumers
-	// resolve them against the inventory base URL (i.e., the URL the
-	// catalog itself was fetched from, with /spec/latest_versions.json
-	// trimmed). This keeps the V2 inventory portable across hosting
-	// changes — no V1-era S3 host is baked into the catalog payload.
-	var assetURLs map[string]string
-	if len(s.info.AssetURLs) > 0 {
-		assetURLs = make(map[string]string, len(s.info.AssetURLs))
-		for filename, relPath := range s.info.AssetURLs {
-			assetURLs[filename] = catalogAssetURL(s.id, relPath)
-		}
-	}
-
-	return spec.CatalogEntry{
-		LatestVersion:   latest.version,
-		PublishedAt:     publishedAt,
-		Title:           derefStr(latestStep.Title),
-		Summary:         derefStr(latestStep.Summary),
-		Maintainer:      s.info.Maintainer,
-		TypeTags:        latestStep.TypeTags,
-		ProjectTypeTags: latestStep.ProjectTypeTags,
-		HostOsTags:      latestStep.HostOsTags,
-		Website:         derefStr(latestStep.Website),
-		SourceCodeURL:   derefStr(latestStep.SourceCodeURL),
-		SupportURL:      derefStr(latestStep.SupportURL),
-		AssetURLs:       assetURLs,
-		HasExecutable:   latestStep.Executables != nil && len(*latestStep.Executables) > 0,
-		Deprecation:     s.info.Deprecation,
-	}
-}
-
-// catalogAssetURL produces the inventory-root-relative path the catalog
-// emits for a given asset. The relPath comes from step-info.json (which
-// is step-dir-relative, e.g. "assets/icon.svg"); we prepend "steps/<id>/"
-// so the result is anchored at the inventory root.
-func catalogAssetURL(stepID, relPath string) string {
-	return "steps/" + stepID + "/" + relPath
-}
-
-func buildLatestPointer(s parsedStep) spec.LatestPointer {
-	byMajor := map[string]models.Semver{}
-	for _, v := range s.versions {
-		majorKey := strconv.FormatUint(v.semver.Major, 10)
-		cur, ok := byMajor[majorKey]
-		if !ok || models.CmpSemver(v.semver, cur) > 0 {
-			byMajor[majorKey] = v.semver
-		}
-	}
-	latestByMajor := make(map[string]string, len(byMajor))
-	for k, v := range byMajor {
-		latestByMajor[k] = v.String()
-	}
-	return spec.LatestPointer{
-		StepID:        s.id,
-		Latest:        s.latest().version,
-		LatestByMajor: latestByMajor,
-	}
-}
-
-func buildVersionsJSON(s parsedStep) spec.Versions {
-	entries := make([]spec.VersionEntry, 0, len(s.versions))
-	// Newest-first order: walk the ascending-sorted versions in reverse.
-	for i := len(s.versions) - 1; i >= 0; i-- {
-		v := s.versions[i]
-		step := v.model
-		var publishedAt *time.Time
-		if step.PublishedAt != nil && !step.PublishedAt.IsZero() {
-			publishedAt = step.PublishedAt
-		}
-		commit := ""
-		if step.Source != nil {
-			commit = step.Source.Commit
-		}
-		entries = append(entries, spec.VersionEntry{
-			Version:       v.version,
-			PublishedAt:   publishedAt,
-			HasExecutable: step.Executables != nil && len(*step.Executables) > 0,
-			Commit:        commit,
-		})
-	}
-	return spec.Versions{
-		StepID:   s.id,
-		Latest:   s.latest().version,
-		Versions: entries,
-	}
-}
-
-// ---------------------------------------------------------------------------
-// writer — tracks file count + byte count for Stats
-// ---------------------------------------------------------------------------
-
-// fileWriter abstracts the OS calls used by writeJSON, making them injectable
-// for testing without affecting the fs.FS-based read path.
-type fileWriter interface {
-	MkdirAll(path string, perm os.FileMode) error
-	WriteFile(name string, data []byte, perm os.FileMode) error
-}
-
-type realFileWriter struct{}
-
-func (realFileWriter) MkdirAll(path string, perm os.FileMode) error {
-	return os.MkdirAll(path, perm)
-}
-func (realFileWriter) WriteFile(name string, data []byte, perm os.FileMode) error {
-	return os.WriteFile(name, data, perm)
-}
-
-type writer struct {
-	outputDir string
-	fw        fileWriter
-	fileCount int
-	byteCount int64
-}
-
-func (w *writer) writeJSON(relPath string, v any) error {
-	bytes, err := json.MarshalIndent(v, "", "  ")
-	if err != nil {
-		return err
-	}
-	bytes = append(bytes, '\n')
-	full := filepath.Join(w.outputDir, relPath)
-	if err := w.fw.MkdirAll(filepath.Dir(full), 0o755); err != nil {
-		return err
-	}
-	if err := w.fw.WriteFile(full, bytes, 0o644); err != nil {
-		return err
-	}
-	w.fileCount++
-	w.byteCount += int64(len(bytes))
-	return nil
-}
-
-func (w *writer) copyFileFromFS(srcFS fs.FS, srcPath, relDst string) error {
-	dst := filepath.Join(w.outputDir, relDst)
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-		return err
-	}
-	in, err := srcFS.Open(srcPath)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = in.Close() }()
-	info, err := in.Stat()
-	if err != nil {
-		return err
-	}
-	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, info.Mode())
-	if err != nil {
-		return err
-	}
-	defer func() { _ = out.Close() }()
-	n, err := io.Copy(out, in)
-	if err != nil {
-		return err
-	}
-	w.fileCount++
-	w.byteCount += n
-	return nil
+	return GenerateFromSteplibClone(os.DirFS(libDir), outputDir, opts, log)
 }
