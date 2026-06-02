@@ -36,17 +36,18 @@ type Client interface {
 	DownloadWithHash(ctx context.Context, destPath, url, expectedHash string) error
 }
 
-// Logger is the minimal logging interface required by Client.
-// Both stepman.Logger and go-utils/v2/log.Logger satisfy it.
+// Logger is the minimal logging interface required by Client: the retry
+// adapter only emits debug lines. Both stepman.Logger and
+// go-utils/v2/log.Logger satisfy it, so callers can pass the logger they
+// already hold without widening it to the full go-utils contract.
 type Logger interface {
 	Debugf(format string, v ...any)
-	Warnf(format string, v ...any)
 }
 
 // retryhttpLogger adapts Logger to the retryablehttp.Logger interface (Printf only).
 type retryhttpLogger struct{ l Logger }
 
-func (r *retryhttpLogger) Printf(f string, v ...interface{}) { r.l.Debugf(f, v...) }
+func (r *retryhttpLogger) Printf(f string, v ...any) { r.l.Debugf(f, v...) }
 
 type client struct {
 	httpClient *http.Client

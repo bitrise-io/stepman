@@ -16,8 +16,8 @@ import (
 	"time"
 
 	"github.com/bitrise-io/stepman/models"
-	"github.com/bitrise-io/stepman/stepman"
 	"github.com/bitrise-io/stepman/steplibrary/spec"
+	"github.com/bitrise-io/stepman/stepman"
 	"gopkg.in/yaml.v2"
 )
 
@@ -121,13 +121,23 @@ func withDefaults(o Options) Options {
 // phase, used by the write phase to emit per-step and index files.
 type parsedStep struct {
 	id          string
-	info        spec.StepInfo // step-info.yml + assets/ listing
-	hasInfoFile bool         // whether step-info.yml existed
-	assetFiles  []string     // relative paths under assets/, sorted
-	versions    map[string]models.StepModel
-	versionList []string // sorted ascending by semver
-	latest      string   // highest semver in versionList
+	info        spec.StepInfo   // step-info.yml + assets/ listing
+	hasInfoFile bool            // whether step-info.yml existed
+	assetFiles  []string        // relative paths under assets/, sorted
+	versions    []parsedVersion // sorted ascending by semver; last is latest
 }
+
+// parsedVersion is a single step version with its semver parsed once at collect
+// time, so the write/index phase never re-parses the version string.
+type parsedVersion struct {
+	version string
+	semver  models.Semver
+	model   models.StepModel
+}
+
+// latest returns the highest-semver version. Only valid for steps with at least
+// one version (collectSteps drops versionless steps before they reach here).
+func (s parsedStep) latest() parsedVersion { return s.versions[len(s.versions)-1] }
 
 func collectSteps(inputFS fs.FS, log stepman.Logger) ([]parsedStep, error) {
 	entries, err := fs.ReadDir(inputFS, "steps")
@@ -160,9 +170,7 @@ func collectStep(inputFS fs.FS, id string, log stepman.Logger) (parsedStep, erro
 		info:        spec.StepInfo{Maintainer: "", Deprecation: nil, AssetURLs: nil},
 		hasInfoFile: false,
 		assetFiles:  nil,
-		versions:    map[string]models.StepModel{},
-		versionList: nil,
-		latest:      "",
+		versions:    nil,
 	}
 	stepDir := "steps/" + id
 
@@ -192,27 +200,24 @@ func collectStep(inputFS fs.FS, id string, log stepman.Logger) (parsedStep, erro
 		return s, fmt.Errorf("read %s: %w", stepDir, err)
 	}
 	for _, sub := range subEntries {
-		if !sub.IsDir() {
+		if !sub.IsDir() || sub.Name() == "assets" {
 			continue
 		}
-		if sub.Name() == "assets" {
-			continue
-		}
-		if _, err := models.ParseSemver(sub.Name()); err != nil {
+		sv, err := models.ParseSemver(sub.Name())
+		if err != nil {
 			log.Warnf("step %s: version dir %q is not semver, skipping", id, sub.Name())
 			continue
 		}
-		step, err := parseStepYML(inputFS, stepDir+"/"+sub.Name()+"/step.yml")
+		model, err := parseStepYML(inputFS, stepDir+"/"+sub.Name()+"/step.yml")
 		if err != nil {
 			return s, fmt.Errorf("parse %s/%s: %w", id, sub.Name(), err)
 		}
-		s.versions[sub.Name()] = step
+		s.versions = append(s.versions, parsedVersion{version: sub.Name(), semver: sv, model: model})
 	}
 
-	s.versionList = sortedSemver(s.versions)
-	if len(s.versionList) > 0 {
-		s.latest = s.versionList[len(s.versionList)-1]
-	}
+	sort.Slice(s.versions, func(i, j int) bool {
+		return models.CmpSemver(s.versions[i].semver, s.versions[j].semver) < 0
+	})
 	return s, nil
 }
 
@@ -296,27 +301,6 @@ func parseStepYML(inputFS fs.FS, path string) (models.StepModel, error) {
 	return step, nil
 }
 
-// sortedSemver returns the keys of m sorted ascending by semver. Keys that
-// don't parse as semver are silently dropped (collectStep already warned).
-func sortedSemver(m map[string]models.StepModel) []string {
-	parsed := make([]models.Semver, 0, len(m))
-	keyByStr := make(map[string]string, len(m))
-	for k := range m {
-		v, err := models.ParseSemver(k)
-		if err != nil {
-			continue
-		}
-		parsed = append(parsed, v)
-		keyByStr[v.String()] = k
-	}
-	sort.Slice(parsed, func(i, j int) bool { return models.CmpSemver(parsed[i], parsed[j]) < 0 })
-	out := make([]string, 0, len(parsed))
-	for _, v := range parsed {
-		out = append(out, keyByStr[v.String()])
-	}
-	return out
-}
-
 // ---------------------------------------------------------------------------
 // step-level writes (steps/<id>/...)
 // ---------------------------------------------------------------------------
@@ -334,9 +318,8 @@ func writeStepFiles(w *writer, inputFS fs.FS, s parsedStep) error {
 			return fmt.Errorf("copy asset %s: %w", src, err)
 		}
 	}
-	for _, v := range s.versionList {
-		step := s.versions[v]
-		if err := w.writeJSON(filepath.Join("steps", s.id, v, "step.json"), step); err != nil {
+	for _, v := range s.versions {
+		if err := w.writeJSON(filepath.Join("steps", s.id, v.version, "step.json"), v.model); err != nil {
 			return err
 		}
 	}
@@ -392,7 +375,8 @@ func buildCatalog(steps []parsedStep, opts Options) spec.Catalog {
 }
 
 func buildCatalogEntry(s parsedStep) spec.CatalogEntry {
-	latestStep := s.versions[s.latest]
+	latest := s.latest()
+	latestStep := latest.model
 
 	var publishedAt *time.Time
 	if latestStep.PublishedAt != nil && !latestStep.PublishedAt.IsZero() {
@@ -413,7 +397,7 @@ func buildCatalogEntry(s parsedStep) spec.CatalogEntry {
 	}
 
 	return spec.CatalogEntry{
-		LatestVersion:   s.latest,
+		LatestVersion:   latest.version,
 		PublishedAt:     publishedAt,
 		Title:           derefStr(latestStep.Title),
 		Summary:         derefStr(latestStep.Summary),
@@ -440,15 +424,11 @@ func catalogAssetURL(stepID, relPath string) string {
 
 func buildLatestPointer(s parsedStep) spec.LatestPointer {
 	byMajor := map[string]models.Semver{}
-	for _, v := range s.versionList {
-		sv, err := models.ParseSemver(v)
-		if err != nil {
-			continue
-		}
-		majorKey := strconv.FormatUint(sv.Major, 10)
+	for _, v := range s.versions {
+		majorKey := strconv.FormatUint(v.semver.Major, 10)
 		cur, ok := byMajor[majorKey]
-		if !ok || models.CmpSemver(sv, cur) > 0 {
-			byMajor[majorKey] = sv
+		if !ok || models.CmpSemver(v.semver, cur) > 0 {
+			byMajor[majorKey] = v.semver
 		}
 	}
 	latestByMajor := make(map[string]string, len(byMajor))
@@ -457,17 +437,17 @@ func buildLatestPointer(s parsedStep) spec.LatestPointer {
 	}
 	return spec.LatestPointer{
 		StepID:        s.id,
-		Latest:        s.latest,
+		Latest:        s.latest().version,
 		LatestByMajor: latestByMajor,
 	}
 }
 
 func buildVersionsJSON(s parsedStep) spec.Versions {
-	entries := make([]spec.VersionEntry, 0, len(s.versionList))
-	// Newest-first order: walk versionList in reverse.
-	for i := len(s.versionList) - 1; i >= 0; i-- {
-		v := s.versionList[i]
-		step := s.versions[v]
+	entries := make([]spec.VersionEntry, 0, len(s.versions))
+	// Newest-first order: walk the ascending-sorted versions in reverse.
+	for i := len(s.versions) - 1; i >= 0; i-- {
+		v := s.versions[i]
+		step := v.model
 		var publishedAt *time.Time
 		if step.PublishedAt != nil && !step.PublishedAt.IsZero() {
 			publishedAt = step.PublishedAt
@@ -477,7 +457,7 @@ func buildVersionsJSON(s parsedStep) spec.Versions {
 			commit = step.Source.Commit
 		}
 		entries = append(entries, spec.VersionEntry{
-			Version:       v,
+			Version:       v.version,
 			PublishedAt:   publishedAt,
 			HasExecutable: step.Executables != nil && len(*step.Executables) > 0,
 			Commit:        commit,
@@ -485,7 +465,7 @@ func buildVersionsJSON(s parsedStep) spec.Versions {
 	}
 	return spec.Versions{
 		StepID:   s.id,
-		Latest:   s.latest,
+		Latest:   s.latest().version,
 		Versions: entries,
 	}
 }

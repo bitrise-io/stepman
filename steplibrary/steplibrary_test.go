@@ -69,9 +69,15 @@ func TestSteplib_Activate(t *testing.T) {
 		"fixed version resolves to requested": {
 			api:         givenScriptOnly,
 			stepID:      "script",
-			version:     "1.2.3",
-			wantVersion: "1.2.3",
+			version:     "1.2.0",
+			wantVersion: "1.2.0",
 			wantLatest:  "3.0.0",
+		},
+		"fixed version not in steplib errors": {
+			api:     givenScriptOnly,
+			stepID:  "script",
+			version: "9.9.9",
+			wantErr: "does not contain script step 9.9.9 version",
 		},
 		"major-locked resolves via latest_by_major": {
 			api:         givenScriptOnly,
