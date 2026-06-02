@@ -2,10 +2,13 @@ package steplibrary
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestHTTPAPI(t *testing.T) {
@@ -37,79 +40,59 @@ func TestHTTPAPI(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("GetAllStepIDs", func(t *testing.T) {
-		got, err := api.GetAllStepIDs(ctx)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		want := []string{"hello-step", "git-clone"}
-		if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
-			t.Errorf("GetAllStepIDs = %v, want %v", got, want)
-		}
+		got, gotErr := api.GetAllStepIDs(ctx)
+		require.NoError(t, gotErr, "GetAllStepIDs")
+		assert.Equal(t, []string{"hello-step", "git-clone"}, got, "step IDs")
 	})
 
 	t.Run("GetLatestStepVersions", func(t *testing.T) {
-		got, err := api.GetLatestStepVersions(ctx, "hello-step")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if got.StepID != "hello-step" || got.Latest != "2.0.0" {
-			t.Errorf("StepID/Latest = %q/%q, want %q/%q", got.StepID, got.Latest, "hello-step", "2.0.0")
-		}
-		if got.LatestByMajor["2"] != "2.0.0" {
-			t.Errorf("LatestByMajor[2] = %q, want %q", got.LatestByMajor["2"], "2.0.0")
-		}
+		got, gotErr := api.GetLatestStepVersions(ctx, "hello-step")
+		require.NoError(t, gotErr, "GetLatestStepVersions")
+		assert.Equal(t, "hello-step", got.StepID, "StepID")
+		assert.Equal(t, "2.0.0", got.Latest, "Latest")
+		assert.Equal(t, "2.0.0", got.LatestByMajor["2"], "LatestByMajor[2]")
 	})
 
 	t.Run("GetAllStepVersions returns only version strings", func(t *testing.T) {
-		got, err := api.GetAllStepVersions(ctx, "hello-step")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		want := []string{"2.0.0", "1.1.0", "1.0.0"}
-		if len(got) != len(want) {
-			t.Fatalf("len = %d, want %d (%v)", len(got), len(want), got)
-		}
-		for i, v := range want {
-			if got[i] != v {
-				t.Errorf("[%d] = %q, want %q", i, got[i], v)
-			}
-		}
+		got, gotErr := api.GetAllStepVersions(ctx, "hello-step")
+		require.NoError(t, gotErr, "GetAllStepVersions")
+		assert.Equal(t, []string{"2.0.0", "1.1.0", "1.0.0"}, got, "versions")
 	})
 
 	t.Run("GetStepGroupInfo", func(t *testing.T) {
-		got, err := api.GetStepGroupInfo(ctx, "hello-step")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if got.Maintainer != "bitrise" {
-			t.Errorf("Maintainer = %q, want %q", got.Maintainer, "bitrise")
-		}
-		if got.Deprecation != nil {
-			t.Errorf("Deprecation = %+v, want nil", got.Deprecation)
-		}
-		if got.AssetURLs["icon.svg"] != "assets/icon.svg" {
-			t.Errorf("AssetURLs[icon.svg] = %q, want %q", got.AssetURLs["icon.svg"], "assets/icon.svg")
-		}
+		got, gotErr := api.GetStepGroupInfo(ctx, "hello-step")
+		require.NoError(t, gotErr, "GetStepGroupInfo")
+		assert.Equal(t, "bitrise", got.Maintainer, "Maintainer")
+		assert.Nil(t, got.Deprecation, "Deprecation")
+		assert.Equal(t, "assets/icon.svg", got.AssetURLs["icon.svg"], "AssetURLs[icon.svg]")
 	})
 
 	t.Run("GetStepModel decodes step.json into models.StepModel", func(t *testing.T) {
-		got, err := api.GetStepModel(ctx, ResolvedStepVersion{ID: "hello-step", Version: "2.0.0"})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if got.Title == nil || *got.Title != "Hello" {
-			t.Errorf("Title = %v, want %q", got.Title, "Hello")
-		}
+		got, gotErr := api.GetStepModel(ctx, ResolvedStepVersion{ID: "hello-step", Version: "2.0.0"})
+		require.NoError(t, gotErr, "GetStepModel")
+		require.NotNil(t, got.Title, "Title")
+		assert.Equal(t, "Hello", *got.Title, "Title")
 	})
-
 
 	t.Run("404 surfaces unexpected status", func(t *testing.T) {
-		_, err := api.GetLatestStepVersions(ctx, "missing-step")
-		if err == nil {
-			t.Fatal("expected error, got nil")
-		}
-		if !strings.Contains(err.Error(), "unexpected status 404") {
-			t.Errorf("error = %q, want substring %q", err.Error(), "unexpected status 404")
-		}
+		_, gotErr := api.GetLatestStepVersions(ctx, "missing-step")
+		require.Error(t, gotErr, "GetLatestStepVersions for missing step")
+		assert.Contains(t, gotErr.Error(), "unexpected status 404", "error message")
 	})
+}
+
+// TestHTTPAPI_fetchJSON_propagatesCloseError verifies the named-return + defer
+// pattern in fetchJSON: when decoding succeeds but closing the body fails, the
+// close error must surface as the call's error.
+func TestHTTPAPI_fetchJSON_propagatesCloseError(t *testing.T) {
+	//nolint:exhaustruct // CacheDir is irrelevant to this JSON-decoding path
+	api := &HTTPAPI{
+		BaseURL: "http://example.test",
+		Fetcher: fakeGetFetcher{body: `{"step_ids":["a","b"]}`, closeErr: errors.New("boom")},
+	}
+
+	_, gotErr := api.GetAllStepIDs(context.Background())
+	require.Error(t, gotErr, "GetAllStepIDs")
+	assert.Contains(t, gotErr.Error(), "close response body", "error wraps close failure")
+	assert.Contains(t, gotErr.Error(), "boom", "error preserves underlying cause")
 }

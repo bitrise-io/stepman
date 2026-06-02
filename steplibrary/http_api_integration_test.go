@@ -6,9 +6,10 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"slices"
-	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestHTTPAPI_Integration serves docs/spec-v2/sample-output/ over an
@@ -17,9 +18,8 @@ import (
 // end-to-end, without mocking the JSON in the test itself.
 func TestHTTPAPI_Integration(t *testing.T) {
 	sampleDir := filepath.Join("..", "docs", "spec-v2", "sample-output")
-	if _, err := os.Stat(sampleDir); err != nil {
-		t.Fatalf("sample-output not found at %s: %v", sampleDir, err)
-	}
+	_, err := os.Stat(sampleDir)
+	require.NoErrorf(t, err, "sample-output not found at %s", sampleDir)
 
 	srv := httptest.NewServer(http.FileServer(http.Dir(sampleDir)))
 	t.Cleanup(srv.Close)
@@ -29,92 +29,51 @@ func TestHTTPAPI_Integration(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("GetAllStepIDs returns sample step IDs", func(t *testing.T) {
-		got, err := api.GetAllStepIDs(ctx)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		want := []string{"bash-step", "deprecated-step", "hello-step", "multi-platform-step", "no-info-step"}
-		if !slices.Equal(got, want) {
-			t.Errorf("step IDs = %v, want %v", got, want)
-		}
+		got, gotErr := api.GetAllStepIDs(ctx)
+		require.NoError(t, gotErr, "GetAllStepIDs")
+		assert.Equal(t, []string{"bash-step", "deprecated-step", "hello-step", "multi-platform-step", "no-info-step"}, got, "step IDs")
 	})
 
 	t.Run("GetLatestStepVersions(hello-step)", func(t *testing.T) {
-		got, err := api.GetLatestStepVersions(ctx, "hello-step")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if got.StepID != "hello-step" {
-			t.Errorf("StepID = %q, want %q", got.StepID, "hello-step")
-		}
-		if got.Latest != "2.0.0" {
-			t.Errorf("Latest = %q, want %q", got.Latest, "2.0.0")
-		}
-		if got.LatestByMajor["1"] != "1.1.0" || got.LatestByMajor["2"] != "2.0.0" {
-			t.Errorf("LatestByMajor = %v, want {1:1.1.0, 2:2.0.0}", got.LatestByMajor)
-		}
+		got, gotErr := api.GetLatestStepVersions(ctx, "hello-step")
+		require.NoError(t, gotErr, "GetLatestStepVersions")
+		assert.Equal(t, "hello-step", got.StepID, "StepID")
+		assert.Equal(t, "2.0.0", got.Latest, "Latest")
+		assert.Equal(t, "1.1.0", got.LatestByMajor["1"], "LatestByMajor[1]")
+		assert.Equal(t, "2.0.0", got.LatestByMajor["2"], "LatestByMajor[2]")
 	})
 
 	t.Run("GetAllStepVersions(hello-step) returns newest-first", func(t *testing.T) {
-		got, err := api.GetAllStepVersions(ctx, "hello-step")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		want := []string{"2.0.0", "1.1.0", "1.0.0"}
-		if !slices.Equal(got, want) {
-			t.Errorf("versions = %v, want %v", got, want)
-		}
+		got, gotErr := api.GetAllStepVersions(ctx, "hello-step")
+		require.NoError(t, gotErr, "GetAllStepVersions")
+		assert.Equal(t, []string{"2.0.0", "1.1.0", "1.0.0"}, got, "versions")
 	})
 
 	t.Run("GetStepGroupInfo(hello-step) shows active step", func(t *testing.T) {
-		got, err := api.GetStepGroupInfo(ctx, "hello-step")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if got.Maintainer != "bitrise" {
-			t.Errorf("Maintainer = %q, want %q", got.Maintainer, "bitrise")
-		}
-		if got.Deprecation != nil {
-			t.Errorf("Deprecation = %+v, want nil", got.Deprecation)
-		}
-		if got.AssetURLs["icon.svg"] != "assets/icon.svg" {
-			t.Errorf("AssetURLs[icon.svg] = %q, want %q", got.AssetURLs["icon.svg"], "assets/icon.svg")
-		}
+		got, gotErr := api.GetStepGroupInfo(ctx, "hello-step")
+		require.NoError(t, gotErr, "GetStepGroupInfo")
+		assert.Equal(t, "bitrise", got.Maintainer, "Maintainer")
+		assert.Nil(t, got.Deprecation, "Deprecation")
+		assert.Equal(t, "assets/icon.svg", got.AssetURLs["icon.svg"], "AssetURLs[icon.svg]")
 	})
 
 	t.Run("GetStepGroupInfo(deprecated-step) exposes deprecation metadata", func(t *testing.T) {
-		got, err := api.GetStepGroupInfo(ctx, "deprecated-step")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if got.Maintainer != "community" {
-			t.Errorf("Maintainer = %q, want %q", got.Maintainer, "community")
-		}
-		if got.Deprecation == nil {
-			t.Fatalf("Deprecation = nil, want populated")
-		}
-		if got.Deprecation.RemovalDate != "2026-12-31" {
-			t.Errorf("RemovalDate = %q, want %q", got.Deprecation.RemovalDate, "2026-12-31")
-		}
-		if !strings.Contains(got.Deprecation.Notes, "Replaced by hello-step") {
-			t.Errorf("Notes = %q, want substring %q", got.Deprecation.Notes, "Replaced by hello-step")
-		}
+		got, gotErr := api.GetStepGroupInfo(ctx, "deprecated-step")
+		require.NoError(t, gotErr, "GetStepGroupInfo")
+		assert.Equal(t, "community", got.Maintainer, "Maintainer")
+		require.NotNil(t, got.Deprecation, "Deprecation")
+		assert.Equal(t, "2026-12-31", got.Deprecation.RemovalDate, "RemovalDate")
+		assert.Contains(t, got.Deprecation.Notes, "Replaced by hello-step", "Notes")
 	})
 
 	t.Run("GetStepModel(hello-step, 2.0.0) decodes step.json", func(t *testing.T) {
-		got, err := api.GetStepModel(ctx, ResolvedStepVersion{ID: "hello-step", Version: "2.0.0"})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if got.Title == nil || *got.Title != "Hello Step" {
-			t.Errorf("Title = %v, want %q", got.Title, "Hello Step")
-		}
-		if got.SourceCodeURL == nil || *got.SourceCodeURL != "https://github.com/example/hello-step" {
-			t.Errorf("SourceCodeURL = %v, want %q", got.SourceCodeURL, "https://github.com/example/hello-step")
-		}
-		if got.Source == nil || got.Source.Git != "https://github.com/example/hello-step.git" {
-			t.Errorf("Source.Git = %+v, want %q", got.Source, "https://github.com/example/hello-step.git")
-		}
+		got, gotErr := api.GetStepModel(ctx, ResolvedStepVersion{ID: "hello-step", Version: "2.0.0"})
+		require.NoError(t, gotErr, "GetStepModel")
+		require.NotNil(t, got.Title, "Title")
+		assert.Equal(t, "Hello Step", *got.Title, "Title")
+		require.NotNil(t, got.SourceCodeURL, "SourceCodeURL")
+		assert.Equal(t, "https://github.com/example/hello-step", *got.SourceCodeURL, "SourceCodeURL")
+		require.NotNil(t, got.Source, "Source")
+		assert.Equal(t, "https://github.com/example/hello-step.git", got.Source.Git, "Source.Git")
 	})
-
 }

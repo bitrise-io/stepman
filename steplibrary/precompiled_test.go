@@ -2,11 +2,6 @@ package steplibrary
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	"errors"
-	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,43 +10,9 @@ import (
 	"github.com/bitrise-io/go-utils/v2/fileutil"
 	"github.com/bitrise-io/stepman/models"
 	"github.com/bitrise-io/stepman/steplibrary/spec"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
-
-// fakeFetcher implements httpfetch.Client by writing a fixed byte payload on
-// DownloadWithHash. Get and Download are not used by the precompiled flow.
-type fakeFetcher struct {
-	payload []byte
-	gotURL  string
-	err     error
-}
-
-func (f *fakeFetcher) Get(_ context.Context, source string) (io.ReadCloser, error) {
-	return nil, errors.New("Get not used by Steplib precompiled flow")
-}
-
-func (f *fakeFetcher) Download(_ context.Context, _, _ string) error {
-	return errors.New("Download not used by Steplib precompiled flow")
-}
-
-func (f *fakeFetcher) DownloadWithHash(_ context.Context, destPath, url, expectedHash string) error {
-	f.gotURL = url
-	if f.err != nil {
-		return f.err
-	}
-	actual := sha256OfBytes(f.payload)
-	if actual != expectedHash {
-		return fmt.Errorf("hash mismatch: expected %s, got %s", expectedHash, actual)
-	}
-	if err := os.MkdirAll(filepath.Dir(destPath), 0o755); err != nil {
-		return err
-	}
-	return os.WriteFile(destPath, f.payload, 0o644)
-}
-
-func sha256OfBytes(b []byte) string {
-	h := sha256.Sum256(b)
-	return "sha256-" + hex.EncodeToString(h[:])
-}
 
 func TestSteplib_Activate_Precompiled(t *testing.T) {
 	payload := []byte("#!/bin/sh\necho hello\n")
@@ -88,49 +49,33 @@ func TestSteplib_Activate_Precompiled(t *testing.T) {
 		fetcher:     dl,
 	}
 
-	got, err := s.Activate(context.Background(), "script", "", ActivateOutputPaths{
+	got, gotErr := s.Activate(context.Background(), "script", "", ActivateOutputPaths{
 		YMLPath:  filepath.Join(outDir, "current_step.yml"),
 		CodePath: filepath.Join(outDir, "code"),
 	})
-	if err != nil {
-		t.Fatalf("Activate unexpected error: %v", err)
-	}
+	require.NoError(t, gotErr, "Activate")
 
 	wantBin := filepath.Join(outDir, "code", "script")
-	if got.ExecutablePath != wantBin {
-		t.Errorf("ExecutablePath = %q, want %q", got.ExecutablePath, wantBin)
-	}
-	if got.ActivationType != "steplib_executable" {
-		t.Errorf("ActivationType = %q, want %q", got.ActivationType, "steplib_executable")
-	}
+	assert.Equal(t, wantBin, got.ExecutablePath, "ExecutablePath")
+	assert.Equal(t, "steplib_executable", string(got.ActivationType), "ActivationType")
 
 	// Binary content matches the served payload.
-	body, err := os.ReadFile(wantBin)
-	if err != nil {
-		t.Fatalf("read executable: %v", err)
-	}
-	if string(body) != string(payload) {
-		t.Errorf("downloaded body = %q, want %q", body, payload)
-	}
+	body, gotErr := os.ReadFile(wantBin)
+	require.NoError(t, gotErr, "read executable")
+	assert.Equal(t, payload, body, "downloaded binary content")
 
 	// Binary is marked executable.
-	info, err := os.Stat(wantBin)
-	if err != nil {
-		t.Fatalf("stat executable: %v", err)
-	}
-	if info.Mode().Perm()&0o111 == 0 {
-		t.Errorf("executable bit not set on %s (perm=%o)", wantBin, info.Mode().Perm())
-	}
+	info, gotErr := os.Stat(wantBin)
+	require.NoError(t, gotErr, "stat executable")
+	assert.NotZero(t, info.Mode().Perm()&0o111, "executable bit not set (perm=%o)", info.Mode().Perm())
 
 	// step.yml is still written by the activation flow.
-	if _, err := os.Stat(filepath.Join(outDir, "current_step.yml")); err != nil {
-		t.Errorf("step.yml not written: %v", err)
-	}
+	_, gotErr = os.Stat(filepath.Join(outDir, "current_step.yml"))
+	assert.NoError(t, gotErr, "step.yml not written")
 
 	// Downloader received the storage_uri-rooted URL.
-	if !strings.HasSuffix(dl.gotURL, executables[currentPlatform()].StorageURI) {
-		t.Errorf("downloader URL = %q, want suffix %q", dl.gotURL, executables[currentPlatform()].StorageURI)
-	}
+	assert.Truef(t, strings.HasSuffix(dl.gotURL, executables[currentPlatform()].StorageURI),
+		"downloader URL = %q, want suffix %q", dl.gotURL, executables[currentPlatform()].StorageURI)
 }
 
 func TestSteplib_Activate_PrecompiledHashMismatch_FallsBackToSource(t *testing.T) {
@@ -171,19 +116,13 @@ func TestSteplib_Activate_PrecompiledHashMismatch_FallsBackToSource(t *testing.T
 		fetchSourceDirFn: func(_ context.Context, _ ResolvedStepVersion) (string, error) { return sourceDir, nil },
 	}
 
-	got, err := s.Activate(context.Background(), "script", "", ActivateOutputPaths{
+	got, gotErr := s.Activate(context.Background(), "script", "", ActivateOutputPaths{
 		YMLPath:  filepath.Join(outDir, "current_step.yml"),
 		CodePath: filepath.Join(outDir, "code"),
 	})
-	if err != nil {
-		t.Fatalf("Activate unexpected error: %v", err)
-	}
-	if got.ExecutablePath != "" {
-		t.Errorf("ExecutablePath = %q, want empty (precompiled failed → source path)", got.ExecutablePath)
-	}
-	if got.ActivationType != "steplib_source" {
-		t.Errorf("ActivationType = %q, want %q", got.ActivationType, "steplib_source")
-	}
+	require.NoError(t, gotErr, "Activate")
+	assert.Empty(t, got.ExecutablePath, "want empty ExecutablePath (precompiled failed → source path)")
+	assert.Equal(t, "steplib_source", string(got.ActivationType), "ActivationType")
 }
 
 // pointers returns a pointer to the given string. Avoids importing
