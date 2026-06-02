@@ -11,7 +11,7 @@ ignore: |
   vendor/
   _examples/
   _lessons/
-  specv2/testdata/
+  steplibrary/specgen/testdata/
   dist/
 
 rules:
