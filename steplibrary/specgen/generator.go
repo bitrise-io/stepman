@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/bitrise-io/go-utils/command/git"
 	"github.com/bitrise-io/stepman/models"
 	"github.com/bitrise-io/stepman/steplibrary/spec"
 	"github.com/bitrise-io/stepman/stepman"
@@ -24,10 +25,14 @@ import (
 // Options control generator behavior. Zero values are filled with sensible
 // defaults; callers (CLI / tests) override what they need.
 type Options struct {
-	// GeneratedAt is written to meta.json and latest_versions.json.
-	// Tests should set this for deterministic output.
+	// GeneratedAt is written to meta.json and latest_versions.json. Optional:
+	// when zero it defaults to time.Now().UTC(). Tests set it for deterministic
+	// output.
 	GeneratedAt time.Time
-	// SteplibCommitSHA, if set, is written to meta.json and latest_versions.json.
+	// SteplibCommitSHA is written to meta.json and latest_versions.json.
+	// Optional: when empty, Generate (the URI entry point) fills it from the
+	// checked-out library's HEAD commit. GenerateFromSteplibClone leaves it as
+	// given, since it has no git checkout to read.
 	SteplibCommitSHA string
 }
 
@@ -53,7 +58,28 @@ func Generate(steplibURI, outputDir string, opts Options, log stepman.Logger) (S
 	if !found {
 		return Stats{}, fmt.Errorf("no route for steplib %s after setup", steplibURI)
 	}
-	return GenerateFromSteplibClone(os.DirFS(stepman.GetLibraryBaseDirPath(route)), outputDir, opts, log)
+	libDir := stepman.GetLibraryBaseDirPath(route)
+
+	// Default the recorded commit SHA to the checked-out library's HEAD when
+	// the caller didn't pin one.
+	if opts.SteplibCommitSHA == "" {
+		sha, err := headCommitSHA(libDir)
+		if err != nil {
+			return Stats{}, fmt.Errorf("resolve steplib HEAD commit: %w", err)
+		}
+		opts.SteplibCommitSHA = sha
+	}
+
+	return GenerateFromSteplibClone(os.DirFS(libDir), outputDir, opts, log)
+}
+
+// headCommitSHA returns the HEAD commit hash of the git working copy at dir.
+func headCommitSHA(dir string) (string, error) {
+	repo, err := git.New(dir)
+	if err != nil {
+		return "", err
+	}
+	return repo.RevParse("HEAD").RunAndReturnTrimmedCombinedOutput()
 }
 
 // GenerateFromSteplibClone reads a bitrise-steplib clone from inputFS and writes the V2 inventory
