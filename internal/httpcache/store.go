@@ -1,8 +1,6 @@
 package httpcache
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/bitrise-io/stepman/internal/sri"
 )
 
 const metaFilename = "meta.json"
@@ -95,8 +95,7 @@ func (s *Store) ReadBody(key string, m Meta) ([]byte, error) {
 		return nil, fmt.Errorf("read cached body %s: %w", key, err)
 	}
 	if m.BodySHA256 != "" {
-		sum := sha256.Sum256(data)
-		if got := "sha256-" + hex.EncodeToString(sum[:]); got != m.BodySHA256 {
+		if got := sri.SHA256(data); got != m.BodySHA256 {
 			return nil, fmt.Errorf("cached body %s checksum mismatch: have %s, want %s", key, got, m.BodySHA256)
 		}
 	}

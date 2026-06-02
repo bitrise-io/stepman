@@ -7,7 +7,6 @@ package httpfetch
 import (
 	"context"
 	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -16,6 +15,7 @@ import (
 	"path/filepath"
 
 	"github.com/bitrise-io/stepman/internal/httpcache"
+	"github.com/bitrise-io/stepman/internal/sri"
 	"github.com/hashicorp/go-retryablehttp"
 )
 
@@ -187,5 +187,5 @@ func (c *client) fetchToTemp(ctx context.Context, dir, url string) (path string,
 	if _, copyErr := io.Copy(io.MultiWriter(tmp, h), body); copyErr != nil {
 		return "", "", fmt.Errorf("write to %s: %w", tmp.Name(), copyErr)
 	}
-	return tmp.Name(), "sha256-" + hex.EncodeToString(h.Sum(nil)), nil
+	return tmp.Name(), sri.Format(h.Sum(nil)), nil
 }

@@ -23,6 +23,8 @@ import (
 	"path"
 	"strings"
 	"time"
+
+	"github.com/bitrise-io/stepman/internal/sri"
 )
 
 // Logger is the minimal logging surface the cache needs: Debugf for hit/miss
@@ -160,8 +162,7 @@ func (t *Transport) store200(req *http.Request, key string, resp *http.Response)
 		t.log.Debugf("httpcache: not storing %s (no-store)", req.URL)
 	} else {
 		meta.BodySize = int64(len(body))
-		sum := sha256.Sum256(body)
-		meta.BodySHA256 = "sha256-" + hex.EncodeToString(sum[:])
+		meta.BodySHA256 = sri.SHA256(body)
 		if serr := t.store.Save(key, meta, body); serr != nil {
 			// A failed write must not fail the request: the caller still has a
 			// valid response; the cache just stays empty for this entry.
