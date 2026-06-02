@@ -1,9 +1,0 @@
-{
-  "step_ids": [
-    "bash-step",
-    "deprecated-step",
-    "hello-step",
-    "multi-platform-step",
-    "no-info-step"
-  ]
-}

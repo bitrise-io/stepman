@@ -32,7 +32,7 @@ func main() {
 		steplib   = flag.String("steplib", "", "steplib source URI to set up and generate from (required)")
 		output    = flag.String("output", "", "output directory for the V2 tree (required)")
 		commitSHA = flag.String("commit-sha", "", "optional steplib commit sha to record in meta.json")
-		timestamp = flag.String("timestamp", "", "RFC3339 timestamp to record as updated_at (default: time.Now UTC). Set for reproducible output (e.g., sample-output regeneration).")
+		timestamp = flag.String("timestamp", "", "RFC3339 timestamp to record as updated_at (default: time.Now UTC). Set for reproducible output.")
 	)
 	flag.Parse()
 

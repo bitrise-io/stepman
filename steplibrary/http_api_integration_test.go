@@ -7,23 +7,31 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/bitrise-io/stepman/internal/httpfetch"
+	"github.com/bitrise-io/stepman/steplibrary/specgen"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// TestHTTPAPI_Integration serves docs/spec-v2/sample-output/ over an
-// httptest.Server and exercises HTTPAPI against it. This validates that
-// the generator output and the HTTP client agree on the V2 schema shape
-// end-to-end, without mocking the JSON in the test itself.
+// TestHTTPAPI_Integration generates a V2 inventory from the specgen testdata
+// into a temp dir, serves it over httptest, and exercises HTTPAPI against it.
+// This is a true generator → HTTP → reader end-to-end check: the schema shapes
+// are validated against freshly generated output, with no checked-in fixture
+// to drift out of sync with the generator.
 func TestHTTPAPI_Integration(t *testing.T) {
-	sampleDir := filepath.Join("..", "docs", "spec-v2", "sample-output")
-	_, err := os.Stat(sampleDir)
-	require.NoErrorf(t, err, "sample-output not found at %s", sampleDir)
+	outDir := t.TempDir()
+	_, err := specgen.GenerateFromSteplibClone(
+		os.DirFS(filepath.Join("specgen", "testdata", "input")),
+		outDir,
+		specgen.Options{GeneratedAt: time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC), SteplibCommitSHA: ""},
+		discardLogger{},
+	)
+	require.NoError(t, err, "generate V2 inventory")
 
-	srv := httptest.NewServer(http.FileServer(http.Dir(sampleDir)))
+	srv := httptest.NewServer(http.FileServer(http.Dir(outDir)))
 	t.Cleanup(srv.Close)
 
 	api := NewHTTPAPI(srv.URL, httpfetch.NewWithClient(srv.Client()))

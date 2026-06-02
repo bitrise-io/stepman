@@ -1,8 +1,0 @@
-{
-  "step_id": "hello-step",
-  "latest": "2.0.0",
-  "latest_by_major": {
-    "1": "1.1.0",
-    "2": "2.0.0"
-  }
-}
