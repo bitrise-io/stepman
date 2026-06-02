@@ -282,6 +282,14 @@ func parseStepYML(inputFS fs.FS, path string) (models.StepModel, error) {
 	if err := step.Normalize(); err != nil {
 		return models.StepModel{}, fmt.Errorf("normalize: %w", err)
 	}
+	// Mirror the canonical V1 parse pipeline (stepman.ParseStepDefinition):
+	// Normalize + FillMissingDefaults. Without this, optional fields the V1
+	// spec.json fills (IsAlwaysRun, IsSkippable, IsRequiresAdminUser, Timeout,
+	// empty-string metadata) would serialize as null in the V2 step.json, so
+	// the same step.yml would yield different output across V1 and V2.
+	if err := step.FillMissingDefaults(); err != nil {
+		return models.StepModel{}, fmt.Errorf("fill missing defaults: %w", err)
+	}
 	return step, nil
 }
 
