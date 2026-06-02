@@ -4,7 +4,7 @@
 //
 //	steplib-gen -steplib <steplib-source-uri> -output <out-dir> [-commit-sha <sha>]
 //
-// See STEP-2374-plan.md and docs/spec-v2/ for the format being generated.
+// See STEP-2374-plan.md and steplibrary/spec/schemas.md for the format being generated.
 package main
 
 import (
