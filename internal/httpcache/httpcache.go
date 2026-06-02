@@ -60,17 +60,22 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 		hit = false
 	}
 
-	if hit && isFresh(meta, time.Now()) {
-		resp, serr := t.serve(req, key, meta, "fresh")
-		if serr == nil {
-			return resp, nil
+	var cachedBody []byte
+	if hit {
+		cachedBody, err = t.store.ReadBody(key, meta)
+		if err != nil {
+			// Body missing or corrupt: treat as a miss and refetch unconditionally
+			// (a stale validator would be useless without the body to back it).
+			t.log.Debugf("httpcache: cached body for %s unusable: %s; refetching", req.URL, err)
+			hit = false
 		}
-		t.log.Debugf("httpcache: serving fresh %s failed: %s; refetching", req.URL, serr)
-		hit = false
 	}
 
+	if hit && isFresh(meta, time.Now()) {
+		return t.serveBytes(req, meta, cachedBody, "fresh"), nil
+	}
 	if hit {
-		return t.revalidate(req, key, meta)
+		return t.revalidate(req, key, meta, cachedBody)
 	}
 	return t.fetchAndStore(req, key)
 }
@@ -78,7 +83,7 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 // revalidate is reached only when a stale entry exists. It issues a conditional
 // request and: serves the cached body on 304; replaces it on 2xx; surfaces the
 // failure on a transport error or 5xx (no stale fallback — see package doc).
-func (t *Transport) revalidate(req *http.Request, key string, meta Meta) (*http.Response, error) {
+func (t *Transport) revalidate(req *http.Request, key string, meta Meta, cachedBody []byte) (*http.Response, error) {
 	condReq := req.Clone(req.Context())
 	if meta.ETag != "" {
 		condReq.Header.Set("If-None-Match", meta.ETag)
@@ -101,7 +106,7 @@ func (t *Transport) revalidate(req *http.Request, key string, meta Meta) (*http.
 		if terr := t.store.Touch(key, refreshed); terr != nil {
 			t.log.Debugf("httpcache: touch %s failed: %s", req.URL, terr)
 		}
-		return t.serve(req, key, refreshed, "revalidated (304)")
+		return t.serveBytes(req, refreshed, cachedBody, "revalidated (304)"), nil
 
 	case resp.StatusCode >= 200 && resp.StatusCode < 300:
 		return t.store200(req, key, resp)
@@ -170,13 +175,11 @@ func (t *Transport) store200(req *http.Request, key string, resp *http.Response)
 	return resp, nil
 }
 
-// serve builds a synthesized 200 response from the cached entry. reason is a
-// human-readable cause ("fresh", "revalidated (304)") used only for logging.
-func (t *Transport) serve(req *http.Request, key string, meta Meta, reason string) (*http.Response, error) {
-	body, err := t.store.Open(key, meta)
-	if err != nil {
-		return nil, err
-	}
+// serveBytes builds a synthesized 200 response from an already-loaded (and
+// hash-verified) cached body. reason is a human-readable cause ("fresh",
+// "revalidated (304)") used only for logging. ContentLength reflects the actual
+// bytes served, not the stored metadata.
+func (t *Transport) serveBytes(req *http.Request, meta Meta, body []byte, reason string) *http.Response {
 	t.log.Debugf("httpcache: serving %s cache for %s", reason, req.URL)
 
 	header := http.Header{}
@@ -193,10 +196,10 @@ func (t *Transport) serve(req *http.Request, key string, meta Meta, reason strin
 		ProtoMajor:    1,
 		ProtoMinor:    1,
 		Header:        header,
-		Body:          body,
-		ContentLength: meta.BodySize,
+		Body:          io.NopCloser(bytes.NewReader(body)),
+		ContentLength: int64(len(body)),
 		Request:       req,
-	}, nil
+	}
 }
 
 // drain consumes and closes a response body we are discarding (e.g. a 304 or a

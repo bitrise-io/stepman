@@ -319,6 +319,35 @@ func TestRevalidation5xxPassedThrough(t *testing.T) {
 	})
 }
 
+// TestCorruptBodyRefetched verifies the on-read integrity check: if the cached
+// body is altered on disk so its bytes no longer match meta.BodySHA256, the
+// entry is treated as a miss and refetched rather than served as a valid 200.
+func TestCorruptBodyRefetched(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newHarness(t, func(_ *http.Request, _ int) (*http.Response, error) {
+			return makeResp(http.StatusOK, "GOOD", map[string]string{
+				"Cache-Control": "max-age=60",
+			}), nil
+		})
+
+		_, body := h.get(testURL)
+		require.Equal(t, "GOOD", body)
+		require.Equal(t, 1, h.base.calls)
+
+		// Corrupt the stored body in place (simulating bit-rot / a torn write).
+		entries, err := os.ReadDir(h.root)
+		require.NoError(t, err)
+		require.Len(t, entries, 1)
+		bodyPath := filepath.Join(h.root, entries[0].Name(), "latest.json")
+		require.NoError(t, os.WriteFile(bodyPath, []byte("CORRUPT"), 0o644))
+
+		// Still within max-age, but the checksum no longer matches -> refetch.
+		_, body = h.get(testURL)
+		assert.Equal(t, "GOOD", body, "corrupt entry must be refetched, not served")
+		assert.Equal(t, 2, h.base.calls, "checksum mismatch forces a network refetch")
+	})
+}
+
 func TestNoStoreNotCached(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		h := newHarness(t, func(_ *http.Request, _ int) (*http.Response, error) {

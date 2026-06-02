@@ -1,10 +1,11 @@
 package httpcache
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -53,10 +54,11 @@ func (s *Store) entryDir(key string) string { return filepath.Join(s.root, key) 
 
 func (s *Store) metaPath(key string) string { return filepath.Join(s.entryDir(key), metaFilename) }
 
-// Lookup reads the entry's meta.json. A missing entry, an unparseable meta.json,
-// or a meta.json whose body file is gone are all reported as a miss (found ==
-// false) with no error, so a corrupt entry simply triggers a refetch. A real
-// error is returned only for unexpected IO failures.
+// Lookup reads the entry's meta.json. A missing entry or an unparseable
+// meta.json is reported as a miss (found == false) with no error, so a corrupt
+// entry simply triggers a refetch. A real error is returned only for unexpected
+// IO failures. The body file's existence and integrity are checked separately
+// by ReadBody, so a hit here does not guarantee a usable body.
 func (s *Store) Lookup(key string) (meta Meta, found bool, err error) {
 	data, err := os.ReadFile(s.metaPath(key))
 	if errors.Is(err, fs.ErrNotExist) {
@@ -70,19 +72,26 @@ func (s *Store) Lookup(key string) (meta Meta, found bool, err error) {
 	if uerr := json.Unmarshal(data, &m); uerr != nil {
 		return Meta{}, false, nil // corrupt metadata -> treat as miss
 	}
-	if _, serr := os.Stat(filepath.Join(s.entryDir(key), m.BodyFile)); serr != nil {
-		return Meta{}, false, nil // body gone -> treat as miss
-	}
 	return m, true, nil
 }
 
-// Open returns a reader over the cached body. The caller closes it.
-func (s *Store) Open(key string, m Meta) (io.ReadCloser, error) {
-	f, err := os.Open(filepath.Join(s.entryDir(key), m.BodyFile))
+// ReadBody reads the cached body and verifies it against m.BodySHA256. A read
+// failure (body gone) or a checksum mismatch (corruption / a torn concurrent
+// write) is returned as an error so the caller treats the entry as unusable and
+// refetches. Loading the body here in one read also avoids a separate
+// existence-stat, closing the stat/open TOCTOU window.
+func (s *Store) ReadBody(key string, m Meta) ([]byte, error) {
+	data, err := os.ReadFile(filepath.Join(s.entryDir(key), m.BodyFile))
 	if err != nil {
-		return nil, fmt.Errorf("open cached body %s: %w", key, err)
+		return nil, fmt.Errorf("read cached body %s: %w", key, err)
 	}
-	return f, nil
+	if m.BodySHA256 != "" {
+		sum := sha256.Sum256(data)
+		if got := "sha256-" + hex.EncodeToString(sum[:]); got != m.BodySHA256 {
+			return nil, fmt.Errorf("cached body %s checksum mismatch: have %s, want %s", key, got, m.BodySHA256)
+		}
+	}
+	return data, nil
 }
 
 // Save writes the body and then meta.json into the entry directory, each via a
