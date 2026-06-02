@@ -38,8 +38,9 @@ type Meta struct {
 // Store is an on-disk HTTP cache laid out as one directory per entry, named
 // "<sha256(method+url)>-<basename>" (Nix-inspired: a machine-readable hash plus
 // a human-readable name). Each directory holds the body verbatim under its real
-// basename and a meta.json describing it. Entries are never auto-evicted, so a
-// stale entry stays available as a last-resort fallback when the network fails.
+// basename and a meta.json describing it. A single ".tmp" subdir holds
+// half-built entries before they are atomically renamed into place. Entries are
+// never auto-evicted.
 type Store struct {
 	root string
 }
@@ -53,6 +54,14 @@ func NewStore(dir string) *Store {
 func (s *Store) entryDir(key string) string { return filepath.Join(s.root, key) }
 
 func (s *Store) metaPath(key string) string { return filepath.Join(s.entryDir(key), metaFilename) }
+
+// stagingDir holds half-built entries before they are atomically renamed into
+// place. It lives under root so the rename stays on one filesystem (a
+// cross-filesystem rename would fail), keeps the root listing free of temp
+// dirs, and gives a GC a single place to sweep orphaned staging dirs. Its
+// leading dot keeps it from colliding with any entry key (keys start with a hex
+// hash).
+func (s *Store) stagingDir() string { return filepath.Join(s.root, ".tmp") }
 
 // Lookup reads the entry's meta.json. A missing entry or an unparseable
 // meta.json is reported as a miss (found == false) with no error, so a corrupt
@@ -94,33 +103,71 @@ func (s *Store) ReadBody(key string, m Meta) ([]byte, error) {
 	return data, nil
 }
 
-// Save writes the body and then meta.json into the entry directory, each via a
-// temp-file-plus-rename so a partially written entry is never observable. The
-// body is written before meta.json: a directory without a valid meta.json reads
-// back as a miss.
-func (s *Store) Save(key string, m Meta, body []byte) error {
-	dir := s.entryDir(key)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return fmt.Errorf("create cache dir %s: %w", dir, err)
+// Save writes the body and meta.json into a fresh staging directory and then
+// renames that directory into place as a single atomic step. Committing the
+// whole entry at once means a reader (or a concurrent writer) never observes a
+// directory whose meta.json and body came from different writes: an entry dir
+// is only ever created by an atomic rename of a fully-written staging dir, so
+// it is always complete (or absent). When the entry already exists it is
+// replaced; a concurrent writer of the same key may win the rename instead,
+// which is fine since both wrote the same resource.
+func (s *Store) Save(key string, m Meta, body []byte) (err error) {
+	staging := s.stagingDir()
+	if mkErr := os.MkdirAll(staging, 0o755); mkErr != nil {
+		return fmt.Errorf("create staging dir %s: %w", staging, mkErr)
 	}
-	if err := writeFileAtomic(filepath.Join(dir, m.BodyFile), body, 0o644); err != nil {
+	tmpDir, err := os.MkdirTemp(staging, "entry-*")
+	if err != nil {
+		return fmt.Errorf("create temp entry dir in %s: %w", staging, err)
+	}
+	defer func() {
+		if err != nil {
+			err = errors.Join(err, os.RemoveAll(tmpDir))
+		}
+	}()
+
+	metaBytes, err := marshalMeta(m)
+	if err != nil {
 		return err
 	}
-	return s.writeMeta(key, m)
+	if werr := os.WriteFile(filepath.Join(tmpDir, m.BodyFile), body, 0o644); werr != nil {
+		return fmt.Errorf("write body in %s: %w", tmpDir, werr)
+	}
+	if werr := os.WriteFile(filepath.Join(tmpDir, metaFilename), metaBytes, 0o644); werr != nil {
+		return fmt.Errorf("write meta in %s: %w", tmpDir, werr)
+	}
+	if cherr := os.Chmod(tmpDir, 0o755); cherr != nil {
+		return fmt.Errorf("chmod %s: %w", tmpDir, cherr)
+	}
+
+	entryDir := s.entryDir(key)
+	if rmErr := os.RemoveAll(entryDir); rmErr != nil {
+		return fmt.Errorf("clear existing entry %s: %w", entryDir, rmErr)
+	}
+	if rnErr := os.Rename(tmpDir, entryDir); rnErr != nil {
+		return fmt.Errorf("commit entry %s: %w", entryDir, rnErr)
+	}
+	return nil
 }
 
 // Touch rewrites meta.json only, used to refresh timestamps/validators after a
-// 304 Not Modified without rewriting the unchanged body.
+// 304 Not Modified without rewriting the unchanged body. The body filename and
+// content are unchanged, so the in-place atomic meta rewrite keeps the entry
+// self-consistent.
 func (s *Store) Touch(key string, m Meta) error {
-	return s.writeMeta(key, m)
+	metaBytes, err := marshalMeta(m)
+	if err != nil {
+		return err
+	}
+	return writeFileAtomic(s.metaPath(key), metaBytes, 0o644)
 }
 
-func (s *Store) writeMeta(key string, m Meta) error {
+func marshalMeta(m Meta) ([]byte, error) {
 	data, err := json.MarshalIndent(m, "", "\t")
 	if err != nil {
-		return fmt.Errorf("marshal cache meta %s: %w", key, err)
+		return nil, fmt.Errorf("marshal cache meta: %w", err)
 	}
-	return writeFileAtomic(s.metaPath(key), append(data, '\n'), 0o644)
+	return append(data, '\n'), nil
 }
 
 // writeFileAtomic writes data to a temp file in the destination directory and

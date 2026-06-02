@@ -1,6 +1,8 @@
 package httpcache
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -88,13 +91,28 @@ func (h *harness) get(url string) (int, string) {
 	return resp.StatusCode, string(body)
 }
 
+// entryNames lists real cache entry dirs under root, skipping the ".tmp"
+// staging dir (and any other dotfile).
+func entryNames(t *testing.T, root string) []string {
+	t.Helper()
+	dirEntries, err := os.ReadDir(root)
+	require.NoError(t, err)
+	var names []string
+	for _, e := range dirEntries {
+		if strings.HasPrefix(e.Name(), ".") {
+			continue
+		}
+		names = append(names, e.Name())
+	}
+	return names
+}
+
 // readMeta loads the single cache entry's meta.json (fails if not exactly one).
 func (h *harness) readMeta() Meta {
 	h.t.Helper()
-	entries, err := os.ReadDir(h.root)
-	require.NoError(h.t, err)
-	require.Len(h.t, entries, 1, "expected exactly one cache entry")
-	data, err := os.ReadFile(filepath.Join(h.root, entries[0].Name(), metaFilename))
+	names := entryNames(h.t, h.root)
+	require.Len(h.t, names, 1, "expected exactly one cache entry")
+	data, err := os.ReadFile(filepath.Join(h.root, names[0], metaFilename))
 	require.NoError(h.t, err)
 	var m Meta
 	require.NoError(h.t, json.Unmarshal(data, &m))
@@ -123,13 +141,12 @@ func TestMissThenHit(t *testing.T) {
 		assert.Equal(t, 1, h.base.calls, "fresh hit must not hit the network")
 
 		// Disk layout + metadata.
-		entries, err := os.ReadDir(h.root)
-		require.NoError(t, err)
-		require.Len(t, entries, 1)
-		assert.True(t, strings.HasSuffix(entries[0].Name(), "-latest.json"),
-			"entry dir keeps the human-readable basename: %s", entries[0].Name())
+		names := entryNames(t, h.root)
+		require.Len(t, names, 1)
+		assert.True(t, strings.HasSuffix(names[0], "-latest.json"),
+			"entry dir keeps the human-readable basename: %s", names[0])
 
-		bodyPath := filepath.Join(h.root, entries[0].Name(), "latest.json")
+		bodyPath := filepath.Join(h.root, names[0], "latest.json")
 		onDisk, err := os.ReadFile(bodyPath)
 		require.NoError(t, err)
 		assert.Equal(t, `{"latest":"8.5.0"}`, string(onDisk), "body stored under its real name")
@@ -335,10 +352,9 @@ func TestCorruptBodyRefetched(t *testing.T) {
 		require.Equal(t, 1, h.base.calls)
 
 		// Corrupt the stored body in place (simulating bit-rot / a torn write).
-		entries, err := os.ReadDir(h.root)
-		require.NoError(t, err)
-		require.Len(t, entries, 1)
-		bodyPath := filepath.Join(h.root, entries[0].Name(), "latest.json")
+		names := entryNames(t, h.root)
+		require.Len(t, names, 1)
+		bodyPath := filepath.Join(h.root, names[0], "latest.json")
 		require.NoError(t, os.WriteFile(bodyPath, []byte("CORRUPT"), 0o644))
 
 		// Still within max-age, but the checksum no longer matches -> refetch.
@@ -359,9 +375,7 @@ func TestNoStoreNotCached(t *testing.T) {
 		_, body := h.get(testURL)
 		assert.Equal(t, "SECRET", body)
 
-		entries, err := os.ReadDir(h.root)
-		require.NoError(t, err)
-		assert.Empty(t, entries, "no-store response must not be written to disk")
+		assert.Empty(t, entryNames(t, h.root), "no-store response must not be written to disk")
 
 		_, body = h.get(testURL)
 		assert.Equal(t, "SECRET", body)
@@ -389,6 +403,55 @@ func TestBodyFilename(t *testing.T) {
 	}
 }
 
+// TestConcurrentSaveConsistent hammers the same key with concurrent Saves of
+// different bodies and asserts the surviving entry is always internally
+// consistent — its body matches the checksum in its own meta.json. This is the
+// invariant the whole-entry atomic rename guarantees: an entry dir is only ever
+// a complete, single-writer pair, never a mix of one writer's body and
+// another's meta. Run with -race.
+func TestConcurrentSaveConsistent(t *testing.T) {
+	store := NewStore(t.TempDir())
+	const key = "deadbeef-latest.json"
+	const n = 16
+
+	var wg sync.WaitGroup
+	errCh := make(chan error, n)
+	for i := range n {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			body := fmt.Appendf(nil, "body-%02d-%s", i, strings.Repeat("x", i))
+			sum := sha256.Sum256(body)
+			//nolint:exhaustruct // only the body-integrity fields matter here
+			m := Meta{
+				URL:        "https://h/latest.json",
+				Method:     http.MethodGet,
+				Status:     http.StatusOK,
+				BodyFile:   "latest.json",
+				BodySHA256: "sha256-" + hex.EncodeToString(sum[:]),
+				BodySize:   int64(len(body)),
+			}
+			errCh <- store.Save(key, m, body)
+		}(i)
+	}
+	wg.Wait()
+	close(errCh)
+
+	committed := 0
+	for err := range errCh {
+		if err == nil {
+			committed++
+		}
+	}
+	require.GreaterOrEqual(t, committed, 1, "at least one writer must commit the entry")
+
+	m, found, err := store.Lookup(key)
+	require.NoError(t, err)
+	require.True(t, found, "entry must exist after concurrent writes")
+	_, err = store.ReadBody(key, m)
+	require.NoError(t, err, "surviving entry's body must match its own meta checksum")
+}
+
 func TestNonGETPassThrough(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		h := newHarness(t, func(_ *http.Request, _ int) (*http.Response, error) {
@@ -403,9 +466,7 @@ func TestNonGETPassThrough(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, resp.Body.Close())
 
-		entries, err := os.ReadDir(h.root)
-		require.NoError(t, err)
-		assert.Empty(t, entries, "non-GET responses are not cached")
+		assert.Empty(t, entryNames(t, h.root), "non-GET responses are not cached")
 	})
 }
 
@@ -418,8 +479,6 @@ func TestNon2xxNotCached(t *testing.T) {
 		status, _ := h.get(testURL)
 		assert.Equal(t, http.StatusNotFound, status, "non-2xx passes through unchanged")
 
-		entries, err := os.ReadDir(h.root)
-		require.NoError(t, err)
-		assert.Empty(t, entries, "404 must not be cached")
+		assert.Empty(t, entryNames(t, h.root), "404 must not be cached")
 	})
 }
