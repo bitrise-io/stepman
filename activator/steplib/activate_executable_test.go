@@ -73,7 +73,7 @@ func TestBuildDownloadURLs(t *testing.T) {
 	}{
 		{
 			name:  "Default list: GCS first, gateway second",
-			bases: precompiledStepsDefaultStorageURLs,
+			bases: PrecompiledStepsDefaultStorageURLs,
 			executable: models.Executable{
 				StorageURI: "steps/step1.tar.gz",
 			},
