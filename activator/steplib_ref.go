@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/bitrise-io/go-utils/pointers"
 	"github.com/bitrise-io/go-utils/v2/fileutil"
@@ -17,6 +18,35 @@ import (
 )
 
 const useSteplibV2 = "BITRISE_EXPERIMENT_STEPLIB_V2"
+
+const (
+	// bitriseV1SteplibURL is the canonical git URL of the official Bitrise
+	// steplib, as users reference it in bitrise.yml.
+	bitriseV1SteplibURL = "https://github.com/bitrise-io/bitrise-steplib.git"
+	// bitriseV2SteplibURL is the compiled-in base URL of the official V2
+	// inventory. The official V1 URL is rewritten to this when V2 is enabled.
+	bitriseV2SteplibURL = "https://steplibrary.bitrise.io"
+)
+
+// resolveSteplibV2URL decides whether to activate via the V2 inventory when the
+// BITRISE_EXPERIMENT_STEPLIB_V2 flag is enabled, returning the V2 base URL to use:
+//
+//   - the official V1 steplib URL is rewritten to the compiled-in V2 URL;
+//   - any non-".git" URL is treated as a V2 inventory base URL directly;
+//   - any other ".git" URL (an alt-steplib) keeps the legacy V1 path.
+func resolveSteplibV2URL(steplibURI string) (v2URL string, useV2 bool) {
+	if os.Getenv(useSteplibV2) != "true" && os.Getenv(useSteplibV2) != "1" {
+		return "", false
+	}
+	switch {
+	case steplibURI == bitriseV1SteplibURL:
+		return bitriseV2SteplibURL, true
+	case strings.HasSuffix(steplibURI, ".git"):
+		return "", false
+	default:
+		return steplibURI, true
+	}
+}
 
 func ActivateSteplibRefStep(
 	log stepman.Logger,
@@ -34,8 +64,10 @@ func ActivateSteplibRefStep(
 		DidStepLibUpdate: false,
 	}
 
-	if os.Getenv(useSteplibV2) == "true" || os.Getenv(useSteplibV2) == "1" {
-		v2 := steplibrary.New(log, id.SteplibSource, isOfflineMode, fileutil.NewFileManager())
+	if inventoryURL, useV2 := resolveSteplibV2URL(id.SteplibSource); useV2 {
+		// id.SteplibSource is the identity (keys the V1 cache / source fallback);
+		// inventoryURL is where the V2 inventory JSON is fetched from.
+		v2 := steplibrary.New(log, id.SteplibSource, inventoryURL, isOfflineMode, fileutil.NewFileManager())
 		// TODO: thread context.Context through ActivateSteplibRefStep when callers can supply one.
 		activated, err := v2.Activate(context.Background(), id.IDorURI, id.Version, steplibrary.ActivateOutputPaths{
 			YMLPath:  stepYMLPath,

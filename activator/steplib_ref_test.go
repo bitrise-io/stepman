@@ -9,8 +9,61 @@ import (
 	"github.com/bitrise-io/stepman/activator/result"
 	"github.com/bitrise-io/stepman/models"
 	"github.com/bitrise-io/stepman/stepid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestResolveSteplibV2URL(t *testing.T) {
+	cases := map[string]struct {
+		flagValue  string
+		steplibURI string
+		wantURL    string
+		wantUseV2  bool
+	}{
+		"flag off keeps the legacy path": {
+			flagValue:  "",
+			steplibURI: bitriseV1SteplibURL,
+			wantUseV2:  false,
+		},
+		"flag=true rewrites the official V1 URL to V2": {
+			flagValue:  "true",
+			steplibURI: bitriseV1SteplibURL,
+			wantURL:    bitriseV2SteplibURL,
+			wantUseV2:  true,
+		},
+		"flag=1 rewrites the official V1 URL to V2": {
+			flagValue:  "1",
+			steplibURI: bitriseV1SteplibURL,
+			wantURL:    bitriseV2SteplibURL,
+			wantUseV2:  true,
+		},
+		"non-.git URL is used directly as a V2 base": {
+			flagValue:  "true",
+			steplibURI: "https://my-cdn.example/steplib/",
+			wantURL:    "https://my-cdn.example/steplib/",
+			wantUseV2:  true,
+		},
+		"alt-steplib .git URL keeps the legacy path": {
+			flagValue:  "true",
+			steplibURI: "https://github.com/acme/custom-steplib.git",
+			wantUseV2:  false,
+		},
+		"unexpected flag value keeps the legacy path": {
+			flagValue:  "yes",
+			steplibURI: bitriseV1SteplibURL,
+			wantUseV2:  false,
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Setenv(useSteplibV2, tc.flagValue)
+			gotURL, gotUseV2 := resolveSteplibV2URL(tc.steplibURI)
+			assert.Equal(t, tc.wantUseV2, gotUseV2, "useV2")
+			assert.Equal(t, tc.wantURL, gotURL, "v2URL")
+		})
+	}
+}
 
 func Test_activateStepLibStep(t *testing.T) {
 	tests := []struct {

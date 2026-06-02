@@ -12,7 +12,12 @@ import (
 )
 
 type Steplib struct {
-	log              stepman.Logger
+	log stepman.Logger
+	// steplibURI is the steplib *identity* — the URI the user references in
+	// bitrise.yml (e.g. the official git URL). It keys the V1 on-disk cache
+	// and route used by source-fallback (see source.go) and is reported as
+	// StepInfoModel.Library. It is NOT the URL the V2 inventory is fetched
+	// from; that is the inventory URL held by the HTTP API.
 	steplibURI       string
 	isOfflineMode    bool
 	api              API
@@ -25,8 +30,12 @@ type ActivateOutputPaths struct {
 	YMLPath, CodePath string
 }
 
-func New(log stepman.Logger, steplibURI string, isOfflineMode bool, fileManager fileutil.FileManager) *Steplib {
-	api := NewHTTPAPI(steplibURI, v2CacheDir(steplibURI), nil, log)
+// New builds a Steplib. steplibURI is the steplib identity (the user's
+// bitrise.yml URI, used for the V1 cache and source fallback); inventoryURL is
+// the base URL the V2 inventory JSON is fetched from. They differ for the
+// official steplib, whose git identity is rewritten to a compiled-in V2 host.
+func New(log stepman.Logger, steplibURI, inventoryURL string, isOfflineMode bool, fileManager fileutil.FileManager) *Steplib {
+	api := NewHTTPAPI(inventoryURL, v2CacheDir(inventoryURL), nil, log)
 	s := &Steplib{
 		log:              log,
 		steplibURI:       steplibURI,
