@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/bitrise-io/stepman/internal/httpcache"
 	"github.com/hashicorp/go-retryablehttp"
 )
 
@@ -67,6 +68,30 @@ func NewClient(logger Logger) Client {
 // non-nil. Prefer NewClient unless you need a specific transport.
 func NewWithClient(httpClient *http.Client) Client {
 	return &client{httpClient: httpClient}
+}
+
+// NewCachingClient is like NewClient but routes requests through an on-disk
+// HTTP cache rooted at cacheDir. The cache honors the server's
+// Cache-Control/ETag, serves fresh entries without hitting the network, and
+// falls back to a stale entry when revalidation fails — so callers get
+// graceful degradation during a CDN/network outage. Retries layer above the
+// cache: a cache hit returns immediately, and only a genuine miss-and-failure
+// is retried.
+//
+// logger must satisfy httpcache.Logger (Debugf+Warnf); stepman.Logger does.
+func NewCachingClient(logger httpcache.Logger, cacheDir string) Client {
+	rc := retryablehttp.NewClient()
+	rc.Logger = &retryhttpLogger{l: logger}
+	rc.ErrorHandler = retryablehttp.PassthroughErrorHandler
+
+	base := rc.HTTPClient.Transport
+	if base == nil {
+		base = http.DefaultTransport
+	}
+	store := httpcache.NewStore(cacheDir)
+	rc.HTTPClient.Transport = httpcache.NewTransport(base, store, logger)
+
+	return &client{httpClient: rc.StandardClient()}
 }
 
 func (c *client) Get(ctx context.Context, url string) (io.ReadCloser, error) {

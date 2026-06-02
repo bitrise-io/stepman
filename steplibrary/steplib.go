@@ -29,9 +29,13 @@ type ActivateOutputPaths struct {
 // official steplib, whose git identity is rewritten to a compiled-in V2 host.
 func New(log stepman.Logger, steplibURI, inventoryURL string, isOfflineMode bool, fileManager fileutil.FileManager) *Steplib {
 	return &Steplib{
-		log:         log,
-		steplibURI:  steplibURI,
-		api:         NewHTTPAPI(inventoryURL, httpfetch.NewClient(log)),
+		log:        log,
+		steplibURI: steplibURI,
+		// The inventory API goes through the on-disk HTTP cache (Cache-Control /
+		// ETag aware, stale-on-error fallback). Binary downloads stay uncached:
+		// they are large, immutable, hash-verified, and already land at a
+		// content-addressed install path.
+		api:         NewHTTPAPI(inventoryURL, httpfetch.NewCachingClient(log, stepman.GetHTTPCacheDirPath())),
 		fileManager: fileManager,
 		fetcher:     httpfetch.NewClient(log),
 		source:      v1Source{steplibURI: steplibURI, isOfflineMode: isOfflineMode, log: log},
