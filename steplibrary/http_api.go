@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"net/url"
 	"strings"
 
@@ -21,10 +20,10 @@ type HTTPAPI struct {
 	Fetcher httpfetch.Client
 }
 
-func NewHTTPAPI(baseURL string, client *http.Client, logger httpfetch.Logger) *HTTPAPI {
+func NewHTTPAPI(baseURL string, fetcher httpfetch.Client) *HTTPAPI {
 	return &HTTPAPI{
 		BaseURL: strings.TrimRight(baseURL, "/"),
-		Fetcher: httpfetch.NewClient(client, logger),
+		Fetcher: fetcher,
 	}
 }
 

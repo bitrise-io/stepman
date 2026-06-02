@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/bitrise-io/stepman/internal/httpfetch"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -35,7 +37,7 @@ func TestHTTPAPI(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
-	api := NewHTTPAPI(srv.URL, srv.Client(), discardLogger{})
+	api := NewHTTPAPI(srv.URL, httpfetch.NewWithClient(srv.Client()))
 	ctx := context.Background()
 
 	t.Run("GetAllStepIDs", func(t *testing.T) {

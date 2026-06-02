@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/bitrise-io/stepman/internal/httpfetch"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -24,7 +26,7 @@ func TestHTTPAPI_Integration(t *testing.T) {
 	srv := httptest.NewServer(http.FileServer(http.Dir(sampleDir)))
 	t.Cleanup(srv.Close)
 
-	api := NewHTTPAPI(srv.URL, srv.Client(), discardLogger{})
+	api := NewHTTPAPI(srv.URL, httpfetch.NewWithClient(srv.Client()))
 	ctx := context.Background()
 
 	t.Run("GetAllStepIDs returns sample step IDs", func(t *testing.T) {

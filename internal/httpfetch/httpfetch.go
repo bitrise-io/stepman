@@ -53,16 +53,19 @@ type client struct {
 	httpClient *http.Client
 }
 
-// NewClient returns a Client backed by httpClient. When httpClient is nil
-// a retryablehttp-backed client is used, so production callers get
-// transient-failure retries by default.
-func NewClient(httpClient *http.Client, logger Logger) Client {
-	if httpClient == nil {
-		rc := retryablehttp.NewClient()
-		rc.Logger = &retryhttpLogger{l: logger}
-		rc.ErrorHandler = retryablehttp.PassthroughErrorHandler
-		httpClient = rc.StandardClient()
-	}
+// NewClient returns a Client backed by a retryablehttp client, so callers get
+// transient-failure retries by default. Use NewWithClient to supply a specific
+// *http.Client (e.g. a test server's client).
+func NewClient(logger Logger) Client {
+	rc := retryablehttp.NewClient()
+	rc.Logger = &retryhttpLogger{l: logger}
+	rc.ErrorHandler = retryablehttp.PassthroughErrorHandler
+	return &client{httpClient: rc.StandardClient()}
+}
+
+// NewWithClient returns a Client backed by the given httpClient, which must be
+// non-nil. Prefer NewClient unless you need a specific transport.
+func NewWithClient(httpClient *http.Client) Client {
 	return &client{httpClient: httpClient}
 }
 

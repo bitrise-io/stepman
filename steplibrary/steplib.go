@@ -31,9 +31,9 @@ func New(log stepman.Logger, steplibURI, inventoryURL string, isOfflineMode bool
 	return &Steplib{
 		log:         log,
 		steplibURI:  steplibURI,
-		api:         NewHTTPAPI(inventoryURL, nil, log),
+		api:         NewHTTPAPI(inventoryURL, httpfetch.NewClient(log)),
 		fileManager: fileManager,
-		fetcher:     httpfetch.NewClient(nil, log),
+		fetcher:     httpfetch.NewClient(log),
 		source:      v1Source{steplibURI: steplibURI, isOfflineMode: isOfflineMode, log: log},
 	}
 }
