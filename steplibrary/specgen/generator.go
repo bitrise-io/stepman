@@ -37,6 +37,22 @@ type Stats struct {
 	Duration     time.Duration
 }
 
+// Generate sets up the steplib identified by steplibURI (cloning it into
+// stepman's local cache via stepman.SetupLibrary if not already present) and
+// writes the V2 inventory tree to outputDir. It is the URI-based entry point
+// used by the CLI; GenerateFromSteplibClone is the lower-level core that reads
+// from an already-available filesystem.
+func Generate(steplibURI, outputDir string, opts Options, log stepman.Logger) (Stats, error) {
+	if err := stepman.SetupLibrary(steplibURI, log); err != nil {
+		return Stats{}, fmt.Errorf("setup steplib %s: %w", steplibURI, err)
+	}
+	route, found := stepman.ReadRoute(steplibURI)
+	if !found {
+		return Stats{}, fmt.Errorf("no route for steplib %s after setup", steplibURI)
+	}
+	return GenerateFromSteplibClone(os.DirFS(stepman.GetLibraryBaseDirPath(route)), outputDir, opts, log)
+}
+
 // GenerateFromSteplibClone reads a bitrise-steplib clone from inputFS and writes the V2 inventory
 // tree to outputDir. It is destructive in the sense that it writes files; it
 // does NOT delete existing files outside the paths it owns.

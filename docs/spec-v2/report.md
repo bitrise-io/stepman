@@ -190,9 +190,8 @@ checked out somewhere:
 
 ```sh
 go run ./steplibrary/specgen/cmd/steplib-gen \
-  -input /path/to/bitrise-steplib \
-  -output /tmp/v2-out \
-  -commit-sha "$(git -C /path/to/bitrise-steplib rev-parse HEAD)"
+  -steplib https://github.com/bitrise-io/bitrise-steplib.git \
+  -output /tmp/v2-out
 ```
 
 The exact numbers in this report were captured at commit `b9af7d7` of the

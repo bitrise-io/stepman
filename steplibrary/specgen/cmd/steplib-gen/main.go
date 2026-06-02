@@ -1,7 +1,8 @@
-// Command steplib-gen reads a bitrise-steplib clone and writes the V2 inventory
-// tree to an output directory.
+// Command steplib-gen sets up a step library by its source URI (cloning it into
+// stepman's local cache if needed) and writes the V2 inventory tree to an output
+// directory.
 //
-//	steplib-gen -input <bitrise-steplib-clone> -output <out-dir> [-commit-sha <sha>]
+//	steplib-gen -steplib <steplib-source-uri> -output <out-dir> [-commit-sha <sha>]
 //
 // See STEP-2374-plan.md and docs/spec-v2/ for the format being generated.
 package main
@@ -28,15 +29,15 @@ func (stderrLogger) Errorf(format string, v ...any) {
 
 func main() {
 	var (
-		input     = flag.String("input", "", "path to a bitrise-steplib clone (required)")
+		steplib   = flag.String("steplib", "", "steplib source URI to set up and generate from (required)")
 		output    = flag.String("output", "", "output directory for the V2 tree (required)")
 		commitSHA = flag.String("commit-sha", "", "optional steplib commit sha to record in meta.json")
 		timestamp = flag.String("timestamp", "", "RFC3339 timestamp to record as updated_at (default: time.Now UTC). Set for reproducible output (e.g., sample-output regeneration).")
 	)
 	flag.Parse()
 
-	if *input == "" || *output == "" {
-		fmt.Fprintln(os.Stderr, "both -input and -output are required")
+	if *steplib == "" || *output == "" {
+		fmt.Fprintln(os.Stderr, "both -steplib and -output are required")
 		flag.Usage()
 		os.Exit(2)
 	}
@@ -56,7 +57,7 @@ func main() {
 		SteplibCommitSHA: *commitSHA,
 	}
 
-	stats, err := specgen.GenerateFromSteplibClone(os.DirFS(*input), *output, opts, stderrLogger{})
+	stats, err := specgen.Generate(*steplib, *output, opts, stderrLogger{})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %s\n", err)
 		os.Exit(1)
