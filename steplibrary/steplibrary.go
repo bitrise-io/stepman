@@ -6,12 +6,10 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"net/url"
 	"path/filepath"
 	"slices"
 	"strconv"
 
-	"github.com/bitrise-io/go-utils/command"
 	"github.com/bitrise-io/go-utils/v2/fileutil"
 	"github.com/bitrise-io/stepman/activator/result"
 	"github.com/bitrise-io/stepman/internal/httpfetch"
@@ -28,7 +26,7 @@ type Steplib struct {
 	api              API
 	fileManager      fileutil.FileManager
 	fetcher          httpfetch.Client
-	fetchSourceZIPFn func(ctx context.Context, step ResolvedStepVersion) (string, error)
+	fetchSourceDirFn func(ctx context.Context, step ResolvedStepVersion) (string, error)
 }
 
 type ActivateOutputPaths struct {
@@ -44,9 +42,9 @@ func New(log stepman.Logger, steplibURI string, isOfflineMode bool, fileManager 
 		api:              api,
 		fileManager:      fileManager,
 		fetcher:          httpfetch.NewClient(nil, log),
-		fetchSourceZIPFn: nil,
+		fetchSourceDirFn: nil,
 	}
-	s.fetchSourceZIPFn = s.getStepSourceZIPPath
+	s.fetchSourceDirFn = s.getStepSourceDir
 	return s
 }
 
@@ -82,11 +80,11 @@ func (s *Steplib) Activate(ctx context.Context, stepID, version string, outputPa
 	}
 
 	if err == nil && execPath == "" {
-		var stepSourceZIPPath string
-		stepSourceZIPPath, err = s.fetchSourceZIPFn(ctx, resolved)
+		var srcDir string
+		srcDir, err = s.fetchSourceDirFn(ctx, resolved)
 		if err == nil {
-			if uerr := command.UnZIP(stepSourceZIPPath, outputPaths.CodePath); uerr != nil {
-				err = fmt.Errorf("unzip step source %s: %w", stepSourceZIPPath, uerr)
+			if cerr := s.fileManager.CopyDir(srcDir, outputPaths.CodePath, &fileutil.CopyOptions{Overwrite: true}); cerr != nil {
+				err = fmt.Errorf("copy step source %s to %s: %w", srcDir, outputPaths.CodePath, cerr)
 			}
 		}
 	}
@@ -115,15 +113,6 @@ func (s *Steplib) Activate(ctx context.Context, stepID, version string, outputPa
 		ActivationType:   activationType,
 		DidStepLibUpdate: false, // deprecated
 	}, nil
-}
-
-func (s *Steplib) getStepSourceZIPPath(ctx context.Context, step ResolvedStepVersion) (string, error) {
-	destPath := filepath.Join(v2CacheDir(s.steplibURI), "steps", step.ID, step.Version, "src.zip")
-	src := s.steplibURI + fmt.Sprintf("/steps/%s/%s/src.zip", url.PathEscape(step.ID), url.PathEscape(step.Version))
-	if err := s.fetcher.Download(ctx, destPath, src); err != nil {
-		return "", err
-	}
-	return destPath, nil
 }
 
 func (s *Steplib) getStepVersionInfo(ctx context.Context, stepID, version string) (models.StepInfoModel, ResolvedStepVersion, error) {

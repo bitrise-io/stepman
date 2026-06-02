@@ -148,10 +148,10 @@ func TestSteplib_Activate_PrecompiledHashMismatch_FallsBackToSource(t *testing.T
 		Executables: &executables,
 	}
 
-	// Seed a real source zip for the fallback path.
+	// Seed a real source dir for the fallback path.
 	tmpDir := t.TempDir()
-	sourceZIP := filepath.Join(tmpDir, "source-step.zip")
-	writeSeedZip(t, sourceZIP)
+	sourceDir := filepath.Join(tmpDir, "source-step")
+	writeSeedDir(t, sourceDir)
 
 	api := fakeAPI{
 		ids: []string{"script"},
@@ -168,7 +168,7 @@ func TestSteplib_Activate_PrecompiledHashMismatch_FallsBackToSource(t *testing.T
 		api:              api,
 		fileManager:      fileutil.NewFileManager(),
 		fetcher:          &fakeFetcher{payload: payload},
-		fetchSourceZIPFn: func(_ context.Context, _ ResolvedStepVersion) (string, error) { return sourceZIP, nil },
+		fetchSourceDirFn: func(_ context.Context, _ ResolvedStepVersion) (string, error) { return sourceDir, nil },
 	}
 
 	got, err := s.Activate(context.Background(), "script", "", ActivateOutputPaths{

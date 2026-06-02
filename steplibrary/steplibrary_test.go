@@ -1,7 +1,6 @@
 package steplibrary
 
 import (
-	"archive/zip"
 	"context"
 	"errors"
 	"os"
@@ -86,37 +85,22 @@ func (f fakeAPI) GetStepModel(ctx context.Context, step ResolvedStepVersion) (mo
 }
 
 
-func writeSeedZip(t *testing.T, path string) {
+// writeSeedDir creates a directory containing a single step source file, used
+// as a stand-in for the V1 cache dir that getStepSourceDir returns.
+func writeSeedDir(t *testing.T, dir string) {
 	t.Helper()
-	f, err := os.Create(path)
-	if err != nil {
-		t.Fatalf("create seed zip: %v", err)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("create seed dir: %v", err)
 	}
-	w := zip.NewWriter(f)
-	entry, err := w.Create("step.txt")
-	if err != nil {
-		_ = w.Close()
-		_ = f.Close()
-		t.Fatalf("create zip entry: %v", err)
-	}
-	if _, err := entry.Write([]byte("seed\n")); err != nil {
-		_ = w.Close()
-		_ = f.Close()
-		t.Fatalf("write zip entry: %v", err)
-	}
-	if err := w.Close(); err != nil {
-		_ = f.Close()
-		t.Fatalf("close zip writer: %v", err)
-	}
-	if err := f.Close(); err != nil {
-		t.Fatalf("close zip file: %v", err)
+	if err := os.WriteFile(filepath.Join(dir, "step.txt"), []byte("seed\n"), 0o644); err != nil {
+		t.Fatalf("write seed file: %v", err)
 	}
 }
 
 func TestSteplib_Activate(t *testing.T) {
 	tmpDir := t.TempDir()
-	sourceZIP := filepath.Join(tmpDir, "source-step.zip")
-	writeSeedZip(t, sourceZIP)
+	sourceDir := filepath.Join(tmpDir, "source-step")
+	writeSeedDir(t, sourceDir)
 
 	scriptOnly := fakeAPI{
 		ids: []string{"script"},
@@ -246,7 +230,7 @@ func TestSteplib_Activate(t *testing.T) {
 				steplibURI:       "https://github.com/bitrise-io/bitrise-steplib.git",
 				api:              tt.api,
 				fileManager:      fileutil.NewFileManager(),
-				fetchSourceZIPFn: func(_ context.Context, _ ResolvedStepVersion) (string, error) { return sourceZIP, nil },
+				fetchSourceDirFn: func(_ context.Context, _ ResolvedStepVersion) (string, error) { return sourceDir, nil },
 			}
 			outDir := t.TempDir()
 			outPaths := ActivateOutputPaths{
