@@ -53,6 +53,24 @@ workflows:
             export INTEGRATION_TEST_BINARY_PATH="$current_stepman"
             go test -v ./_tests/integration/...
 
+  test-specv2:
+    title: Runs the steplib v2 end-to-end test
+    description: |-
+      Delegates to bitrise_specv2.yml: generates a V2 inventory from a
+      bitrise-steplib clone, serves it locally, builds the bitrise CLI against
+      this stepman checkout, and activates a step through the v2 HTTPAPI +
+      precompiled-binary path. Kept out of the default `test` workflow because
+      it clones and builds the bitrise CLI.
+    steps:
+    - bundle::setup-go: { }
+    - script:
+        title: Run steplib v2 e2e via real bitrise CLI
+        inputs:
+        - content: |-
+            #!/usr/bin/env bash
+            set -ex
+            bitrise run --config bitrise_specv2.yml test-specv2
+
   create-release:
     description: Creates Linux and Darwin binaries, then publishes a GitHub release
     envs:

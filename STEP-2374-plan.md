@@ -419,7 +419,7 @@ Produce a runnable Go tool that converts a local clone of `bitrise-steplib` into
 
 ### Deliverables
 
-1. **`cmd/steplib-gen/`** — a Go command-line tool in the stepman repo.
+1. **`steplibrary/specgen/cmd/steplib-gen/`** — a Go command-line tool in the stepman repo.
    - Input: path to a local clone of `bitrise-steplib` (and an output dir).
    - Walks `steps/**/step.yml` (re-using `stepman.ParseStepDefinition`) and per-step `step-info.yml`.
    - Writes the full V2 tree (all schemas above) to the output directory.
@@ -520,7 +520,7 @@ func NewReader(steplibURI string, log Logger) (Reader, error) {
 
 When an alt-steplib operator wants to offer V2 to their users:
 
-1. They generate their own V2 tree with `cmd/steplib-gen`.
+1. They generate their own V2 tree with `steplibrary/specgen/cmd/steplib-gen`.
 2. They host it on their CDN / bucket / wherever, over HTTPS.
 3. Their users change `step_lib_source` in `bitrise.yml` from `https://…/repo.git` to the V2 base URL (e.g., `https://my-cdn.example/steplib/`).
 
