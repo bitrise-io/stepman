@@ -134,11 +134,11 @@ func TestSteplib_Activate(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			s := &Steplib{
-				log:              discardLogger{},
-				steplibURI:       "https://github.com/bitrise-io/bitrise-steplib.git",
-				api:              tc.api,
-				fileManager:      fileutil.NewFileManager(),
-				fetchSourceDirFn: func(_ context.Context, _ ResolvedStepVersion) (string, error) { return sourceDir, nil },
+				log:         discardLogger{},
+				steplibURI:  "https://github.com/bitrise-io/bitrise-steplib.git",
+				api:         tc.api,
+				fileManager: fileutil.NewFileManager(),
+				source:      stubSource{dir: sourceDir},
 			}
 			outDir := t.TempDir()
 			outPaths := ActivateOutputPaths{

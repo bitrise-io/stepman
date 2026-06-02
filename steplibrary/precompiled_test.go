@@ -108,12 +108,12 @@ func TestSteplib_Activate_PrecompiledHashMismatch_FallsBackToSource(t *testing.T
 
 	outDir := t.TempDir()
 	s := &Steplib{
-		log:              discardLogger{},
-		steplibURI:       "https://github.com/bitrise-io/bitrise-steplib.git",
-		api:              api,
-		fileManager:      fileutil.NewFileManager(),
-		fetcher:          &fakeFetcher{payload: payload},
-		fetchSourceDirFn: func(_ context.Context, _ ResolvedStepVersion) (string, error) { return sourceDir, nil },
+		log:         discardLogger{},
+		steplibURI:  "https://github.com/bitrise-io/bitrise-steplib.git",
+		api:         api,
+		fileManager: fileutil.NewFileManager(),
+		fetcher:     &fakeFetcher{payload: payload},
+		source:      stubSource{dir: sourceDir},
 	}
 
 	got, gotErr := s.Activate(context.Background(), "script", "", ActivateOutputPaths{

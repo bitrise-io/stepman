@@ -1,8 +1,6 @@
 package steplibrary
 
 import (
-	"context"
-
 	"github.com/bitrise-io/go-utils/v2/fileutil"
 	"github.com/bitrise-io/stepman/internal/httpfetch"
 	"github.com/bitrise-io/stepman/stepman"
@@ -11,16 +9,14 @@ import (
 type Steplib struct {
 	log stepman.Logger
 	// steplibURI is the steplib *identity* — the URI the user references in
-	// bitrise.yml (e.g. the official git URL). It keys the V1 on-disk cache
-	// and route used by source-fallback (see source.go) and is reported as
+	// bitrise.yml (e.g. the official git URL). It is reported as
 	// StepInfoModel.Library. It is NOT the URL the V2 inventory is fetched
 	// from; that is the inventory URL held by the HTTP API.
-	steplibURI       string
-	isOfflineMode    bool
-	api              API
-	fileManager      fileutil.FileManager
-	fetcher          httpfetch.Client
-	fetchSourceDirFn func(ctx context.Context, step ResolvedStepVersion) (string, error)
+	steplibURI  string
+	api         API
+	fileManager fileutil.FileManager
+	fetcher     httpfetch.Client
+	source      sourceProvider
 }
 
 type ActivateOutputPaths struct {
@@ -32,16 +28,12 @@ type ActivateOutputPaths struct {
 // the base URL the V2 inventory JSON is fetched from. They differ for the
 // official steplib, whose git identity is rewritten to a compiled-in V2 host.
 func New(log stepman.Logger, steplibURI, inventoryURL string, isOfflineMode bool, fileManager fileutil.FileManager) *Steplib {
-	api := NewHTTPAPI(inventoryURL, nil, log)
-	s := &Steplib{
-		log:              log,
-		steplibURI:       steplibURI,
-		isOfflineMode:    isOfflineMode,
-		api:              api,
-		fileManager:      fileManager,
-		fetcher:          httpfetch.NewClient(nil, log),
-		fetchSourceDirFn: nil,
+	return &Steplib{
+		log:         log,
+		steplibURI:  steplibURI,
+		api:         NewHTTPAPI(inventoryURL, nil, log),
+		fileManager: fileManager,
+		fetcher:     httpfetch.NewClient(nil, log),
+		source:      v1Source{steplibURI: steplibURI, isOfflineMode: isOfflineMode, log: log},
 	}
-	s.fetchSourceDirFn = s.getStepSourceDir
-	return s
 }
