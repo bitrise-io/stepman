@@ -270,6 +270,27 @@ func TestGenerator_stats(t *testing.T) {
 	assert.Positive(t, stats.BytesWritten, "BytesWritten")
 }
 
+func TestGenerator_publish_replaces_existing_tree(t *testing.T) {
+	out := t.TempDir()
+	// Seed a stale file that a correct (atomic, wholesale) publish must drop.
+	stale := filepath.Join(out, "spec", "stale.json")
+	require.NoError(t, os.MkdirAll(filepath.Dir(stale), 0o755), "seed stale dir")
+	require.NoError(t, os.WriteFile(stale, []byte("{}"), 0o644), "seed stale file")
+
+	_, err := GenerateFromSteplibClone(
+		os.DirFS("testdata/input"),
+		out,
+		Options{GeneratedAt: fixedTime, SteplibCommitSHA: ""},
+		testLogger{t},
+	)
+	require.NoError(t, err, "generate")
+
+	_, statErr := os.Stat(stale)
+	assert.True(t, os.IsNotExist(statErr), "stale file should be gone after wholesale replace; got err=%v", statErr)
+	_, statErr = os.Stat(filepath.Join(out, "meta.json"))
+	assert.NoError(t, statErr, "meta.json present after publish")
+}
+
 func TestGenerator_asset_permissions_preserved(t *testing.T) {
 	out := runGenerateFromSteplibClone(t)
 
