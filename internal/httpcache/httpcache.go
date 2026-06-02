@@ -1,9 +1,12 @@
 // Package httpcache provides a transparent on-disk HTTP cache as an
 // http.RoundTripper. It honors the server's Cache-Control/ETag, serves fresh
-// entries without touching the network, revalidates stale entries with
-// conditional requests, and — crucially for stepman — serves a stale entry as a
-// last resort when revalidation fails (network error or 5xx), so a CDN outage
-// degrades gracefully instead of breaking step resolution.
+// entries without touching the network, and revalidates stale entries with
+// conditional requests.
+//
+// When revalidation fails (network error or 5xx) the failure is surfaced to the
+// caller rather than masked by serving a stale entry: a broken upstream should
+// fail loudly, not silently resolve against possibly-outdated inventory. A
+// deliberate offline mode that prefers stale entries is planned separately.
 //
 // Entries live one-directory-per-response under a hash+name layout (see Store),
 // keeping the cache both machine-addressable and human-browsable.
@@ -58,7 +61,7 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	if hit && isFresh(meta, time.Now()) {
-		resp, serr := t.serve(req, key, meta, false, "fresh")
+		resp, serr := t.serve(req, key, meta, "fresh")
 		if serr == nil {
 			return resp, nil
 		}
@@ -73,8 +76,8 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 // revalidate is reached only when a stale entry exists. It issues a conditional
-// request and: serves the cached body on 304; replaces it on 2xx; falls back to
-// the stale body on a transport error or 5xx (the last-resort path).
+// request and: serves the cached body on 304; replaces it on 2xx; surfaces the
+// failure on a transport error or 5xx (no stale fallback — see package doc).
 func (t *Transport) revalidate(req *http.Request, key string, meta Meta) (*http.Response, error) {
 	condReq := req.Clone(req.Context())
 	if meta.ETag != "" {
@@ -86,10 +89,7 @@ func (t *Transport) revalidate(req *http.Request, key string, meta Meta) (*http.
 
 	resp, err := t.base.RoundTrip(condReq)
 	if err != nil {
-		reason := "revalidation error: " + err.Error()
-		if served, serr := t.serve(req, key, meta, true, reason); serr == nil {
-			return served, nil
-		}
+		// Surface the error; retryablehttp retries it, then it reaches the caller.
 		return nil, err
 	}
 
@@ -101,21 +101,15 @@ func (t *Transport) revalidate(req *http.Request, key string, meta Meta) (*http.
 		if terr := t.store.Touch(key, refreshed); terr != nil {
 			t.log.Debugf("httpcache: touch %s failed: %s", req.URL, terr)
 		}
-		return t.serve(req, key, refreshed, false, "revalidated (304)")
-
-	case resp.StatusCode >= 500:
-		t.drain(req.URL.String(), resp.Body)
-		reason := fmt.Sprintf("revalidation status %d", resp.StatusCode)
-		if served, serr := t.serve(req, key, meta, true, reason); serr == nil {
-			return served, nil
-		}
-		return nil, fmt.Errorf("revalidate %s: status %d and cached body unusable", req.URL, resp.StatusCode)
+		return t.serve(req, key, refreshed, "revalidated (304)")
 
 	case resp.StatusCode >= 200 && resp.StatusCode < 300:
 		return t.store200(req, key, resp)
 
 	default:
-		// e.g. 404: the resource changed shape; pass through, leave the entry.
+		// 5xx and any other non-2xx (e.g. 404): pass through unchanged. The 5xx
+		// case is retried by retryablehttp and ultimately surfaced as an error;
+		// the stale entry is left in place for a future successful revalidation.
 		return resp, nil
 	}
 }
@@ -176,19 +170,14 @@ func (t *Transport) store200(req *http.Request, key string, resp *http.Response)
 	return resp, nil
 }
 
-// serve builds a synthesized 200 response from the cached entry. When stale is
-// true the entry is being served as a last-resort fallback, which is logged at
-// Warn (a degraded-mode signal); otherwise it is a normal hit, logged at Debug.
-func (t *Transport) serve(req *http.Request, key string, meta Meta, stale bool, reason string) (*http.Response, error) {
+// serve builds a synthesized 200 response from the cached entry. reason is a
+// human-readable cause ("fresh", "revalidated (304)") used only for logging.
+func (t *Transport) serve(req *http.Request, key string, meta Meta, reason string) (*http.Response, error) {
 	body, err := t.store.Open(key, meta)
 	if err != nil {
 		return nil, err
 	}
-	if stale {
-		t.log.Warnf("httpcache: serving stale cache for %s (%s)", req.URL, reason)
-	} else {
-		t.log.Debugf("httpcache: serving %s cache for %s", reason, req.URL)
-	}
+	t.log.Debugf("httpcache: serving %s cache for %s", reason, req.URL)
 
 	header := http.Header{}
 	setIfNotEmpty(header, "Content-Type", meta.ContentType)

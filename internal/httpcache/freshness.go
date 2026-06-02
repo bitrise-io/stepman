@@ -11,16 +11,14 @@ import (
 // and whether it must not be stored at all.
 //
 //   - max-age=N  -> fresh for N seconds from fetchedAt.
-//   - no max-age -> expiresAt == fetchedAt (always revalidated; still storable
-//     so it can act as a stale fallback).
+//   - no max-age -> expiresAt == fetchedAt (revalidate before every reuse).
 //   - no-cache   -> same as no max-age: revalidate before every reuse.
 //   - immutable  -> never revalidate (isFresh short-circuits on it).
 //   - no-store   -> not cacheable.
 //
-// must-revalidate is intentionally NOT treated as "immediately stale": it only
-// governs the freshness window's edge, and stepman deliberately keeps stale
-// entries as a last-resort fallback even when the server asks not to (a CDN /
-// network outage must not break resolution).
+// must-revalidate needs no special handling: the cache already revalidates
+// every stale entry and surfaces revalidation failures as errors rather than
+// serving stale, so the directive's guarantee holds either way.
 func parseCacheControl(header string, fetchedAt time.Time) (expiresAt time.Time, immutable, noStore bool) {
 	if header == "" {
 		return fetchedAt, false, false

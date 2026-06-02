@@ -268,7 +268,7 @@ func TestImmutableNeverRevalidates(t *testing.T) {
 	})
 }
 
-func TestStaleServedOnError(t *testing.T) {
+func TestRevalidationErrorSurfaced(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		h := newHarness(t, func(_ *http.Request, n int) (*http.Response, error) {
 			if n == 1 {
@@ -285,16 +285,17 @@ func TestStaleServedOnError(t *testing.T) {
 
 		time.Sleep(61 * time.Second)
 
-		status, body := h.get(testURL)
-		assert.Equal(t, http.StatusOK, status)
-		assert.Equal(t, "BODY-A", body, "stale body served when revalidation errors")
+		// No stale fallback: the transport error is surfaced to the caller.
+		req, err := http.NewRequest(http.MethodGet, testURL, nil)
+		require.NoError(t, err)
+		_, rtErr := h.tr.RoundTrip(req)
+		require.Error(t, rtErr, "revalidation transport error must be surfaced, not masked by stale")
+		assert.Contains(t, rtErr.Error(), "connection refused")
 		assert.Equal(t, 2, h.base.calls)
-		require.NotEmpty(t, h.log.warns, "stale fallback must be logged at Warn")
-		assert.Contains(t, h.log.warns[0], "serving stale cache")
 	})
 }
 
-func TestStaleServedOn5xx(t *testing.T) {
+func TestRevalidation5xxPassedThrough(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		h := newHarness(t, func(_ *http.Request, n int) (*http.Response, error) {
 			if n == 1 {
@@ -311,11 +312,10 @@ func TestStaleServedOn5xx(t *testing.T) {
 
 		time.Sleep(61 * time.Second)
 
-		status, body := h.get(testURL)
-		assert.Equal(t, http.StatusOK, status)
-		assert.Equal(t, "BODY-A", body, "stale body served on 5xx revalidation")
-		require.NotEmpty(t, h.log.warns)
-		assert.Contains(t, h.log.warns[0], "revalidation status 502")
+		// No stale fallback: the 5xx is passed through unchanged.
+		status, _ := h.get(testURL)
+		assert.Equal(t, http.StatusBadGateway, status, "5xx revalidation is passed through, not masked by stale")
+		assert.Equal(t, 2, h.base.calls)
 	})
 }
 
