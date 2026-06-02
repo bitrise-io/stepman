@@ -2,17 +2,14 @@ format_version: "11"
 default_step_lib_source: https://github.com/bitrise-io/bitrise-steplib.git
 project_type: other
 
+# Go is provisioned natively by the Bitrise CLI before the first Step of each
+# Workflow, replacing the previous asdf + .tool-versions setup.
+tools:
+  golang: 1.25.7
+
 app:
   envs:
   - BIN_NAME: stepman
-
-step_bundles:
-  setup-go:
-    steps:
-    - script:
-        title: Setup pinned Go version
-        inputs:
-        - content: asdf install
 
 workflows:
   test:
@@ -23,7 +20,6 @@ workflows:
         - workflow: lint
         - skip_step_yml_validation: "yes"
         - skip_go_checks: "yes"
-    - bundle::setup-go: { }
     - go-list: { }
     - script:
         title: golangci-lint
@@ -35,7 +31,6 @@ workflows:
             INSTALL_DIR=$(go env GOPATH)/bin
 
             curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b "$INSTALL_DIR" v2.6.0
-            asdf reshim golang
             "$INSTALL_DIR"/golangci-lint run --config .golangci.yml
     - go-test: { }
     - script:
@@ -53,13 +48,29 @@ workflows:
             export INTEGRATION_TEST_BINARY_PATH="$current_stepman"
             go test -v ./_tests/integration/...
 
+  test-specv2:
+    title: Runs the steplib v2 end-to-end test
+    description: |-
+      Delegates to bitrise_specv2.yml: generates a V2 inventory from a
+      bitrise-steplib clone, serves it locally, builds the bitrise CLI against
+      this stepman checkout, and activates a step through the v2 HTTPAPI +
+      precompiled-binary path. Kept out of the default `test` workflow because
+      it clones and builds the bitrise CLI.
+    steps:
+    - script:
+        title: Run steplib v2 e2e via real bitrise CLI
+        inputs:
+        - content: |-
+            #!/usr/bin/env bash
+            set -ex
+            bitrise run --config bitrise_specv2.yml test-specv2
+
   create-release:
     description: Creates Linux and Darwin binaries, then publishes a GitHub release
     envs:
     # Goreleaser expects this env var
     - GITHUB_TOKEN: $GIT_BOT_USER_ACCESS_TOKEN
     steps:
-    - bundle::setup-go: { }
     - script:
         title: Goreleaser (create binaries + publish to GH)
         deps:
@@ -71,7 +82,6 @@ workflows:
   test-binary-build:
     description: Tests the release build process by creating a snapshot release (without publishing)
     steps:
-    - bundle::setup-go: { }
     - script:
         title: Goreleaser (create snapshot binaries)
         deps:
