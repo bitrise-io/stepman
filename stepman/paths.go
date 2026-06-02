@@ -20,6 +20,10 @@ const (
 	RoutingFilename = "routing.json"
 	// CollectionsDirname ...
 	CollectionsDirname = "step_collections"
+	// HTTPCacheDirname is the directory under ~/.stepman holding the V2
+	// inventory HTTP cache. It is global (shared across steplibs): cache keys
+	// are full URLs, which already encode the inventory identity.
+	HTTPCacheDirname = "http_cache"
 )
 
 // SteplibRoute ...
@@ -230,6 +234,12 @@ func GetStepmanDirPath() string {
 // GetCollectionsDirPath ...
 func GetCollectionsDirPath() string {
 	return filepath.Join(GetStepmanDirPath(), CollectionsDirname)
+}
+
+// GetHTTPCacheDirPath returns ~/.stepman/http_cache, the root of the V2
+// inventory HTTP cache.
+func GetHTTPCacheDirPath() string {
+	return filepath.Join(GetStepmanDirPath(), HTTPCacheDirname)
 }
 
 func getRoutingFilePath() string {

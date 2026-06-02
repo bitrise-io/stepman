@@ -1,8 +1,6 @@
 package steplib
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -11,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/bitrise-io/go-utils/log"
+	"github.com/bitrise-io/stepman/internal/sri"
 	"github.com/bitrise-io/stepman/models"
 	"github.com/hashicorp/go-retryablehttp"
 )
@@ -72,30 +71,31 @@ func activateStepExecutable(
 	return path, nil
 }
 
-func validateHash(filePath string, expectedHash string) error {
+func validateHash(filePath string, expectedHash string) (err error) {
 	if expectedHash == "" {
 		return fmt.Errorf("hash is empty")
 	}
 
-	if !strings.HasPrefix(expectedHash, "sha256-") {
+	if !strings.HasPrefix(expectedHash, sri.Prefix) {
 		return fmt.Errorf("only SHA256 hashes supported at this time, make sure to prefix the hash with `sha256-`. Found hash value: %s", expectedHash)
 	}
-
-	expectedHash = strings.TrimPrefix(expectedHash, "sha256-")
 
 	reader, err := os.Open(filePath)
 	if err != nil {
 		return err
 	}
+	defer func() {
+		if cerr := reader.Close(); cerr != nil {
+			err = errors.Join(err, cerr)
+		}
+	}()
 
-	h := sha256.New()
-	_, err = io.Copy(h, reader)
+	actualHash, err := sri.SHA256Reader(reader)
 	if err != nil {
 		return fmt.Errorf("calculate hash: %w", err)
 	}
-	actualHash := hex.EncodeToString(h.Sum(nil))
 	if actualHash != expectedHash {
-		return fmt.Errorf("hash mismatch: expected sha256-%s, got sha256-%s", expectedHash, actualHash)
+		return fmt.Errorf("hash mismatch: expected %s, got %s", expectedHash, actualHash)
 	}
 	return nil
 }
