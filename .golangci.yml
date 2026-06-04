@@ -1,14 +1,43 @@
 version: "2"
 
+# Merge of this repo's config (exhaustruct) with the shared steps-check config
+# (https://github.com/bitrise-steplib/steps-check/blob/master/.golangci.yml).
+# CI runs golangci-lint via the steps-check bundle, which uses steps-check's
+# config; keeping that config mirrored here (plus our exhaustruct addition) makes
+# a local `golangci-lint run` a superset of CI.
+
 linters:
   default: standard
   enable:
   - exhaustruct
+  - revive
+  - unparam
+  - dupl
+
   settings:
     exhaustruct:
-      allow-empty: true  # Allow all-empty structs, only flag partially filled ones
+      allow-empty: true # Allow all-empty structs, only flag partially filled ones
+    revive:
+      rules:
+      - name: empty-block
+        disabled: true
+    dupl:
+      threshold: 110
+
   exclusions:
+    presets:
+    - comments
+    - common-false-positives
+    - legacy
+    - std-error-handling
+
     rules:
     - path: (.+)_test\.go
       linters:
       - exhaustruct
+    - linters:
+      - staticcheck
+      text: QF1003 # https://staticcheck.dev/docs/checks#QF1003
+    - path: _test\.go$
+      linters:
+      - dupl
