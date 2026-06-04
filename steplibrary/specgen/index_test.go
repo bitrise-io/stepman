@@ -99,7 +99,7 @@ func TestIndex_catalog_entry(t *testing.T) {
 
 	deprecated := catalog.Steps["deprecated-step"]
 	require.NotNil(t, deprecated.Deprecation, "deprecated-step Deprecation")
-	assert.Equal(t, "2026-12-31", deprecated.Deprecation.RemovalDate, "deprecated-step RemovalDate")
+	assert.Equal(t, "2025-04-11", deprecated.Deprecation.RemovalDate, "deprecated-step RemovalDate")
 }
 
 func TestIndex_catalog_no_info_and_bash_entries(t *testing.T) {
@@ -119,7 +119,7 @@ func TestIndex_catalog_no_info_and_bash_entries(t *testing.T) {
 	bash, ok := catalog.Steps["bash-step"]
 	require.True(t, ok, "bash-step present")
 	assert.Equal(t, "1.0.0", bash.LatestVersion, "bash-step LatestVersion")
-	assert.Equal(t, "community", bash.Maintainer, "bash-step Maintainer")
+	assert.Equal(t, "bitrise", bash.Maintainer, "bash-step Maintainer")
 	assert.Nil(t, bash.Deprecation, "bash-step Deprecation")
 	assert.False(t, bash.HasExecutable, "bash-step HasExecutable")
 }
