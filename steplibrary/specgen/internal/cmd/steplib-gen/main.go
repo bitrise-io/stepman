@@ -18,8 +18,8 @@ import (
 
 type stderrLogger struct{}
 
-func (stderrLogger) Debugf(format string, v ...any) {} // suppress; turn on with -verbose if needed
-func (stderrLogger) Infof(format string, v ...any)  { fmt.Fprintf(os.Stderr, format+"\n", v...) }
+func (stderrLogger) Debugf(string, ...any)         {} // suppressed
+func (stderrLogger) Infof(format string, v ...any) { fmt.Fprintf(os.Stderr, format+"\n", v...) }
 func (stderrLogger) Warnf(format string, v ...any) {
 	fmt.Fprintf(os.Stderr, "warn: "+format+"\n", v...)
 }
@@ -32,7 +32,7 @@ func main() {
 		steplib   = flag.String("steplib", "", "steplib source URI to set up and generate from (required)")
 		output    = flag.String("output", "", "output directory for the V2 tree (required)")
 		commitSHA = flag.String("commit-sha", "", "optional steplib commit sha to record in meta.json")
-		timestamp = flag.String("timestamp", "", "RFC3339 timestamp to record as updated_at (default: time.Now UTC). Set for reproducible output.")
+		timestamp = flag.String("timestamp", "", "RFC3339 timestamp to record as updated_at. Set for reproducible output; defaults to now when empty.")
 	)
 	flag.Parse()
 
@@ -42,7 +42,9 @@ func main() {
 		os.Exit(2)
 	}
 
-	generatedAt := time.Now().UTC()
+	// Left zero unless -timestamp is given; specgen defaults it to now (see
+	// withDefaults), so there's no need to compute the default here.
+	var generatedAt time.Time
 	if *timestamp != "" {
 		ts, err := time.Parse(time.RFC3339, *timestamp)
 		if err != nil {
