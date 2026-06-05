@@ -310,22 +310,22 @@ Per-step latest pointers. Answers `Latest` and `MajorLocked` constraints in one 
 
 ### `spec/steps/<id>/versions.json`
 
-Per-step version list with the metadata stepman needs for `MinorLocked` resolution and binary-availability checks. Larger than `latest.json`; only fetched when minor-locked or when the consumer needs version details.
+Per-step version list with the metadata stepman needs for `MinorLocked` resolution. Larger than `latest.json`; only fetched when minor-locked or when the consumer needs version details.
 
 ```json
 {
   "step_id": "git-clone",
   "latest": "8.5.0",
   "versions": [
-    { "version": "8.5.0", "published_at": "2026-03-10T12:57:02Z", "has_executable": true,  "commit": "df4081a169..." },
-    { "version": "8.4.2", "published_at": "...",                  "has_executable": true,  "commit": "..."          },
-    { "version": "8.4.1", "published_at": "...",                  "has_executable": false, "commit": "..."          },
-    { "version": "7.0.2", "published_at": "...",                  "has_executable": false, "commit": "..."          }
+    { "version": "8.5.0", "published_at": "2026-03-10T12:57:02Z", "commit": "df4081a169..." },
+    { "version": "8.4.2", "published_at": "...",                  "commit": "..."          },
+    { "version": "8.4.1", "published_at": "...",                  "commit": "..."          },
+    { "version": "7.0.2", "published_at": "...",                  "commit": "..."          }
   ]
 }
 ```
 
-Ordered newest-first. `has_executable` lets clients short-circuit binary lookup before fetching the full `step.json`.
+Ordered newest-first. (Binary availability isn't surfaced here — clients learn it from the per-version `step.json`'s `executables` when they fetch it.)
 
 **Size estimate:** for git-clone with ~35 versions, ~3 KB raw / ~700 bytes gzipped. Smallest steps: ~1 KB.
 
@@ -384,7 +384,7 @@ Produce a runnable Go tool that converts a local clone of `bitrise-steplib` into
    - Input: path to a local clone of `bitrise-steplib` (and an output dir).
    - Walks `steps/**/step.yml` (re-using `stepman.ParseStepDefinition`) and per-step `step-info.yml`.
    - Writes the full V2 tree (all schemas above) to the output directory.
-   - Computes `published_at`, `has_executable`, `latest_by_major`, `commit`, etc., from the parsed data.
+   - Computes `published_at`, `latest_by_major`, `commit`, etc., from the parsed data.
    - Emits a single-line stdout summary per file written; final summary with file count + total bytes.
 2. **`docs/spec-v2/`** — schema documentation (essentially the "Schemas" section of this document, plus a JSON Schema file per file type for tooling/IDE validation).
 3. **`docs/spec-v2/sample-output/`** — generated V2 tree for a small synthetic steplib (5–10 representative steps including git-clone, activate-ssh-key, xcode-test, cache-pull, and a deprecated step), checked into git for reference.
