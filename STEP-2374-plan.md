@@ -12,7 +12,7 @@
 - Two top-level prefixes with a clean architectural boundary:
   - **`steps/`** — source of truth, self-contained, immutable per-version.
   - **`spec/`** — derived index files, regeneratable from `steps/`, short-TTL.
-- Each consumer fetches only what it needs (one `step.json` per active step for CI; one `latest_versions.json` for catalog browsers).
+- Each consumer fetches only what it needs (one `step.json` per active step for CI; `latest.json` / `versions.json` for version resolution).
 - Estimated per-workflow client bandwidth: **~5.7 MB gzipped (V1)** → **~40 KB (V2)**, a ~140× reduction at the upper bound.
 - This document defines the V2 schemas and the scope of PoC A (generator + sample output + size report). PoC B (stepman read path behind a feature flag) is the next step after team sign-off and is scoped separately.
 
@@ -62,7 +62,6 @@ Everything else in `step.yml` is **passed through verbatim** via `copyStepYML` t
 ├─ spec/                                  ← DERIVED index files
 │  │                                       cache: ETag + short TTL (60s, must-revalidate)
 │  ├─ step_ids.json                       ← bare list of step IDs
-│  ├─ latest_versions.json                ← fat catalog: 1 entry per step (browse view)
 │  └─ steps/
 │     └─ <id>/
 │        ├─ latest.json                   ← latest + latest_by_major (resolves Latest/MajorLocked)
@@ -291,44 +290,6 @@ Bare list of valid step IDs. Used to answer "is `<id>` a known step?" without fe
 ```
 
 **Size estimate:** ~450 IDs × ~25 chars ≈ 12 KB raw / ~4 KB gzipped.
-
-### `spec/latest_versions.json`
-
-Fat catalog: one entry per step, carrying everything WFE / Integrations Page / `stepman list` need for browse views. Single fetch.
-
-```json
-{
-  "generated_at": "2026-05-15T11:31:34Z",
-  "steplib_commit_sha": "b9af7d7abc...",
-
-  "steps": {
-    "git-clone": {
-      "latest_version": "8.5.0",
-      "published_at": "2026-03-10T12:57:02Z",
-      "title": "Git Clone Repository",
-      "summary": "Checks out the repository, updates submodules and exports git metadata as Step outputs.",
-      "maintainer": "bitrise",
-      "type_tags": ["utility"],
-      "project_type_tags": [],
-      "host_os_tags": [],
-      "website": "https://github.com/bitrise-steplib/steps-git-clone",
-      "source_code_url": "https://github.com/bitrise-steplib/steps-git-clone",
-      "support_url": "https://github.com/bitrise-steplib/steps-git-clone/issues",
-      "asset_urls": {
-        "icon.svg": "steps/git-clone/assets/icon.svg"
-      },
-      "has_executable": true,
-      "deprecation": null
-    }
-  }
-}
-```
-
-**Field rationale:** see schema discussion in this doc's predecessor notes; only fields meaningful for browse views are included. `asset_urls` are **inventory-root-relative** (e.g., `"steps/git-clone/assets/icon.svg"`). Catalog consumers resolve them against the inventory base URL — i.e., wherever they fetched the catalog from. No hosting URL is baked into the payload, so the catalog body is portable across hosting changes.
-
-**Intentional duplication with `step.json`** (title, summary, maintainer, source_code_url, support_url, asset_urls): justified because the catalog must be one-fetch-self-sufficient. Versions are immutable, so no drift risk; the generator regenerates this on every release.
-
-**Size estimate:** ~450 steps × ~500 bytes ≈ 220 KB raw / ~60–80 KB gzipped.
 
 ### `spec/steps/<id>/latest.json`
 
@@ -573,11 +534,11 @@ For V2 PoC A we roll with the current shape (carried over from `steplib.yml`). *
 
 ### 2. Asset URLs (resolved: inventory-root-relative, no `assets_download_base_uri`)
 
-**Decision:** V2 inventory hosts assets directly under `steps/<id>/assets/` (the generator copies them from the source steplib at build time). The catalog (`latest_versions.json`) emits inventory-root-relative paths (e.g., `"steps/git-clone/assets/icon.svg"`). Consumers resolve them against the inventory base URL they fetched the catalog from.
+**Decision:** V2 inventory hosts assets directly under `steps/<id>/assets/` (the generator copies them from the source steplib at build time). `step-info.json` emits asset paths relative to its own URL (e.g., `"assets/icon.svg"`); consumers resolve them against the file they fetched them from.
 
 The V1-era `assets_download_base_uri` field (which pointed at the parallel S3 mirror at `https://bitrise-steplib-collection.s3.amazonaws.com/steps`) is **not carried into `meta.json`**. No V2 file references it. The S3 mirror can keep existing for V1 consumer compatibility; V2 simply doesn't depend on it.
 
-Rationale: hard-coding the V1 hosting URL into V2 catalog payloads would lock the V2 inventory to that mirror forever. Inventory-root-relative paths let the V2 inventory be hosted anywhere — staging, mirrors, future migrations — without invalidating the catalog body.
+Rationale: hard-coding the V1 hosting URL into V2 payloads would lock the V2 inventory to that mirror forever. Relative paths let the V2 inventory be hosted anywhere — staging, mirrors, future migrations — without invalidating the payloads.
 
 ### 3. Binary storage (resolved: stays decoupled)
 
@@ -604,6 +565,7 @@ it without any schema change — same way it would handle it today.
 
 ### Smaller deferrals
 
+- **`spec/latest_versions.json` (fat browse catalog)** — **rejected for now.** The single-fetch catalog (one entry per step: title/summary/maintainer/tags/asset_urls/has_executable/…, ~46 KB gzipped) only served browse views (WFE / Integrations Page / `stepman list`); nothing on the stepman resolution path reads it. It also duplicates `step.json`/`step-info.json` data and must be regenerated on every release. We're dropping it to keep the inventory minimal — browse consumers can fetch `step_ids.json` + per-step files, or we re-introduce the catalog later if a browse consumer actually needs the one-fetch shape. Easy to add back: it's a pure projection of `steps/`.
 - **`generator_version` in `meta.json`** — good idea, defer until first bug surfaces.
 - **Per-use-case JSON splits (CI / WFE / Integrations)** — explicitly rejected after measurement. V2 already captures ~99.3% of the savings; the additional split delivers ~0.5%. Cost of 3× files and a bitrise-CLI consumption audit not worth it.
 - **Audit of bitrise-CLI's step.yml consumption** — would be needed if anyone revisits CI-slim. Separate ticket, not part of STEP-2374.
