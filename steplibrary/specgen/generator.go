@@ -26,11 +26,10 @@ import (
 // Options control generator behavior. Zero values are filled with sensible
 // defaults; callers (CLI / tests) override what they need.
 type Options struct {
-	// GeneratedAt is written to meta.json and latest_versions.json. Optional:
-	// when zero it defaults to time.Now().UTC(). Tests set it for deterministic
-	// output.
+	// GeneratedAt is written to meta.json. Optional: when zero it defaults to
+	// time.Now().UTC(). Tests set it for deterministic output.
 	GeneratedAt time.Time
-	// SteplibCommitSHA is written to meta.json and latest_versions.json.
+	// SteplibCommitSHA is written to meta.json.
 	// Optional: when empty, Generate (the URI entry point) fills it from the
 	// checked-out library's HEAD commit. GenerateFromSteplibClone leaves it as
 	// given, since it has no git checkout to read.
@@ -108,7 +107,7 @@ func GenerateFromSteplibClone(inputFS fs.FS, outputDir string, opts Options, log
 		}
 	}
 
-	if err := writeSpecFiles(w, steps, opts); err != nil {
+	if err := writeSpecFiles(w, steps); err != nil {
 		return Stats{}, fmt.Errorf("write spec files: %w", err)
 	}
 

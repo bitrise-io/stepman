@@ -19,7 +19,6 @@ it over HTTP to exercise the read path end-to-end.
 ├─ meta.json                              # inventory metadata
 ├─ spec/                                  # derived index files (mutable)
 │  ├─ step_ids.json
-│  ├─ latest_versions.json
 │  └─ steps/<id>/
 │     ├─ latest.json
 │     └─ versions.json
@@ -210,45 +209,6 @@ fetching anything else.
 ```
 
 IDs are sorted lexicographically.
-
----
-
-## `spec/latest_versions.json`
-
-Fat catalog: one entry per step with everything WFE / Integrations Page /
-`stepman list` need to render a browse view. Single fetch.
-
-```json
-{
-  "generated_at": "2026-05-15T11:31:34Z",
-  "steplib_commit_sha": "b9af7d7abc...",
-  "steps": {
-    "git-clone": {
-      "latest_version": "8.5.0",
-      "published_at": "2026-03-10T12:57:02Z",
-      "title": "Git Clone Repository",
-      "summary": "Checks out the repository, updates submodules and exports git metadata as Step outputs.",
-      "maintainer": "bitrise",
-      "type_tags": ["utility"],
-      "website": "https://github.com/bitrise-steplib/steps-git-clone",
-      "source_code_url": "https://github.com/bitrise-steplib/steps-git-clone",
-      "support_url": "https://github.com/bitrise-steplib/steps-git-clone/issues",
-      "asset_urls": {
-        "icon.svg": "steps/git-clone/assets/icon.svg"
-      },
-      "has_executable": true,
-      "deprecation": null
-    }
-  }
-}
-```
-
-Notes:
-
-- Map keyed by step ID for O(1) lookup.
-- `asset_urls` are **inventory-root-relative** (e.g., `"steps/git-clone/assets/icon.svg"`). Catalog consumers resolve them against the inventory base URL — i.e., wherever they fetched the catalog from, with `/spec/latest_versions.json` trimmed. This keeps the catalog payload free of any specific hosting URL.
-- Catalogue fields **deliberately duplicate** values from `step.json` (title, summary, maintainer, asset URLs, etc.). Versions are immutable so there is no drift risk; the generator regenerates the catalog on every release.
-- Empty tag arrays (`type_tags`, `project_type_tags`, `host_os_tags`) are **omitted** rather than emitted as `[]` (`omitempty`).
 
 ---
 

@@ -53,35 +53,6 @@ type StepIDs struct {
 	StepIDs []string `json:"step_ids"`
 }
 
-// Catalog is spec/latest_versions.json: fat catalog for browse views.
-// A single fetch gives everything needed to render a catalog without per-step
-// round trips.
-type Catalog struct {
-	GeneratedAt      time.Time              `json:"generated_at"`
-	SteplibCommitSHA string                 `json:"steplib_commit_sha,omitempty"`
-	Steps            map[string]CatalogEntry `json:"steps"`
-}
-
-// CatalogEntry is one step's entry in Catalog.Steps. Asset URLs are
-// inventory-root-relative so consumers can resolve them against the base URL
-// the catalog was fetched from, without any hosting URL baked in.
-type CatalogEntry struct {
-	LatestVersion   string            `json:"latest_version"`
-	PublishedAt     *time.Time        `json:"published_at,omitempty"`
-	Title           string            `json:"title,omitempty"`
-	Summary         string            `json:"summary,omitempty"`
-	Maintainer      string            `json:"maintainer,omitempty"`
-	TypeTags        []string          `json:"type_tags,omitempty"`
-	ProjectTypeTags []string          `json:"project_type_tags,omitempty"`
-	HostOsTags      []string          `json:"host_os_tags,omitempty"`
-	Website         string            `json:"website,omitempty"`
-	SourceCodeURL   string            `json:"source_code_url,omitempty"`
-	SupportURL      string            `json:"support_url,omitempty"`
-	AssetURLs       map[string]string `json:"asset_urls,omitempty"`
-	HasExecutable   bool              `json:"has_executable"`
-	Deprecation     *Deprecation      `json:"deprecation"`
-}
-
 // LatestPointer is spec/steps/<id>/latest.json: per-step latest pointers.
 // Answers Latest and MajorLocked constraints in a single small fetch.
 type LatestPointer struct {
