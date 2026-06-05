@@ -1,12 +1,6 @@
 // Package specgen generates the V2 step library inventory tree from a
 // bitrise-steplib source. The wire-format types it emits live in
 // steplibrary/spec.
-//
-// The work splits across files by phase:
-//   - generator.go — public API (Generate, GenerateFromSteplibClone) + orchestration
-//   - collect.go   — read the steplib source into []parsedStep
-//   - index.go     — build the derived spec/ index files and write step files
-//   - writer.go    — the file-emitting writer with byte/file accounting
 package specgen
 
 import (
@@ -29,10 +23,8 @@ type Options struct {
 	// GeneratedAt is written to meta.json. Optional: when zero it defaults to
 	// time.Now().UTC(). Tests set it for deterministic output.
 	GeneratedAt time.Time
-	// SteplibCommitSHA is written to meta.json.
-	// Optional: when empty, Generate (the URI entry point) fills it from the
-	// checked-out library's HEAD commit. GenerateFromSteplibClone leaves it as
-	// given, since it has no git checkout to read.
+	// SteplibCommitSHA is written to meta.json. Optional: the URI entry point
+	// fills it from the clone's HEAD commit when empty.
 	SteplibCommitSHA string
 }
 

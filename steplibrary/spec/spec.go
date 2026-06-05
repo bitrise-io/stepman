@@ -56,14 +56,14 @@ type StepIDs struct {
 // LatestPointer is spec/steps/<id>/latest.json: per-step latest pointers.
 // Answers Latest and MajorLocked constraints in a single small fetch.
 type LatestPointer struct {
-	StepID        string            `json:"step_id"`
-	Latest        string            `json:"latest"`
-	LatestByMajor map[string]string `json:"latest_by_major,omitempty"`
+	StepID string `json:"step_id"`
+	Latest string `json:"latest"`
+	// Always populated (a step always has >=1 version), so no omitempty.
+	LatestByMajor map[string]string `json:"latest_by_major"`
 }
 
-// Versions is spec/steps/<id>/versions.json: per-step version list with the
-// metadata stepman needs for MinorLocked resolution and binary-availability
-// checks. Ordered newest-first.
+// Versions is spec/steps/<id>/versions.json: per-step version list
+// (newest-first) with the metadata stepman needs for MinorLocked resolution.
 type Versions struct {
 	StepID   string         `json:"step_id"`
 	Latest   string         `json:"latest"`

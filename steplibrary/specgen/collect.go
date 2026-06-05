@@ -31,7 +31,7 @@ type parsedVersion struct {
 }
 
 // latest returns the highest-semver version. Only valid for steps with at least
-// one version (collectSteps drops versionless steps before they reach here).
+// one version.
 func (s parsedStep) latest() parsedVersion { return s.versions[len(s.versions)-1] }
 
 func readSteplibYML(inputFS fs.FS) (models.StepCollectionModel, error) {
@@ -103,11 +103,9 @@ func parseStepYML(inputFS fs.FS, path string) (models.StepModel, error) {
 	if err := step.Normalize(); err != nil {
 		return models.StepModel{}, fmt.Errorf("normalize: %w", err)
 	}
-	// Mirror the canonical V1 parse pipeline (stepman.ParseStepDefinition):
-	// Normalize + FillMissingDefaults. Without this, optional fields the V1
-	// spec.json fills (IsAlwaysRun, IsSkippable, IsRequiresAdminUser, Timeout,
-	// empty-string metadata) would serialize as null in the V2 step.json, so
-	// the same step.yml would yield different output across V1 and V2.
+	// Normalize + FillMissingDefaults match V1's parse pipeline, so a step.yml
+	// yields the same output under V1 and V2; without it, fields V1 fills would
+	// serialize as null in step.json.
 	if err := step.FillMissingDefaults(); err != nil {
 		return models.StepModel{}, fmt.Errorf("fill missing defaults: %w", err)
 	}
