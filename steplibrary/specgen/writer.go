@@ -2,10 +2,11 @@ package specgen
 
 import (
 	"encoding/json"
-	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
+
+	"github.com/bitrise-io/go-utils/v2/fileutil"
 )
 
 // fileWriter abstracts the OS calls used by writeJSON, making them injectable
@@ -29,6 +30,7 @@ func (realFileWriter) WriteFile(name string, data []byte, perm os.FileMode) erro
 type writer struct {
 	outputDir string
 	fw        fileWriter
+	fm        fileutil.FileManager
 	fileCount int
 	byteCount int64
 }
@@ -40,10 +42,11 @@ func (w *writer) writeJSON(relPath string, v any) error {
 	}
 	bytes = append(bytes, '\n')
 	full := filepath.Join(w.outputDir, relPath)
-	if err := w.fw.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+	// Files we author get owner-only perms (no group/other needed).
+	if err := w.fw.MkdirAll(filepath.Dir(full), 0o700); err != nil {
 		return err
 	}
-	if err := w.fw.WriteFile(full, bytes, 0o644); err != nil {
+	if err := w.fw.WriteFile(full, bytes, 0o600); err != nil {
 		return err
 	}
 	w.fileCount++
@@ -53,28 +56,20 @@ func (w *writer) writeJSON(relPath string, v any) error {
 
 func (w *writer) copyFileFromFS(srcFS fs.FS, srcPath, relDst string) error {
 	dst := filepath.Join(w.outputDir, relDst)
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+	// CopyFileFS opens dst directly and does not create parent dirs, so create
+	// the containing dir ourselves (owner-only; the copied file keeps its source
+	// perms, which CopyFileFS preserves).
+	if err := os.MkdirAll(filepath.Dir(dst), 0o700); err != nil {
 		return err
 	}
-	in, err := srcFS.Open(srcPath)
-	if err != nil {
+	if err := w.fm.CopyFileFS(srcFS, srcPath, dst, &fileutil.CopyOptions{Overwrite: true}); err != nil {
 		return err
 	}
-	defer func() { _ = in.Close() }()
-	info, err := in.Stat()
-	if err != nil {
-		return err
-	}
-	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, info.Mode())
-	if err != nil {
-		return err
-	}
-	defer func() { _ = out.Close() }()
-	n, err := io.Copy(out, in)
+	info, err := fs.Stat(srcFS, srcPath)
 	if err != nil {
 		return err
 	}
 	w.fileCount++
-	w.byteCount += n
+	w.byteCount += info.Size()
 	return nil
 }
