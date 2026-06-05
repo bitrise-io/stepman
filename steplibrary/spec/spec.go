@@ -72,8 +72,7 @@ type Versions struct {
 
 // VersionEntry is a single entry in Versions.Versions.
 type VersionEntry struct {
-	Version       string     `json:"version"`
-	PublishedAt   *time.Time `json:"published_at,omitempty"`
-	HasExecutable bool       `json:"has_executable"`
-	Commit        string     `json:"commit,omitempty"`
+	Version     string     `json:"version"`
+	PublishedAt *time.Time `json:"published_at,omitempty"`
+	Commit      string     `json:"commit,omitempty"`
 }

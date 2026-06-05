@@ -247,16 +247,16 @@ resolution and binary-availability checks. Ordered newest-first.
   "step_id": "git-clone",
   "latest": "8.5.0",
   "versions": [
-    { "version": "8.5.0", "published_at": "2026-03-10T12:57:02Z", "has_executable": true,  "commit": "df4081a169..." },
-    { "version": "8.4.2", "published_at": "2026-02-24T15:57:46Z", "has_executable": true,  "commit": "8390190..."   },
-    { "version": "8.4.1", "published_at": "2026-02-24T10:25:43Z", "has_executable": false, "commit": "a64e76b..."   }
+    { "version": "8.5.0", "published_at": "2026-03-10T12:57:02Z", "commit": "df4081a169..." },
+    { "version": "8.4.2", "published_at": "2026-02-24T15:57:46Z", "commit": "8390190..."   },
+    { "version": "8.4.1", "published_at": "2026-02-24T10:25:43Z", "commit": "a64e76b..."   }
   ]
 }
 ```
 
-`has_executable` lets clients short-circuit binary lookup before fetching
-the full `step.json`. `commit` is the value from `step.source.commit` for
-that version.
+`commit` is the value from `step.source.commit` for that version. Binary
+availability isn't surfaced here — clients read it from the per-version
+`step.json`'s `executables` map.
 
 ---
 

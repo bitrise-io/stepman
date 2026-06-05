@@ -46,10 +46,9 @@ func buildVersionsJSON(s parsedStep) spec.Versions {
 			commit = step.Source.Commit
 		}
 		entries = append(entries, spec.VersionEntry{
-			Version:       v.version,
-			PublishedAt:   publishedAt,
-			HasExecutable: step.Executables != nil && len(*step.Executables) > 0,
-			Commit:        commit,
+			Version:     v.version,
+			PublishedAt: publishedAt,
+			Commit:      commit,
 		})
 	}
 	return spec.Versions{

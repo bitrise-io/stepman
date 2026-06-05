@@ -48,23 +48,9 @@ func TestIndex_versions_newest_first(t *testing.T) {
 	assert.Equal(t, "1.1.0", versions.Versions[1].Version, "Versions[1]")
 	assert.Equal(t, "1.0.0", versions.Versions[2].Version, "Versions[2]")
 
-	// has_executable is false for all hello-step versions (it's a bash step).
-	for _, v := range versions.Versions {
-		assert.False(t, v.HasExecutable, "version %s should not have an executable", v.Version)
-	}
 	// commit + published_at are populated.
 	assert.Equal(t, "cccc3333cccc3333cccc3333cccc3333cccc3333", versions.Versions[0].Commit, "Versions[0].Commit")
 	require.NotNil(t, versions.Versions[0].PublishedAt, "Versions[0].PublishedAt")
 	assert.Equal(t, 2025, versions.Versions[0].PublishedAt.Year(), "Versions[0].PublishedAt year")
-}
-
-func TestIndex_versions_has_executable(t *testing.T) {
-	out := runGenerateFromSteplibClone(t)
-
-	var versions spec.Versions
-	readJSON(t, filepath.Join(out, "spec/steps/multi-platform-step/versions.json"), &versions)
-
-	require.Len(t, versions.Versions, 1, "Versions")
-	assert.True(t, versions.Versions[0].HasExecutable, "Versions[0].HasExecutable")
 }
 
