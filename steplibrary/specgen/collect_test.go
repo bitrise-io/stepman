@@ -1,6 +1,7 @@
 package specgen
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -35,6 +36,7 @@ func TestCollect_asset_permissions_preserved(t *testing.T) {
 	const mode = os.FileMode(0o640)
 	inputFS := fstest.MapFS{
 		"steplib.yml":                     {Data: []byte("format_version: '0.9.0'\nsteplib_source: 'https://example.com'\n")},
+		"steps/perm-step/step-info.yml":   {Data: []byte("maintainer: test\n")},
 		"steps/perm-step/1.0.0/step.yml":  {Data: []byte("title: Perm Step\n")},
 		"steps/perm-step/assets/icon.svg": {Data: []byte("<svg/>"), Mode: mode},
 	}
@@ -61,45 +63,23 @@ func TestCollect_deprecated_step(t *testing.T) {
 	assert.Empty(t, info.AssetURLs, "no assets dir → no asset_urls")
 }
 
-func TestCollect_no_info_step_skips_step_info_file(t *testing.T) {
+func TestCollect_missing_step_info_is_error(t *testing.T) {
+	// step-info.yml is mandatory: a step without one fails generation.
 	inputFS := fstest.MapFS{
 		"steplib.yml":                       {Data: []byte("format_version: '0.9.0'\n")},
 		"steps/no-info-step/1.0.0/step.yml": {Data: []byte("title: No Info\n")},
 	}
 	out := t.TempDir()
 	_, gotErr := generateFromSteplibClone(inputFS, out, Options{GeneratedAt: fixedTime}, testLogger{t})
-	require.NoError(t, gotErr, "generateFromSteplibClone")
-
-	// step-info.json must NOT exist: no step-info.yml and no assets.
-	_, statErr := os.Stat(filepath.Join(out, "steps/no-info-step/step-info.json"))
-	assert.True(t, os.IsNotExist(statErr), "step-info.json should not exist; got err=%v", statErr)
-
-	// step.json must still be written.
-	_, statErr = os.Stat(filepath.Join(out, "steps/no-info-step/1.0.0/step.json"))
-	assert.NoError(t, statErr, "step.json written")
-}
-
-func TestCollect_step_info_written_for_assets_only_step(t *testing.T) {
-	// step-info.json should be written when a step has assets but no step-info.yml.
-	inputFS := fstest.MapFS{
-		"steplib.yml":                           {Data: []byte("format_version: '0.9.0'\nsteplib_source: 'https://example.com'\n")},
-		"steps/asset-only-step/1.0.0/step.yml":  {Data: []byte("title: Asset Only\n")},
-		"steps/asset-only-step/assets/icon.svg": {Data: []byte("<svg/>"), Mode: 0o644},
-	}
-	out := t.TempDir()
-	_, gotErr := generateFromSteplibClone(inputFS, out, Options{GeneratedAt: fixedTime}, testLogger{t})
-	require.NoError(t, gotErr, "generateFromSteplibClone")
-
-	var info spec.StepInfo
-	readJSON(t, filepath.Join(out, "steps/asset-only-step/step-info.json"), &info)
-	assert.Equal(t, map[string]string{"icon.svg": "assets/icon.svg"}, info.AssetURLs, "AssetURLs")
-	assert.Empty(t, info.Maintainer, "Maintainer")
-	assert.Nil(t, info.Deprecation, "Deprecation")
+	require.Error(t, gotErr, "missing step-info.yml must error")
+	assert.ErrorIs(t, gotErr, fs.ErrNotExist, "error wraps fs.ErrNotExist")
+	assert.Contains(t, gotErr.Error(), "no-info-step", "error names the offending step")
 }
 
 func TestCollect_invalid_version_dir_skipped(t *testing.T) {
 	inputFS := fstest.MapFS{
 		"steplib.yml":                            {Data: []byte("format_version: '0.9.0'\n")},
+		"steps/my-step/step-info.yml":            {Data: []byte("maintainer: test\n")},
 		"steps/my-step/1.0.0/step.yml":           {Data: []byte("title: My Step\n")},
 		"steps/my-step/not-a-semver/step.yml":    {Data: []byte("title: Should be skipped\n")},
 		"steps/my-step/also-not-semver/step.yml": {Data: []byte("title: Also skipped\n")},

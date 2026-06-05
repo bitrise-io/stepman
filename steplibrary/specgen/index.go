@@ -60,10 +60,8 @@ func buildVersionsJSON(s parsedStep) spec.Versions {
 
 // writeStepFiles emits the per-step source files under steps/<id>/.
 func writeStepFiles(w *writer, inputFS fs.FS, s parsedStep) error {
-	if s.hasInfoFile || len(s.assetFiles) > 0 {
-		if err := w.writeJSON(filepath.Join("steps", s.id, "step-info.json"), s.info); err != nil {
-			return err
-		}
+	if err := w.writeJSON(filepath.Join("steps", s.id, "step-info.json"), s.info); err != nil {
+		return err
 	}
 	for _, f := range s.assetFiles {
 		src := "steps/" + s.id + "/assets/" + f

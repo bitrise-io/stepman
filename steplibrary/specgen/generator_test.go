@@ -77,7 +77,7 @@ func TestGenerator_step_ids_sorted(t *testing.T) {
 	var ids spec.StepIDs
 	readJSON(t, filepath.Join(out, "spec/step_ids.json"), &ids)
 
-	want := []string{"bash-step", "deprecated-step", "hello-step", "multi-platform-step", "no-info-step"}
+	want := []string{"bash-step", "deprecated-step", "hello-step", "multi-platform-step"}
 	assert.Equal(t, want, ids.StepIDs, "step IDs")
 	assert.True(t, sort.StringsAreSorted(ids.StepIDs), "step IDs are sorted")
 }
@@ -92,13 +92,13 @@ func TestGenerator_stats(t *testing.T) {
 	)
 	require.NoError(t, gotErr, "generateFromSteplibClone")
 
-	assert.Equal(t, 5, stats.StepCount, "StepCount")
-	// hello-step:3 + deprecated:1 + multi-platform:1 + bash:1 + no-info:1
-	assert.Equal(t, 7, stats.VersionCount, "VersionCount")
-	// step-level: bash(2) + deprecated(2) + hello(5) + multi-platform(3) + no-info(1) = 13
-	// spec/:      step_ids + 5×(latest+versions) = 11
+	assert.Equal(t, 4, stats.StepCount, "StepCount")
+	// hello-step:3 + deprecated:1 + multi-platform:1 + bash:1
+	assert.Equal(t, 6, stats.VersionCount, "VersionCount")
+	// step-level: bash(2) + deprecated(2) + hello(5) + multi-platform(3) = 12
+	// spec/:      step_ids + 4×(latest+versions) = 9
 	// meta.json:  1
-	assert.Equal(t, 25, stats.FilesWritten, "FilesWritten")
+	assert.Equal(t, 22, stats.FilesWritten, "FilesWritten")
 	assert.Positive(t, stats.BytesWritten, "BytesWritten")
 }
 
@@ -165,5 +165,5 @@ func Example_generateFromSteplibClone() {
 		return
 	}
 	fmt.Printf("steps=%d versions=%d", stats.StepCount, stats.VersionCount)
-	// Output: steps=5 versions=7
+	// Output: steps=4 versions=6
 }

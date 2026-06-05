@@ -15,11 +15,10 @@ import (
 // parsedStep is the intermediate representation collected during the walk
 // phase, used by the write phase to emit per-step and index files.
 type parsedStep struct {
-	id          string
-	info        spec.StepInfo   // step-info.yml + assets/ listing
-	hasInfoFile bool            // whether step-info.yml existed
-	assetFiles  []string        // relative paths under assets/, sorted
-	versions    []parsedVersion // sorted ascending by semver; last is latest
+	id         string
+	info       spec.StepInfo   // step-info.yml + assets/ listing
+	assetFiles []string        // relative paths under assets/, sorted
+	versions   []parsedVersion // sorted ascending by semver; last is latest
 }
 
 // parsedVersion is a single step version with its semver parsed once at collect
@@ -46,17 +45,16 @@ func readSteplibYML(inputFS fs.FS) (models.StepCollectionModel, error) {
 	return c, nil
 }
 
-func readStepGroupInfo(inputFS fs.FS, path string) (spec.StepInfo, bool, error) {
+// readStepGroupInfo reads the mandatory step-info.yml at path. A missing file
+// is an error: fs.ErrNotExist propagates to the caller.
+func readStepGroupInfo(inputFS fs.FS, path string) (spec.StepInfo, error) {
 	bytes, err := fs.ReadFile(inputFS, path)
 	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return spec.StepInfo{}, false, nil
-		}
-		return spec.StepInfo{}, false, err
+		return spec.StepInfo{}, err
 	}
 	var sgi models.StepGroupInfoModel
 	if err := yaml.Unmarshal(bytes, &sgi); err != nil {
-		return spec.StepInfo{}, true, err
+		return spec.StepInfo{}, err
 	}
 	out := spec.StepInfo{
 		Maintainer:  sgi.Maintainer,
@@ -69,7 +67,7 @@ func readStepGroupInfo(inputFS fs.FS, path string) (spec.StepInfo, bool, error) 
 			Notes:       sgi.DeprecateNotes,
 		}
 	}
-	return out, true, nil
+	return out, nil
 }
 
 func listAssets(inputFS fs.FS, dir string) ([]string, error) {
@@ -114,20 +112,18 @@ func parseStepYML(inputFS fs.FS, path string) (models.StepModel, error) {
 
 func collectStep(inputFS fs.FS, id string, log stepman.Logger) (parsedStep, error) {
 	s := parsedStep{
-		id:          id,
-		info:        spec.StepInfo{Maintainer: "", Deprecation: nil, AssetURLs: nil},
-		hasInfoFile: false,
-		assetFiles:  nil,
-		versions:    nil,
+		id:         id,
+		info:       spec.StepInfo{Maintainer: "", Deprecation: nil, AssetURLs: nil},
+		assetFiles: nil,
+		versions:   nil,
 	}
 	stepDir := "steps/" + id
 
-	info, hasInfo, err := readStepGroupInfo(inputFS, stepDir+"/step-info.yml")
+	info, err := readStepGroupInfo(inputFS, stepDir+"/step-info.yml")
 	if err != nil {
 		return s, fmt.Errorf("read step-info.yml for %s: %w", id, err)
 	}
 	s.info = info
-	s.hasInfoFile = hasInfo
 
 	assetFiles, err := listAssets(inputFS, stepDir+"/assets")
 	if err != nil {
