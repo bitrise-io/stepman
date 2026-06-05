@@ -169,7 +169,7 @@ inputs:
 
       If you don't want to notify anyone, set this to `none`.
     summary: Your App's user roles you want to notify.
-    title: 'Notify: User Roles'
+    title: "Notify: User Roles"
 - always_notify_user_groups: null
   opts:
     category: Build Artifact Deployment
@@ -195,7 +195,7 @@ inputs:
       If you don't want to notify anyone, set this to `none`.
     summary: Your App's user roles you want to notify regardless of the users' project
       watching preferences.
-    title: 'Notify: User Roles regardless of project watching preferences'
+    title: "Notify: User Roles regardless of project watching preferences"
 - notify_email_list: null
   opts:
     category: Build Artifact Deployment
@@ -208,7 +208,7 @@ inputs:
       Please note that if the email address is associated with a Bitrise account,
       the user must be [watching](https://devcenter.bitrise.io/builds/configuring-notifications/#watching-an-app) the app.
     is_sensitive: true
-    title: 'Notify: Emails'
+    title: "Notify: Emails"
 - is_enable_public_page: "true"
   opts:
     category: Build Artifact Deployment
@@ -300,7 +300,7 @@ inputs:
     summary: You can customize the format of the `BITRISE_PUBLIC_INSTALL_PAGE_URL_MAP`
       output so that the next Step can render the output.
     title: Format for the BITRISE_PUBLIC_INSTALL_PAGE_URL_MAP output
-  public_install_page_url_map_format: '{{range $index, $element := .}}{{if $index}}|{{end}}{{$element.File}}=>{{$element.URL}}{{end}}'
+  public_install_page_url_map_format: "{{range $index, $element := .}}{{if $index}}|{{end}}{{$element.File}}=>{{$element.URL}}{{end}}"
 - opts:
     category: Step output configuration
     description: |-
@@ -311,8 +311,8 @@ inputs:
     summary: You can customize the format of the `BITRISE_PERMANENT_DOWNLOAD_URL_MAP`
       output so that the next Step can render the output.
     title: Format for the BITRISE_PERMANENT_DOWNLOAD_URL_MAP output
-  permanent_download_url_map_format: '{{range $index, $element := .}}{{if $index}}|{{end}}{{$element.File}}=>{{$element.URL}}{{end}}'
-- details_page_url_map_format: '{{range $index, $element := .}}{{if $index}}|{{end}}{{$element.File}}=>{{$element.URL}}{{end}}'
+  permanent_download_url_map_format: "{{range $index, $element := .}}{{if $index}}|{{end}}{{$element.File}}=>{{$element.URL}}{{end}}"
+- details_page_url_map_format: "{{range $index, $element := .}}{{if $index}}|{{end}}{{$element.File}}=>{{$element.URL}}{{end}}"
   opts:
     category: Step output configuration
     description: |-

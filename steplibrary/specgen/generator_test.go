@@ -96,9 +96,9 @@ func TestGenerator_stats(t *testing.T) {
 	// hello-step:3 + deprecated:1 + multi-platform:1 + bash:1 + no-info:1
 	assert.Equal(t, 7, stats.VersionCount, "VersionCount")
 	// step-level: bash(2) + deprecated(2) + hello(5) + multi-platform(3) + no-info(1) = 13
-	// spec/:      step_ids + latest_versions + 5×(latest+versions) = 12
+	// spec/:      step_ids + 5×(latest+versions) = 11
 	// meta.json:  1
-	assert.Equal(t, 26, stats.FilesWritten, "FilesWritten")
+	assert.Equal(t, 25, stats.FilesWritten, "FilesWritten")
 	assert.Positive(t, stats.BytesWritten, "BytesWritten")
 }
 

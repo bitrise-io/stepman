@@ -11,7 +11,7 @@ source:
   git: https://github.com/example/no-info-step.git
   commit: 1234567890abcdef1234567890abcdef12345678
 type_tags:
-  - utility
+- utility
 toolkit:
   bash:
     entry_file: step.sh

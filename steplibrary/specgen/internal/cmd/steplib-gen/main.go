@@ -4,7 +4,7 @@
 //
 //	steplib-gen -steplib <steplib-source-uri> -output <out-dir> [-commit-sha <sha>]
 //
-// See STEP-2374-plan.md and steplibrary/spec/schemas.md for the format being generated.
+// The wire-format types in steplibrary/spec are the source of truth for the output.
 package main
 
 import (

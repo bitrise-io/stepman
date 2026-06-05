@@ -11,73 +11,6 @@ import (
 	"github.com/bitrise-io/stepman/steplibrary/spec"
 )
 
-func derefStr(p *string) string {
-	if p == nil {
-		return ""
-	}
-	return *p
-}
-
-// catalogAssetURL produces the inventory-root-relative path the catalog
-// emits for a given asset. The relPath comes from step-info.json (which
-// is step-dir-relative, e.g. "assets/icon.svg"); we prepend "steps/<id>/"
-// so the result is anchored at the inventory root.
-func catalogAssetURL(stepID, relPath string) string {
-	return "steps/" + stepID + "/" + relPath
-}
-
-func buildCatalogEntry(s parsedStep) spec.CatalogEntry {
-	latest := s.latest()
-	latestStep := latest.model
-
-	var publishedAt *time.Time
-	if latestStep.PublishedAt != nil && !latestStep.PublishedAt.IsZero() {
-		publishedAt = latestStep.PublishedAt
-	}
-
-	// Catalog asset URLs are INVENTORY-ROOT-RELATIVE. Catalog consumers
-	// resolve them against the inventory base URL (i.e., the URL the
-	// catalog itself was fetched from, with /spec/latest_versions.json
-	// trimmed). This keeps the V2 inventory portable across hosting
-	// changes — no V1-era S3 host is baked into the catalog payload.
-	var assetURLs map[string]string
-	if len(s.info.AssetURLs) > 0 {
-		assetURLs = make(map[string]string, len(s.info.AssetURLs))
-		for filename, relPath := range s.info.AssetURLs {
-			assetURLs[filename] = catalogAssetURL(s.id, relPath)
-		}
-	}
-
-	return spec.CatalogEntry{
-		LatestVersion:   latest.version,
-		PublishedAt:     publishedAt,
-		Title:           derefStr(latestStep.Title),
-		Summary:         derefStr(latestStep.Summary),
-		Maintainer:      s.info.Maintainer,
-		TypeTags:        latestStep.TypeTags,
-		ProjectTypeTags: latestStep.ProjectTypeTags,
-		HostOsTags:      latestStep.HostOsTags,
-		Website:         derefStr(latestStep.Website),
-		SourceCodeURL:   derefStr(latestStep.SourceCodeURL),
-		SupportURL:      derefStr(latestStep.SupportURL),
-		AssetURLs:       assetURLs,
-		HasExecutable:   latestStep.Executables != nil && len(*latestStep.Executables) > 0,
-		Deprecation:     s.info.Deprecation,
-	}
-}
-
-func buildCatalog(steps []parsedStep, opts Options) spec.Catalog {
-	out := spec.Catalog{
-		GeneratedAt:      opts.GeneratedAt,
-		SteplibCommitSHA: opts.SteplibCommitSHA,
-		Steps:            make(map[string]spec.CatalogEntry, len(steps)),
-	}
-	for _, s := range steps {
-		out.Steps[s.id] = buildCatalogEntry(s)
-	}
-	return out
-}
-
 func buildLatestPointer(s parsedStep) spec.LatestPointer {
 	byMajor := map[string]models.Semver{}
 	for _, v := range s.versions {
@@ -113,10 +46,9 @@ func buildVersionsJSON(s parsedStep) spec.Versions {
 			commit = step.Source.Commit
 		}
 		entries = append(entries, spec.VersionEntry{
-			Version:       v.version,
-			PublishedAt:   publishedAt,
-			HasExecutable: step.Executables != nil && len(*step.Executables) > 0,
-			Commit:        commit,
+			Version:     v.version,
+			PublishedAt: publishedAt,
+			Commit:      commit,
 		})
 	}
 	return spec.Versions{
@@ -149,17 +81,12 @@ func writeStepFiles(w *writer, inputFS fs.FS, s parsedStep) error {
 }
 
 // writeSpecFiles emits the derived index files under spec/.
-func writeSpecFiles(w *writer, steps []parsedStep, opts Options) error {
+func writeSpecFiles(w *writer, steps []parsedStep) error {
 	ids := make([]string, len(steps))
 	for i, s := range steps {
 		ids[i] = s.id
 	}
 	if err := w.writeJSON("spec/step_ids.json", spec.StepIDs{StepIDs: ids}); err != nil {
-		return err
-	}
-
-	catalog := buildCatalog(steps, opts)
-	if err := w.writeJSON("spec/latest_versions.json", catalog); err != nil {
 		return err
 	}
 

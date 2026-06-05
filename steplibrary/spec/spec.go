@@ -53,46 +53,17 @@ type StepIDs struct {
 	StepIDs []string `json:"step_ids"`
 }
 
-// Catalog is spec/latest_versions.json: fat catalog for browse views.
-// A single fetch gives everything needed to render a catalog without per-step
-// round trips.
-type Catalog struct {
-	GeneratedAt      time.Time              `json:"generated_at"`
-	SteplibCommitSHA string                 `json:"steplib_commit_sha,omitempty"`
-	Steps            map[string]CatalogEntry `json:"steps"`
-}
-
-// CatalogEntry is one step's entry in Catalog.Steps. Asset URLs are
-// inventory-root-relative so consumers can resolve them against the base URL
-// the catalog was fetched from, without any hosting URL baked in.
-type CatalogEntry struct {
-	LatestVersion   string            `json:"latest_version"`
-	PublishedAt     *time.Time        `json:"published_at,omitempty"`
-	Title           string            `json:"title,omitempty"`
-	Summary         string            `json:"summary,omitempty"`
-	Maintainer      string            `json:"maintainer,omitempty"`
-	TypeTags        []string          `json:"type_tags,omitempty"`
-	ProjectTypeTags []string          `json:"project_type_tags,omitempty"`
-	HostOsTags      []string          `json:"host_os_tags,omitempty"`
-	Website         string            `json:"website,omitempty"`
-	SourceCodeURL   string            `json:"source_code_url,omitempty"`
-	SupportURL      string            `json:"support_url,omitempty"`
-	AssetURLs       map[string]string `json:"asset_urls,omitempty"`
-	HasExecutable   bool              `json:"has_executable"`
-	Deprecation     *Deprecation      `json:"deprecation"`
-}
-
 // LatestPointer is spec/steps/<id>/latest.json: per-step latest pointers.
 // Answers Latest and MajorLocked constraints in a single small fetch.
 type LatestPointer struct {
-	StepID        string            `json:"step_id"`
-	Latest        string            `json:"latest"`
-	LatestByMajor map[string]string `json:"latest_by_major,omitempty"`
+	StepID string `json:"step_id"`
+	Latest string `json:"latest"`
+	// Always populated (a step always has >=1 version), so no omitempty.
+	LatestByMajor map[string]string `json:"latest_by_major"`
 }
 
-// Versions is spec/steps/<id>/versions.json: per-step version list with the
-// metadata stepman needs for MinorLocked resolution and binary-availability
-// checks. Ordered newest-first.
+// Versions is spec/steps/<id>/versions.json: per-step version list
+// (newest-first) with the metadata stepman needs for MinorLocked resolution.
 type Versions struct {
 	StepID   string         `json:"step_id"`
 	Latest   string         `json:"latest"`
@@ -101,8 +72,7 @@ type Versions struct {
 
 // VersionEntry is a single entry in Versions.Versions.
 type VersionEntry struct {
-	Version       string     `json:"version"`
-	PublishedAt   *time.Time `json:"published_at,omitempty"`
-	HasExecutable bool       `json:"has_executable"`
-	Commit        string     `json:"commit,omitempty"`
+	Version     string     `json:"version"`
+	PublishedAt *time.Time `json:"published_at,omitempty"`
+	Commit      string     `json:"commit,omitempty"`
 }
