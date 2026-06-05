@@ -28,17 +28,24 @@ func TestCollect_step_info_and_asset_copy(t *testing.T) {
 }
 
 func TestCollect_asset_permissions_preserved(t *testing.T) {
-	out := runGenerateFromSteplibClone(t)
+	// Embedded fixtures can't carry real file permissions, so drive the
+	// generator from an in-memory FS where the asset's mode is set explicitly
+	// (and distinct from the writer's 0644 default), then assert the copy
+	// preserves it.
+	const mode = os.FileMode(0o640)
+	inputFS := fstest.MapFS{
+		"steplib.yml":                     {Data: []byte("format_version: '0.9.0'\nsteplib_source: 'https://example.com'\n")},
+		"steps/perm-step/1.0.0/step.yml":  {Data: []byte("title: Perm Step\n")},
+		"steps/perm-step/assets/icon.svg": {Data: []byte("<svg/>"), Mode: mode},
+	}
 
-	src := "testdata/input/steps/hello-step/assets/icon.svg"
-	dst := filepath.Join(out, "steps/hello-step/assets/icon.svg")
+	out := t.TempDir()
+	_, gotErr := GenerateFromSteplibClone(inputFS, out, Options{GeneratedAt: fixedTime}, testLogger{t})
+	require.NoError(t, gotErr, "GenerateFromSteplibClone")
 
-	srcInfo, err := os.Stat(src)
-	require.NoError(t, err, "stat source asset")
-	dstInfo, err := os.Stat(dst)
+	dstInfo, err := os.Stat(filepath.Join(out, "steps/perm-step/assets/icon.svg"))
 	require.NoError(t, err, "stat copied asset")
-
-	assert.Equal(t, srcInfo.Mode(), dstInfo.Mode(), "copied asset preserves source file permissions")
+	assert.Equal(t, mode, dstInfo.Mode().Perm(), "copied asset preserves source file mode")
 }
 
 func TestCollect_deprecated_step(t *testing.T) {
@@ -47,10 +54,10 @@ func TestCollect_deprecated_step(t *testing.T) {
 	var info spec.StepInfo
 	readJSON(t, filepath.Join(out, "steps/deprecated-step/step-info.json"), &info)
 
-	assert.Equal(t, "community", info.Maintainer, "Maintainer")
+	assert.Equal(t, "bitrise", info.Maintainer, "Maintainer")
 	require.NotNil(t, info.Deprecation, "Deprecation")
-	assert.Equal(t, "2026-12-31", info.Deprecation.RemovalDate, "RemovalDate")
-	assert.Contains(t, info.Deprecation.Notes, "Replaced by hello-step", "Notes")
+	assert.Equal(t, "2025-04-11", info.Deprecation.RemovalDate, "RemovalDate")
+	assert.Contains(t, info.Deprecation.Notes, "key-based caching", "Notes")
 	assert.Empty(t, info.AssetURLs, "no assets dir → no asset_urls")
 }
 
@@ -117,23 +124,23 @@ func TestCollect_multi_platform_executables(t *testing.T) {
 	readJSON(t, filepath.Join(out, "steps/multi-platform-step/3.2.1/step.json"), &step)
 
 	require.NotNil(t, step.Executables, "Executables")
-	require.Len(t, *step.Executables, 2, "Executables len")
+	require.Len(t, *step.Executables, 4, "Executables len")
 
 	darwinArm := (*step.Executables)["darwin-arm64"]
 	assert.Equal(t,
-		"steps/multi-platform-step/3.2.1/bin/multi-platform-step-darwin-arm64",
+		"steps/deploy-to-bitrise-io/2.23.2/bin/deploy-to-bitrise-io-darwin-arm64",
 		darwinArm.StorageURI,
 		"darwin-arm64 StorageURI",
 	)
 	assert.Equal(t,
-		"sha256-1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa",
+		"sha256-316b1ae22a53e06199b68a3ddf008345aa9e3690abcd57243085a56ccdc57159",
 		darwinArm.Hash,
 		"darwin-arm64 Hash",
 	)
 
 	linuxAmd := (*step.Executables)["linux-amd64"]
 	assert.Equal(t,
-		"steps/multi-platform-step/3.2.1/bin/multi-platform-step-linux-amd64",
+		"steps/deploy-to-bitrise-io/2.23.2/bin/deploy-to-bitrise-io-linux-amd64",
 		linuxAmd.StorageURI,
 		"linux-amd64 StorageURI",
 	)
@@ -145,8 +152,15 @@ func TestCollect_bash_step_has_no_executables(t *testing.T) {
 	var step models.StepModel
 	readJSON(t, filepath.Join(out, "steps/bash-step/1.0.0/step.json"), &step)
 
+	// The Script step ships no precompiled binary, so activation builds from
+	// source (Executables nil). It also declares no toolkit, and the generator
+	// preserves that verbatim — like V1's parse pipeline (Normalize +
+	// FillMissingDefaults), it never synthesizes a default toolkit. The bash +
+	// step.sh default is applied at run time (toolkits.ToolkitForStep defaults to
+	// BashToolkit, which uses step.sh when no entry file is set), not baked into
+	// step.json.
 	assert.Nil(t, step.Executables, "Executables")
-	require.NotNil(t, step.Toolkit, "Toolkit")
-	require.NotNil(t, step.Toolkit.Bash, "Toolkit.Bash")
-	assert.Equal(t, "step.sh", step.Toolkit.Bash.EntryFile, "Toolkit.Bash.EntryFile")
+	assert.Nil(t, step.Toolkit, "Toolkit")
+	require.NotNil(t, step.Title, "Title")
+	assert.Equal(t, "Script", *step.Title, "Title")
 }

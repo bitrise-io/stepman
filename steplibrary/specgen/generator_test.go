@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bitrise-io/stepman/internal/specfixtures"
 	"github.com/bitrise-io/stepman/steplibrary/spec"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,7 +38,7 @@ func runGenerateFromSteplibClone(t *testing.T) string {
 	t.Helper()
 	out := t.TempDir()
 	_, gotErr := GenerateFromSteplibClone(
-		os.DirFS("testdata/input"),
+		specfixtures.SteplibClone(),
 		out,
 		Options{GeneratedAt: fixedTime, SteplibCommitSHA: "deadbeefcafef00d"},
 		testLogger{t},
@@ -84,7 +85,7 @@ func TestGenerator_step_ids_sorted(t *testing.T) {
 func TestGenerator_stats(t *testing.T) {
 	out := t.TempDir()
 	stats, gotErr := GenerateFromSteplibClone(
-		os.DirFS("testdata/input"),
+		specfixtures.SteplibClone(),
 		out,
 		Options{GeneratedAt: fixedTime},
 		testLogger{t},
@@ -109,7 +110,7 @@ func TestGenerator_publish_replaces_existing_tree(t *testing.T) {
 	require.NoError(t, os.WriteFile(stale, []byte("{}"), 0o644), "seed stale file")
 
 	_, err := GenerateFromSteplibClone(
-		os.DirFS("testdata/input"),
+		specfixtures.SteplibClone(),
 		out,
 		Options{GeneratedAt: fixedTime, SteplibCommitSHA: ""},
 		testLogger{t},
@@ -144,7 +145,7 @@ func ExampleGenerateFromSteplibClone() {
 	}
 	defer func() { _ = os.RemoveAll(tmp) }()
 
-	stats, err := GenerateFromSteplibClone(os.DirFS("testdata/input"), tmp, Options{GeneratedAt: fixedTime}, exampleLogger{})
+	stats, err := GenerateFromSteplibClone(specfixtures.SteplibClone(), tmp, Options{GeneratedAt: fixedTime}, exampleLogger{})
 	if err != nil {
 		fmt.Println(err)
 		return

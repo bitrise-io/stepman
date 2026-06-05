@@ -4,12 +4,11 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/bitrise-io/stepman/internal/httpfetch"
+	"github.com/bitrise-io/stepman/internal/specfixtures"
 	"github.com/bitrise-io/stepman/steplibrary/specgen"
 
 	"github.com/stretchr/testify/assert"
@@ -24,7 +23,7 @@ import (
 func TestHTTPAPI_Integration(t *testing.T) {
 	outDir := t.TempDir()
 	_, err := specgen.GenerateFromSteplibClone(
-		os.DirFS(filepath.Join("specgen", "testdata", "input")),
+		specfixtures.SteplibClone(),
 		outDir,
 		specgen.Options{GeneratedAt: time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC), SteplibCommitSHA: ""},
 		discardLogger{},
@@ -69,10 +68,10 @@ func TestHTTPAPI_Integration(t *testing.T) {
 	t.Run("GetStepGroupInfo(deprecated-step) exposes deprecation metadata", func(t *testing.T) {
 		got, gotErr := api.GetStepGroupInfo(ctx, "deprecated-step")
 		require.NoError(t, gotErr, "GetStepGroupInfo")
-		assert.Equal(t, "community", got.Maintainer, "Maintainer")
+		assert.Equal(t, "bitrise", got.Maintainer, "Maintainer")
 		require.NotNil(t, got.Deprecation, "Deprecation")
-		assert.Equal(t, "2026-12-31", got.Deprecation.RemovalDate, "RemovalDate")
-		assert.Contains(t, got.Deprecation.Notes, "Replaced by hello-step", "Notes")
+		assert.Equal(t, "2025-04-11", got.Deprecation.RemovalDate, "RemovalDate")
+		assert.Contains(t, got.Deprecation.Notes, "key-based caching", "Notes")
 	})
 
 	t.Run("GetStepModel(hello-step, 2.0.0) decodes step.json", func(t *testing.T) {
