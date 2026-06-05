@@ -102,6 +102,20 @@ func TestGenerator_stats(t *testing.T) {
 	assert.Positive(t, stats.BytesWritten, "BytesWritten")
 }
 
+func TestGenerator_authored_files_are_owner_only(t *testing.T) {
+	out := runGenerateFromSteplibClone(t)
+
+	// Files and dirs the generator authors get owner-only perms (no group/other).
+	// Copied assets keep their source perms and are covered separately.
+	metaInfo, err := os.Stat(filepath.Join(out, "meta.json"))
+	require.NoError(t, err, "stat meta.json")
+	assert.Equal(t, os.FileMode(0o600), metaInfo.Mode().Perm(), "authored file is 0600")
+
+	dirInfo, err := os.Stat(filepath.Join(out, "spec"))
+	require.NoError(t, err, "stat spec/ dir")
+	assert.Equal(t, os.FileMode(0o700), dirInfo.Mode().Perm(), "authored dir is 0700")
+}
+
 func TestGenerator_publish_replaces_existing_tree(t *testing.T) {
 	out := t.TempDir()
 	// Seed a stale file that a correct (atomic, wholesale) publish must drop.

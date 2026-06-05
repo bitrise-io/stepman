@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/bitrise-io/go-utils/command/git"
+	"github.com/bitrise-io/go-utils/v2/fileutil"
 	"github.com/bitrise-io/stepman/steplibrary/spec"
 	"github.com/bitrise-io/stepman/stepman"
 )
@@ -84,7 +85,7 @@ func GenerateFromSteplibClone(inputFS fs.FS, outputDir string, opts Options, log
 	// Stage in a sibling of outputDir (same filesystem, so the publish rename
 	// is atomic and never cross-device).
 	parent := filepath.Dir(outputDir)
-	if err := os.MkdirAll(parent, 0o755); err != nil {
+	if err := os.MkdirAll(parent, 0o700); err != nil {
 		return Stats{}, fmt.Errorf("create output parent %s: %w", parent, err)
 	}
 	staging, err := os.MkdirTemp(parent, ".steplib-gen-staging-*")
@@ -99,7 +100,7 @@ func GenerateFromSteplibClone(inputFS fs.FS, outputDir string, opts Options, log
 		}
 	}()
 
-	w := &writer{outputDir: staging, fw: realFileWriter{}, fileCount: 0, byteCount: 0}
+	w := &writer{outputDir: staging, fw: realFileWriter{}, fm: fileutil.NewFileManager(), fileCount: 0, byteCount: 0}
 
 	for _, s := range steps {
 		if err := writeStepFiles(w, inputFS, s); err != nil {
