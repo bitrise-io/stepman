@@ -21,22 +21,22 @@ workflows:
     - bundle::setup-go: {}
     # steps-check is in a different GitHub org, so the modular `include:` mechanism
     # can't reach it. Instead we run its step, which embeds a wrapper bitrise.yml and
-    # runs the requested shared workflow. Pinned to the feature branch until it lands
-    # on master; switch to a released version then.
-    - git::https://github.com/bitrise-steplib/steps-check.git@STEP-2432-common-formatters-support-for-bitrise-io-repos:
+    # runs the requested shared workflow (steps-check defaults to master).
+    - git::https://github.com/bitrise-steplib/steps-check.git:
         title: yamlfmt
         inputs:
         - workflow: yamlfmt
-        - steps_check_branch: STEP-2432-common-formatters-support-for-bitrise-io-repos
         # Exclude test fixtures: yamlfmt rewrites files in place, and reformatting
         # these would change bytes the tests assert on (e.g. step-info golden output).
         - yamlfmt_exclude: _tmp/**,.bitrise.secrets.yml,.git/**,.github/**,vendor/**,internal/specfixtures/testdata/**,_tests/**
-    - git::https://github.com/bitrise-steplib/steps-check.git@STEP-2432-common-formatters-support-for-bitrise-io-repos:
+    - git::https://github.com/bitrise-steplib/steps-check.git:
         title: golangci-lint
         inputs:
         - workflow: golangci-lint
-        - steps_check_branch: STEP-2432-common-formatters-support-for-bitrise-io-repos
         - golangci_lint_version: 2.11.4
+        # Lint with this repo's own config (incl. exhaustruct) instead of the
+        # shared steps-check one.
+        - golangci_lint_config_file: .golangci.yml
     - go-test:
         inputs:
         - packages: ./...
