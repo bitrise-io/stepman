@@ -54,12 +54,12 @@ func headCommitSHA(dir string) (string, error) {
 	return repo.RevParse("HEAD").RunAndReturnTrimmedCombinedOutput()
 }
 
-// GenerateFromSteplibClone reads a bitrise-steplib clone from inputFS and writes
+// generateFromSteplibClone reads a bitrise-steplib clone from inputFS and writes
 // the V2 inventory tree to outputDir. The tree is staged in a sibling temp
 // directory and published with a single rename on success, so a failure
 // mid-generation never leaves a half-written inventory at outputDir; any
 // existing tree at outputDir is replaced wholesale.
-func GenerateFromSteplibClone(inputFS fs.FS, outputDir string, opts Options, log stepman.Logger) (_ Stats, err error) {
+func generateFromSteplibClone(inputFS fs.FS, outputDir string, opts Options, log stepman.Logger) (_ Stats, err error) {
 	start := time.Now()
 	opts = withDefaults(opts)
 
@@ -138,7 +138,7 @@ func GenerateFromSteplibClone(inputFS fs.FS, outputDir string, opts Options, log
 // Generate sets up the steplib identified by steplibURI (cloning it into
 // stepman's local cache via stepman.SetupLibrary if not already present) and
 // writes the V2 inventory tree to outputDir. It is the URI-based entry point
-// used by the CLI; GenerateFromSteplibClone is the lower-level core that reads
+// used by the CLI; generateFromSteplibClone is the lower-level core that reads
 // from an already-available filesystem.
 func Generate(steplibURI, outputDir string, opts Options, log stepman.Logger) (Stats, error) {
 	if err := stepman.SetupLibrary(steplibURI, log); err != nil {
@@ -160,5 +160,5 @@ func Generate(steplibURI, outputDir string, opts Options, log stepman.Logger) (S
 		opts.SteplibCommitSHA = sha
 	}
 
-	return GenerateFromSteplibClone(os.DirFS(libDir), outputDir, opts, log)
+	return generateFromSteplibClone(os.DirFS(libDir), outputDir, opts, log)
 }

@@ -18,7 +18,7 @@ import (
 var files embed.FS
 
 // SteplibClone returns the sample steplib clone (steplib.yml + steps/<id>/...)
-// rooted so it can be passed straight to specgen.GenerateFromSteplibClone.
+// rooted so it can be passed straight to the specgen generator.
 func SteplibClone() fs.FS {
 	sub, err := fs.Sub(files, "testdata/steplib")
 	if err != nil {

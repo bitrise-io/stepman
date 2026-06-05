@@ -37,13 +37,13 @@ func (exampleLogger) Errorf(string, ...any) {}
 func runGenerateFromSteplibClone(t *testing.T) string {
 	t.Helper()
 	out := t.TempDir()
-	_, gotErr := GenerateFromSteplibClone(
+	_, gotErr := generateFromSteplibClone(
 		specfixtures.SteplibClone(),
 		out,
 		Options{GeneratedAt: fixedTime, SteplibCommitSHA: "deadbeefcafef00d"},
 		testLogger{t},
 	)
-	require.NoError(t, gotErr, "GenerateFromSteplibClone")
+	require.NoError(t, gotErr, "generateFromSteplibClone")
 	return out
 }
 
@@ -84,13 +84,13 @@ func TestGenerator_step_ids_sorted(t *testing.T) {
 
 func TestGenerator_stats(t *testing.T) {
 	out := t.TempDir()
-	stats, gotErr := GenerateFromSteplibClone(
+	stats, gotErr := generateFromSteplibClone(
 		specfixtures.SteplibClone(),
 		out,
 		Options{GeneratedAt: fixedTime},
 		testLogger{t},
 	)
-	require.NoError(t, gotErr, "GenerateFromSteplibClone")
+	require.NoError(t, gotErr, "generateFromSteplibClone")
 
 	assert.Equal(t, 5, stats.StepCount, "StepCount")
 	// hello-step:3 + deprecated:1 + multi-platform:1 + bash:1 + no-info:1
@@ -123,7 +123,7 @@ func TestGenerator_publish_replaces_existing_tree(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Dir(stale), 0o755), "seed stale dir")
 	require.NoError(t, os.WriteFile(stale, []byte("{}"), 0o644), "seed stale file")
 
-	_, err := GenerateFromSteplibClone(
+	_, err := generateFromSteplibClone(
 		specfixtures.SteplibClone(),
 		out,
 		Options{GeneratedAt: fixedTime, SteplibCommitSHA: ""},
@@ -151,7 +151,7 @@ func TestWithDefaults_preserves_non_zero_generated_at(t *testing.T) {
 	assert.Equal(t, fixedTime, opts.GeneratedAt, "GeneratedAt preserved")
 }
 
-func ExampleGenerateFromSteplibClone() {
+func Example_generateFromSteplibClone() {
 	tmp, err := os.MkdirTemp("", "specv2-example-")
 	if err != nil {
 		fmt.Println(err)
@@ -159,7 +159,7 @@ func ExampleGenerateFromSteplibClone() {
 	}
 	defer func() { _ = os.RemoveAll(tmp) }()
 
-	stats, err := GenerateFromSteplibClone(specfixtures.SteplibClone(), tmp, Options{GeneratedAt: fixedTime}, exampleLogger{})
+	stats, err := generateFromSteplibClone(specfixtures.SteplibClone(), tmp, Options{GeneratedAt: fixedTime}, exampleLogger{})
 	if err != nil {
 		fmt.Println(err)
 		return

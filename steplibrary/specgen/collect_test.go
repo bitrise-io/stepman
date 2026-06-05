@@ -40,8 +40,8 @@ func TestCollect_asset_permissions_preserved(t *testing.T) {
 	}
 
 	out := t.TempDir()
-	_, gotErr := GenerateFromSteplibClone(inputFS, out, Options{GeneratedAt: fixedTime}, testLogger{t})
-	require.NoError(t, gotErr, "GenerateFromSteplibClone")
+	_, gotErr := generateFromSteplibClone(inputFS, out, Options{GeneratedAt: fixedTime}, testLogger{t})
+	require.NoError(t, gotErr, "generateFromSteplibClone")
 
 	dstInfo, err := os.Stat(filepath.Join(out, "steps/perm-step/assets/icon.svg"))
 	require.NoError(t, err, "stat copied asset")
@@ -67,8 +67,8 @@ func TestCollect_no_info_step_skips_step_info_file(t *testing.T) {
 		"steps/no-info-step/1.0.0/step.yml": {Data: []byte("title: No Info\n")},
 	}
 	out := t.TempDir()
-	_, gotErr := GenerateFromSteplibClone(inputFS, out, Options{GeneratedAt: fixedTime}, testLogger{t})
-	require.NoError(t, gotErr, "GenerateFromSteplibClone")
+	_, gotErr := generateFromSteplibClone(inputFS, out, Options{GeneratedAt: fixedTime}, testLogger{t})
+	require.NoError(t, gotErr, "generateFromSteplibClone")
 
 	// step-info.json must NOT exist: no step-info.yml and no assets.
 	_, statErr := os.Stat(filepath.Join(out, "steps/no-info-step/step-info.json"))
@@ -87,8 +87,8 @@ func TestCollect_step_info_written_for_assets_only_step(t *testing.T) {
 		"steps/asset-only-step/assets/icon.svg": {Data: []byte("<svg/>"), Mode: 0o644},
 	}
 	out := t.TempDir()
-	_, gotErr := GenerateFromSteplibClone(inputFS, out, Options{GeneratedAt: fixedTime}, testLogger{t})
-	require.NoError(t, gotErr, "GenerateFromSteplibClone")
+	_, gotErr := generateFromSteplibClone(inputFS, out, Options{GeneratedAt: fixedTime}, testLogger{t})
+	require.NoError(t, gotErr, "generateFromSteplibClone")
 
 	var info spec.StepInfo
 	readJSON(t, filepath.Join(out, "steps/asset-only-step/step-info.json"), &info)
@@ -105,8 +105,8 @@ func TestCollect_invalid_version_dir_skipped(t *testing.T) {
 		"steps/my-step/also-not-semver/step.yml": {Data: []byte("title: Also skipped\n")},
 	}
 	out := t.TempDir()
-	stats, gotErr := GenerateFromSteplibClone(inputFS, out, Options{GeneratedAt: fixedTime}, testLogger{t})
-	require.NoError(t, gotErr, "GenerateFromSteplibClone")
+	stats, gotErr := generateFromSteplibClone(inputFS, out, Options{GeneratedAt: fixedTime}, testLogger{t})
+	require.NoError(t, gotErr, "generateFromSteplibClone")
 
 	assert.Equal(t, 1, stats.StepCount, "StepCount")
 	assert.Equal(t, 1, stats.VersionCount, "VersionCount")
