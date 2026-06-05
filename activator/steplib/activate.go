@@ -15,9 +15,14 @@ import (
 )
 
 const precompiledStepsEnv = "BITRISE_EXPERIMENT_PRECOMPILED_STEPS"
-const precompiledStepsStorageURLsEnv = "BITRISE_PRECOMPILED_STEPS_STORAGE_URLS"
 
-var precompiledStepsDefaultStorageURLs = []string{
+// PrecompiledStepsStorageURLsEnv overrides the ordered list of storage base URLs at runtime
+// (comma-separated). Shared with steplibrary.
+const PrecompiledStepsStorageURLsEnv = "BITRISE_PRECOMPILED_STEPS_STORAGE_URLS"
+
+// PrecompiledStepsDefaultStorageURLs is the ordered list of storage base URLs used when
+// PrecompiledStepsStorageURLsEnv is unset. Shared with steplibrary.
+var PrecompiledStepsDefaultStorageURLs = []string{
 	"https://storage.googleapis.com/bitrise-steplib-storage",
 	"https://storage-gateway.services.bitrise.io",
 }
