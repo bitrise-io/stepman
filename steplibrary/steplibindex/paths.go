@@ -9,32 +9,25 @@ import (
 // source of truth for the layout so that the generator, the HTTP reader, and
 // the validator never drift.
 //
-// The whole tree is rooted under VersionDir() (e.g. "v2/"); every helper here
-// prefixes that segment, so callers never spell out the version dir themselves.
-//
 // Two parallel families are exposed because the two consumption modes are
 // genuinely different:
 //
-//   - Filesystem paths (FS-suffixed) are slash-separated, relative to the dir
-//     that CONTAINS the version dir, and suitable for fs.FS lookups, path.Join,
-//     and the generator's writer.
-//   - URL paths (URL-suffixed) are absolute (leading slash, including the
-//     /v2/ prefix) and have url.PathEscape applied to the dynamic id/version
-//     segments so that unusual but valid step IDs (e.g. ones containing
-//     reserved URL chars) never break the HTTP reader.
-//
-// Both families are kept even when only one currently has callers: the URL
-// forms are the single source of truth for the future read path, so an
-// unused-but-exported helper is fine.
+//   - Filesystem paths (FS-suffixed) are slash-separated, relative to the
+//     inventory root, and suitable for fs.FS lookups, path.Join, and the
+//     generator's writer.
+//   - URL paths (URL-suffixed) are absolute (leading slash) and have
+//     url.PathEscape applied to the dynamic id/version segments so that
+//     unusual but valid step IDs (e.g. ones containing reserved URL chars)
+//     never break the HTTP reader.
 
-// Top-level directories inside the inventory tree (nested under VersionDir()).
+// Top-level directories inside the inventory tree.
 //
 // Note: the helpers below that build index/steps/<id>/... paths use the
 // inline literal "steps" rather than referencing StepsRootFS. This is
 // deliberate: the "steps" segment under index/ is the per-step *index* dir
-// (a different namespace from the source-of-truth steps/ tree), and reusing
-// StepsRootFS there would conflate the two. The name collision is in the V2
-// layout itself; the constants do not paper over it.
+// (a different namespace from the top-level source-of-truth steps/ tree),
+// and reusing StepsRootFS there would conflate the two. The name collision
+// is in the V2 layout itself; the constants do not paper over it.
 const (
 	StepsRootFS = "steps"
 	IndexRootFS = "index"

@@ -27,18 +27,16 @@ func (e ValidationError) Error() string {
 	return fmt.Sprintf("%s: %s", e.Path, e.Msg)
 }
 
-// Validate walks the V2 inventory tree and returns the list of consistency
-// violations. An empty slice means the tree is internally consistent.
-//
-// inventoryFS roots at the dir that CONTAINS the version dir (v2/), so the
-// validator reads steplibindex.MetaPathFS() ("v2/meta.json") and its siblings
-// directly.
+// Validate walks the V2 inventory tree rooted at inventoryFS and returns the
+// list of consistency violations. An empty slice means the tree is internally
+// consistent.
 //
 // Intended uses:
-//   - Generator publish gate: the generator runs this against the freshly
-//     staged tree before the atomic publish, so an invalid tree is never
-//     published (see indexgen.go).
-//   - Pre-deploy CI gate / generator test smoke check.
+//   - Pre-deploy CI gate: run against a freshly generated tree before
+//     publishing to the V2 host. Fail the build on any violation.
+//   - Generator test smoke check: every generator test can pipe its output
+//     through Validate to catch cross-file consistency bugs that targeted
+//     per-file assertions would miss.
 //
 // The returned error (the second return value) is reserved for situations
 // where the walk itself cannot proceed (e.g., the filesystem is unreadable).
@@ -148,8 +146,7 @@ func (v *validator) checkStep(id string) {
 		v.flag(versionsPath, "step_id is %q, expected %q", versions.StepID, id)
 	}
 
-	// Cross-check the latest pointer against the versions list. versions.Versions
-	// is a plain []string of version strings (newest-first).
+	// Cross-check pointers against the versions list.
 	declaredVersions := map[string]bool{}
 	if haveVersions {
 		for _, ver := range versions.Versions {
@@ -226,10 +223,10 @@ func (v *validator) checkStepInfo(id string) {
 	}
 }
 
-// checkNoStaleFiles walks the source steps tree (v2/steps) and the derived
-// index steps tree (v2/index) once each and flags any file the validator did
-// not consume above. This catches "left-over files from a previous generation"
-// — e.g., a step that was later removed, or a stray file from a generator bug.
+// checkNoStaleFiles walks v2/steps and v2/index once each and flags any file
+// the validator did not consume above. This catches "left-over files from a
+// previous generation" — e.g., a step that was later removed, or a stray
+// file from a generator bug.
 func (v *validator) checkNoStaleFiles() {
 	roots := []string{
 		path.Join(steplibindex.VersionDir(), steplibindex.StepsRootFS),
