@@ -120,8 +120,8 @@ func generateFromSteplibClone(inputFS fs.FS, outputDir string, opts Options, log
 		}
 	}
 
-	if err := writeSpecFiles(w, steps); err != nil {
-		return Stats{}, fmt.Errorf("write spec files: %w", err)
+	if err := writeIndexFiles(w, steps); err != nil {
+		return Stats{}, fmt.Errorf("write index files: %w", err)
 	}
 
 	meta := spec.Meta{

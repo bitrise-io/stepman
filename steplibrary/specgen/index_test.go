@@ -12,7 +12,7 @@ func TestIndex_per_step_latest_pointer(t *testing.T) {
 	out := runGenerateFromSteplibClone(t)
 
 	var latest spec.LatestPointer
-	readJSON(t, filepath.Join(out, "spec/steps/hello-step/latest.json"), &latest)
+	readJSON(t, filepath.Join(out, "index/steps/hello-step/latest.json"), &latest)
 
 	assert.Equal(t, "hello-step", latest.StepID, "StepID")
 	assert.Equal(t, "2.0.0", latest.Latest, "Latest")
@@ -27,7 +27,7 @@ func TestIndex_single_version_latest_pointer(t *testing.T) {
 
 	// bash-step has exactly one version (1.0.0) in a single major.
 	var latest spec.LatestPointer
-	readJSON(t, filepath.Join(out, "spec/steps/bash-step/latest.json"), &latest)
+	readJSON(t, filepath.Join(out, "index/steps/bash-step/latest.json"), &latest)
 
 	assert.Equal(t, "bash-step", latest.StepID, "StepID")
 	assert.Equal(t, "1.0.0", latest.Latest, "Latest")
@@ -38,7 +38,7 @@ func TestIndex_versions_newest_first(t *testing.T) {
 	out := runGenerateFromSteplibClone(t)
 
 	var versions spec.Versions
-	readJSON(t, filepath.Join(out, "spec/steps/hello-step/versions.json"), &versions)
+	readJSON(t, filepath.Join(out, "index/steps/hello-step/versions.json"), &versions)
 
 	assert.Equal(t, "hello-step", versions.StepID, "StepID")
 	assert.Equal(t, []string{"2.0.0", "1.1.0", "1.0.0"}, versions.Versions, "Versions newest-first")

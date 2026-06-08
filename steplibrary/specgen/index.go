@@ -62,21 +62,21 @@ func writeStepFiles(w *writer, inputFS fs.FS, s parsedStep) error {
 	return nil
 }
 
-// writeSpecFiles emits the derived index files under spec/.
-func writeSpecFiles(w *writer, steps []parsedStep) error {
+// writeIndexFiles emits the derived index files under index/.
+func writeIndexFiles(w *writer, steps []parsedStep) error {
 	ids := make([]string, len(steps))
 	for i, s := range steps {
 		ids[i] = s.id
 	}
-	if err := w.writeJSON("spec/step_ids.json", spec.StepIDs{StepIDs: ids}); err != nil {
+	if err := w.writeJSON("index/step_ids.json", spec.StepIDs{StepIDs: ids}); err != nil {
 		return err
 	}
 
 	for _, s := range steps {
-		if err := w.writeJSON(filepath.Join("spec", "steps", s.id, "latest.json"), buildLatestPointer(s)); err != nil {
+		if err := w.writeJSON(filepath.Join("index", "steps", s.id, "latest.json"), buildLatestPointer(s)); err != nil {
 			return err
 		}
-		if err := w.writeJSON(filepath.Join("spec", "steps", s.id, "versions.json"), buildVersionsJSON(s)); err != nil {
+		if err := w.writeJSON(filepath.Join("index", "steps", s.id, "versions.json"), buildVersionsJSON(s)); err != nil {
 			return err
 		}
 	}

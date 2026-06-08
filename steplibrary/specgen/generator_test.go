@@ -76,7 +76,7 @@ func TestGenerator_step_ids_sorted(t *testing.T) {
 	out := runGenerateFromSteplibClone(t)
 
 	var ids spec.StepIDs
-	readJSON(t, filepath.Join(out, "spec/step_ids.json"), &ids)
+	readJSON(t, filepath.Join(out, "index/step_ids.json"), &ids)
 
 	want := []string{"bash-step", "deprecated-step", "hello-step", "multi-platform-step"}
 	assert.Equal(t, want, ids.StepIDs, "step IDs")
@@ -97,7 +97,7 @@ func TestGenerator_stats(t *testing.T) {
 	// hello-step:3 + deprecated:1 + multi-platform:1 + bash:1
 	assert.Equal(t, 6, stats.VersionCount, "VersionCount")
 	// step-level: bash(2) + deprecated(2) + hello(5) + multi-platform(3) = 12
-	// spec/:      step_ids + 4×(latest+versions) = 9
+	// index/:      step_ids + 4×(latest+versions) = 9
 	// meta.json:  1
 	assert.Equal(t, 22, stats.FilesWritten, "FilesWritten")
 	assert.Positive(t, stats.BytesWritten, "BytesWritten")
@@ -112,8 +112,8 @@ func TestGenerator_authored_files_are_owner_only(t *testing.T) {
 	require.NoError(t, err, "stat meta.json")
 	assert.Equal(t, os.FileMode(0o600), metaInfo.Mode().Perm(), "authored file is 0600")
 
-	dirInfo, err := os.Stat(filepath.Join(out, "spec"))
-	require.NoError(t, err, "stat spec/ dir")
+	dirInfo, err := os.Stat(filepath.Join(out, "index"))
+	require.NoError(t, err, "stat index/ dir")
 	assert.Equal(t, os.FileMode(0o700), dirInfo.Mode().Perm(), "authored dir is 0700")
 }
 
