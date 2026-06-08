@@ -67,17 +67,11 @@ type LatestPointer struct {
 	LatestByMajor map[string]string `json:"latest_by_major"`
 }
 
-// Versions is spec/steps/<id>/versions.json: per-step version list
-// (newest-first) with the metadata stepman needs for MinorLocked resolution.
+// Versions is spec/steps/<id>/versions.json: the per-step list of version
+// strings, newest-first (so versions[0] is the latest). Per-version detail
+// (commit, published_at, ...) lives in each steps/<id>/<version>/step.json; the
+// latest pointer lives in latest.json.
 type Versions struct {
-	StepID   string         `json:"step_id"`
-	Latest   string         `json:"latest"`
-	Versions []VersionEntry `json:"versions"`
-}
-
-// VersionEntry is a single entry in Versions.Versions.
-type VersionEntry struct {
-	Version     string     `json:"version"`
-	PublishedAt *time.Time `json:"published_at"`
-	Commit      string     `json:"commit"`
+	StepID   string   `json:"step_id"`
+	Versions []string `json:"versions"`
 }

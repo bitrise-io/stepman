@@ -6,7 +6,6 @@ import (
 
 	"github.com/bitrise-io/stepman/steplibrary/spec"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestIndex_per_step_latest_pointer(t *testing.T) {
@@ -42,15 +41,6 @@ func TestIndex_versions_newest_first(t *testing.T) {
 	readJSON(t, filepath.Join(out, "spec/steps/hello-step/versions.json"), &versions)
 
 	assert.Equal(t, "hello-step", versions.StepID, "StepID")
-	assert.Equal(t, "2.0.0", versions.Latest, "Latest")
-	require.Len(t, versions.Versions, 3, "Versions")
-	assert.Equal(t, "2.0.0", versions.Versions[0].Version, "Versions[0]")
-	assert.Equal(t, "1.1.0", versions.Versions[1].Version, "Versions[1]")
-	assert.Equal(t, "1.0.0", versions.Versions[2].Version, "Versions[2]")
-
-	// commit + published_at are populated.
-	assert.Equal(t, "cccc3333cccc3333cccc3333cccc3333cccc3333", versions.Versions[0].Commit, "Versions[0].Commit")
-	require.NotNil(t, versions.Versions[0].PublishedAt, "Versions[0].PublishedAt")
-	assert.Equal(t, 2025, versions.Versions[0].PublishedAt.Year(), "Versions[0].PublishedAt year")
+	assert.Equal(t, []string{"2.0.0", "1.1.0", "1.0.0"}, versions.Versions, "Versions newest-first")
 }
 

@@ -5,7 +5,6 @@ import (
 	"io/fs"
 	"path/filepath"
 	"strconv"
-	"time"
 
 	"github.com/bitrise-io/stepman/models"
 	"github.com/bitrise-io/stepman/steplibrary/spec"
@@ -32,29 +31,14 @@ func buildLatestPointer(s parsedStep) spec.LatestPointer {
 }
 
 func buildVersionsJSON(s parsedStep) spec.Versions {
-	entries := make([]spec.VersionEntry, 0, len(s.versions))
+	versions := make([]string, 0, len(s.versions))
 	// Newest-first order: walk the ascending-sorted versions in reverse.
 	for i := len(s.versions) - 1; i >= 0; i-- {
-		v := s.versions[i]
-		step := v.model
-		var publishedAt *time.Time
-		if step.PublishedAt != nil && !step.PublishedAt.IsZero() {
-			publishedAt = step.PublishedAt
-		}
-		commit := ""
-		if step.Source != nil {
-			commit = step.Source.Commit
-		}
-		entries = append(entries, spec.VersionEntry{
-			Version:     v.version,
-			PublishedAt: publishedAt,
-			Commit:      commit,
-		})
+		versions = append(versions, s.versions[i].version)
 	}
 	return spec.Versions{
 		StepID:   s.id,
-		Latest:   s.latest().version,
-		Versions: entries,
+		Versions: versions,
 	}
 }
 
