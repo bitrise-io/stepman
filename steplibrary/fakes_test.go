@@ -11,14 +11,6 @@ import (
 	"github.com/bitrise-io/stepman/steplibrary/steplibindex"
 )
 
-// discardLogger is a stepman.Logger that drops all output.
-type discardLogger struct{}
-
-func (discardLogger) Debugf(string, ...any) {}
-func (discardLogger) Errorf(string, ...any) {}
-func (discardLogger) Warnf(string, ...any)  {}
-func (discardLogger) Infof(string, ...any)  {}
-
 // FakeAPI is an in-memory API implementation used as a base for test fakes
 // that embed it and selectively override methods.
 type FakeAPI struct{}
