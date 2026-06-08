@@ -376,19 +376,19 @@ Produce a runnable Go tool that converts a local clone of `bitrise-steplib` into
 
 ### Deliverables
 
-1. **`steplibrary/specgen/cmd/steplib-gen/`** — a Go command-line tool in the stepman repo.
-   - Input: path to a local clone of `bitrise-steplib` (and an output dir).
-   - Walks `steps/**/step.yml` (re-using `stepman.ParseStepDefinition`) and per-step `step-info.yml`.
-   - Writes the full V2 tree (all schemas above) to the output directory.
-   - Computes `published_at`, `latest_by_major`, `commit`, etc., from the parsed data.
-   - Emits a single-line stdout summary per file written; final summary with file count + total bytes.
+1. **`steplibrary/indexgen`** — the generator package (`indexgen.Generate`) in the stepman repo.
+   - Input: a steplib source URI (set up / cloned into stepman's cache) and an output dir.
+   - Walks `steps/**/step.yml` (re-using stepman's parse pipeline) and the per-step, mandatory `step-info.yml`.
+   - Writes the full V2 tree (all schemas above, rooted under `v2/`) to the output dir — staged in a temp dir, validated, then published atomically.
+   - Computes `latest_by_major` and the per-step indexes from the parsed data.
+   - Exposed to users as the `bitrise steps generate-steplib` command (STEP-2428); no standalone CLI ships in stepman.
 2. **`docs/spec-v2/`** — schema documentation (essentially the "Schemas" section of this document, plus a JSON Schema file per file type for tooling/IDE validation).
 3. **`docs/spec-v2/sample-output/`** — generated V2 tree for a small synthetic steplib (5–10 representative steps including git-clone, activate-ssh-key, xcode-test, cache-pull, and a deprecated step), checked into git for reference.
 4. **`docs/spec-v2/report.md`** — comparison report:
    - File counts and total bytes (raw + gzipped) for V2 vs `spec.json` baseline.
    - Per-file-type size distribution.
    - Per-workflow bandwidth simulation (above table reproduced from real numbers).
-5. **Tests** — unit tests for the generator covering: a normal step, a deprecated step, a step with multiple platforms in `executables`, a bash step (no executables), and a step with no `step-info.yml`.
+5. **Tests** — unit tests for the generator covering: a normal step, a deprecated step, a step with multiple platforms in `executables`, a bash step (no executables), and the mandatory-`step-info.yml` error case. Plus `Validate` — a consistency checker run as a publish gate (an invalid staged tree is never published) and usable as a CI gate — and wire-format round-trip (`step.yml` ↔ `step.json`) + byte-identical determinism tests.
 
 ### Non-goals for PoC A (explicit)
 
@@ -477,7 +477,7 @@ func NewReader(steplibURI string, log Logger) (Reader, error) {
 
 When an alt-steplib operator wants to offer V2 to their users:
 
-1. They generate their own V2 tree with `steplibrary/specgen/cmd/steplib-gen`.
+1. They generate their own V2 tree with `bitrise steps generate-steplib` (the `steplibrary/indexgen` generator).
 2. They host it on their CDN / bucket / wherever, over HTTPS.
 3. Their users change `step_lib_source` in `bitrise.yml` from `https://…/repo.git` to the V2 base URL (e.g., `https://my-cdn.example/steplib/`).
 
