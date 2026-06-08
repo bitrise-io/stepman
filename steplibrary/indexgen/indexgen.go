@@ -167,10 +167,7 @@ func generateFromSteplibClone(inputFS fs.FS, outputDir string, opts Options, log
 	// never published, so any existing inventory at outputDir is left
 	// untouched on a validation failure. staging is the dir CONTAINING the
 	// version dir (v2/), which is exactly the root Validate expects.
-	violations, err := Validate(os.DirFS(staging))
-	if err != nil {
-		return Stats{}, fmt.Errorf("validate staged inventory: %w", err)
-	}
+	violations := Validate(os.DirFS(staging))
 	if len(violations) > 0 {
 		return Stats{}, fmt.Errorf("staged inventory failed validation (%d violations, first: %s)", len(violations), violations[0])
 	}
