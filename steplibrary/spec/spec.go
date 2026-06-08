@@ -18,6 +18,7 @@
 package spec
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/bitrise-io/stepman/models"
@@ -26,6 +27,11 @@ import (
 // FormatVersion is the on-disk schema version recorded in Meta. Bump only on
 // breaking changes; additive changes (new optional fields) do not bump.
 const FormatVersion = 2
+
+// VersionDir is the inventory's top-level directory for this format version
+// (e.g. "v2"). The whole tree is rooted under it so multiple format versions
+// can be hosted side by side; readers prefix their fetch URLs with it.
+func VersionDir() string { return fmt.Sprintf("v%d", FormatVersion) }
 
 // Meta is the inventory-level metadata file at the inventory root (meta.json).
 // It is the only file that carries FormatVersion.

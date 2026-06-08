@@ -44,7 +44,8 @@ func runGenerateFromSteplibClone(t *testing.T) string {
 		testLogger{t},
 	)
 	require.NoError(t, gotErr, "generateFromSteplibClone")
-	return out
+	// The tree is rooted under the format-version dir (e.g. v2/).
+	return filepath.Join(out, spec.VersionDir())
 }
 
 func readJSON(t *testing.T, path string, into any) {
@@ -133,7 +134,7 @@ func TestGenerator_publish_replaces_existing_tree(t *testing.T) {
 
 	_, statErr := os.Stat(stale)
 	assert.True(t, os.IsNotExist(statErr), "stale file should be gone after wholesale replace; got err=%v", statErr)
-	_, statErr = os.Stat(filepath.Join(out, "meta.json"))
+	_, statErr = os.Stat(filepath.Join(out, spec.VersionDir(), "meta.json"))
 	assert.NoError(t, statErr, "meta.json present after publish")
 }
 

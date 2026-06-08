@@ -45,7 +45,7 @@ func TestCollect_asset_permissions_preserved(t *testing.T) {
 	_, gotErr := generateFromSteplibClone(inputFS, out, Options{GeneratedAt: fixedTime}, testLogger{t})
 	require.NoError(t, gotErr, "generateFromSteplibClone")
 
-	dstInfo, err := os.Stat(filepath.Join(out, "steps/perm-step/assets/icon.svg"))
+	dstInfo, err := os.Stat(filepath.Join(out, spec.VersionDir(), "steps/perm-step/assets/icon.svg"))
 	require.NoError(t, err, "stat copied asset")
 	assert.Equal(t, mode, dstInfo.Mode().Perm(), "copied asset preserves source file mode")
 }
@@ -91,9 +91,9 @@ func TestCollect_invalid_version_dir_skipped(t *testing.T) {
 	assert.Equal(t, 1, stats.StepCount, "StepCount")
 	assert.Equal(t, 1, stats.VersionCount, "VersionCount")
 
-	_, statErr := os.Stat(filepath.Join(out, "steps/my-step/1.0.0/step.json"))
+	_, statErr := os.Stat(filepath.Join(out, spec.VersionDir(), "steps/my-step/1.0.0/step.json"))
 	assert.NoError(t, statErr, "valid version written")
-	_, statErr = os.Stat(filepath.Join(out, "steps/my-step/not-a-semver/step.json"))
+	_, statErr = os.Stat(filepath.Join(out, spec.VersionDir(), "steps/my-step/not-a-semver/step.json"))
 	assert.True(t, os.IsNotExist(statErr), "non-semver version dir skipped")
 }
 

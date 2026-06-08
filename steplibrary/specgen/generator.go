@@ -110,7 +110,9 @@ func generateFromSteplibClone(inputFS fs.FS, outputDir string, opts Options, log
 		}
 	}()
 
-	w := &writer{outputDir: staging, fw: realFileWriter{}, fm: fileutil.NewFileManager(), fileCount: 0, byteCount: 0}
+	// Root the tree under the format-version dir (e.g. v2/) inside staging, so
+	// the published outputDir contains <version>/{meta.json,spec,steps}.
+	w := &writer{outputDir: filepath.Join(staging, spec.VersionDir()), fw: realFileWriter{}, fm: fileutil.NewFileManager(), fileCount: 0, byteCount: 0}
 
 	for _, s := range steps {
 		if err := writeStepFiles(w, inputFS, s); err != nil {
