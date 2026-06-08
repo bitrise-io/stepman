@@ -38,6 +38,28 @@ type Stats struct {
 	Duration     time.Duration
 }
 
+// Generate sets up the steplib identified by steplibURI (cloning it into
+// stepman's local cache via stepman.SetupLibrary if not already present) and
+// writes the V2 inventory tree to outputDir. It is the URI-based entry point
+// (the bitrise steps generate-steplib subcommand calls it); generateFromSteplibClone
+// is the lower-level core that reads from an already-available filesystem.
+func Generate(steplibURI, outputDir string, opts Options, log stepman.Logger) (Stats, error) {
+	if err := stepman.SetupLibrary(steplibURI, log); err != nil {
+		return Stats{}, fmt.Errorf("setup steplib %s: %w", steplibURI, err)
+	}
+	route, found := stepman.ReadRoute(steplibURI)
+	if !found {
+		return Stats{}, fmt.Errorf("no route for steplib %s after setup", steplibURI)
+	}
+	libDir := stepman.GetLibraryBaseDirPath(route)
+
+	opts, err := withDefaults(opts, libDir)
+	if err != nil {
+		return Stats{}, err
+	}
+	return generateFromSteplibClone(os.DirFS(libDir), outputDir, opts, log)
+}
+
 // withDefaults fills zero-valued options. steplibDir is the steplib's git
 // working copy, used to default SteplibCommitSHA to its HEAD commit when the
 // caller didn't pin one; pass "" to leave SteplibCommitSHA untouched (e.g. when
@@ -153,26 +175,4 @@ func generateFromSteplibClone(inputFS fs.FS, outputDir string, opts Options, log
 		BytesWritten: w.byteCount,
 		Duration:     time.Since(start),
 	}, nil
-}
-
-// Generate sets up the steplib identified by steplibURI (cloning it into
-// stepman's local cache via stepman.SetupLibrary if not already present) and
-// writes the V2 inventory tree to outputDir. It is the URI-based entry point
-// (the bitrise steps generate-steplib subcommand calls it); generateFromSteplibClone
-// is the lower-level core that reads from an already-available filesystem.
-func Generate(steplibURI, outputDir string, opts Options, log stepman.Logger) (Stats, error) {
-	if err := stepman.SetupLibrary(steplibURI, log); err != nil {
-		return Stats{}, fmt.Errorf("setup steplib %s: %w", steplibURI, err)
-	}
-	route, found := stepman.ReadRoute(steplibURI)
-	if !found {
-		return Stats{}, fmt.Errorf("no route for steplib %s after setup", steplibURI)
-	}
-	libDir := stepman.GetLibraryBaseDirPath(route)
-
-	opts, err := withDefaults(opts, libDir)
-	if err != nil {
-		return Stats{}, err
-	}
-	return generateFromSteplibClone(os.DirFS(libDir), outputDir, opts, log)
 }

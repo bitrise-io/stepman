@@ -10,38 +10,6 @@ import (
 	"github.com/bitrise-io/stepman/steplibrary/steplibindex"
 )
 
-func buildLatestPointer(s parsedStep) steplibindex.LatestPointer {
-	byMajor := map[string]models.Semver{}
-	for _, v := range s.versions {
-		majorKey := strconv.FormatUint(v.semver.Major, 10)
-		cur, ok := byMajor[majorKey]
-		if !ok || models.CmpSemver(v.semver, cur) > 0 {
-			byMajor[majorKey] = v.semver
-		}
-	}
-	latestByMajor := make(map[string]string, len(byMajor))
-	for k, v := range byMajor {
-		latestByMajor[k] = v.String()
-	}
-	return steplibindex.LatestPointer{
-		StepID:        s.id,
-		Latest:        s.latest().version,
-		LatestByMajor: latestByMajor,
-	}
-}
-
-func buildVersionsJSON(s parsedStep) steplibindex.Versions {
-	versions := make([]string, 0, len(s.versions))
-	// Newest-first order: walk the ascending-sorted versions in reverse.
-	for i := len(s.versions) - 1; i >= 0; i-- {
-		versions = append(versions, s.versions[i].version)
-	}
-	return steplibindex.Versions{
-		StepID:   s.id,
-		Versions: versions,
-	}
-}
-
 // writeStepFiles emits the per-step source files under steps/<id>/.
 func writeStepFiles(w *writer, inputFS fs.FS, s parsedStep) error {
 	if err := w.writeJSON(filepath.Join("steps", s.id, "step-info.json"), s.info); err != nil {
@@ -81,4 +49,36 @@ func writeIndexFiles(w *writer, steps []parsedStep) error {
 		}
 	}
 	return nil
+}
+
+func buildLatestPointer(s parsedStep) steplibindex.LatestPointer {
+	byMajor := map[string]models.Semver{}
+	for _, v := range s.versions {
+		majorKey := strconv.FormatUint(v.semver.Major, 10)
+		cur, ok := byMajor[majorKey]
+		if !ok || models.CmpSemver(v.semver, cur) > 0 {
+			byMajor[majorKey] = v.semver
+		}
+	}
+	latestByMajor := make(map[string]string, len(byMajor))
+	for k, v := range byMajor {
+		latestByMajor[k] = v.String()
+	}
+	return steplibindex.LatestPointer{
+		StepID:        s.id,
+		Latest:        s.latest().version,
+		LatestByMajor: latestByMajor,
+	}
+}
+
+func buildVersionsJSON(s parsedStep) steplibindex.Versions {
+	versions := make([]string, 0, len(s.versions))
+	// Newest-first order: walk the ascending-sorted versions in reverse.
+	for i := len(s.versions) - 1; i >= 0; i-- {
+		versions = append(versions, s.versions[i].version)
+	}
+	return steplibindex.Versions{
+		StepID:   s.id,
+		Versions: versions,
+	}
 }
