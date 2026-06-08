@@ -85,7 +85,7 @@ type stepYAMLJSONPair struct {
 // collectStepYMLAndJSONPaths walks inputFS's source steps/ tree for every
 // step.yml and returns the matching pair of (input step.yml path, generated
 // step.json path under the v2 output dir). Asserts each generated step.json
-// exists. Non-semver version dirs are skipped to match the generator.
+// exists.
 func collectStepYMLAndJSONPaths(t *testing.T, inputFS fs.FS, outV2Dir string) []stepYAMLJSONPair {
 	t.Helper()
 	var pairs []stepYAMLJSONPair
@@ -94,26 +94,37 @@ func collectStepYMLAndJSONPaths(t *testing.T, inputFS fs.FS, outV2Dir string) []
 		if walkErr != nil {
 			return walkErr
 		}
-		if d.IsDir() || filepath.Base(p) != "step.yml" {
+		if d.IsDir() {
 			return nil
 		}
-		// p looks like "steps/<id>/<version>/step.yml" — drop the trailing
-		// "/step.yml" to get the version dir, then locate the JSON counterpart
-		// in the v2 output (which mirrors the steps/<id>/<version>/ layout).
-		rel := strings.TrimSuffix(p, "/step.yml") // steps/<id>/<version>
-		segs := strings.Split(rel, "/")
-		if len(segs) != 3 {
-			return nil // not a steps/<id>/<version> path
+		jsonPath, ok := generatedStepJSONPath(p, outV2Dir)
+		if !ok {
+			return nil
 		}
-		if _, err := models.ParseSemver(segs[2]); err != nil {
-			return nil // non-semver version dir: generator skips these
-		}
-		jsonPath := filepath.Join(outV2Dir, rel, "step.json")
 		require.FileExists(t, jsonPath, "generated step.json missing for %s", p)
 		pairs = append(pairs, stepYAMLJSONPair{yamlPath: p, jsonPath: jsonPath})
 		return nil
 	}))
 	return pairs
+}
+
+// generatedStepJSONPath maps a source "steps/<id>/<version>/step.yml" path to
+// its generated step.json path under v2Dir. ok is false for paths the
+// generator doesn't emit a step.json for: non-step.yml files and non-semver
+// version dirs.
+func generatedStepJSONPath(p, v2Dir string) (jsonPath string, ok bool) {
+	if filepath.Base(p) != "step.yml" {
+		return "", false
+	}
+	rel := strings.TrimSuffix(p, "/step.yml") // steps/<id>/<version>
+	segs := strings.Split(rel, "/")
+	if len(segs) != 3 {
+		return "", false // not a steps/<id>/<version> path
+	}
+	if _, err := models.ParseSemver(segs[2]); err != nil {
+		return "", false // non-semver version dir: generator skips these
+	}
+	return filepath.Join(v2Dir, rel, "step.json"), true
 }
 
 // parseStepYMLForRoundTrip mirrors the generator's canonical step.yml parse
