@@ -18,7 +18,7 @@ import (
 )
 
 // Options control generator behavior. Zero values are filled with sensible
-// defaults; callers (CLI / tests) override what they need.
+// defaults; callers (Generate, tests) override what they need.
 type Options struct {
 	// GeneratedAt is written to meta.json (RFC3339). Optional: when zero it
 	// defaults to now. Normalized to UTC whole seconds either way. Tests set it
@@ -46,9 +46,8 @@ func withDefaults(o Options, steplibDir string) (Options, error) {
 	if o.GeneratedAt.IsZero() {
 		o.GeneratedAt = time.Now()
 	}
-	// meta.json's updated_at is RFC3339; normalize to UTC whole seconds so a
-	// defaulted now() matches the precision of a -timestamp value (parsed as
-	// RFC3339) and never serializes sub-second digits.
+	// meta.json's updated_at is RFC3339; normalize to UTC whole seconds so it
+	// serializes as clean RFC3339, never with sub-second digits.
 	o.GeneratedAt = o.GeneratedAt.UTC().Truncate(time.Second)
 	if o.SteplibCommitSHA == "" && steplibDir != "" {
 		sha, err := headCommitSHA(steplibDir)
@@ -98,7 +97,7 @@ func generateFromSteplibClone(inputFS fs.FS, outputDir string, opts Options, log
 	if err := os.MkdirAll(parent, 0o700); err != nil {
 		return Stats{}, fmt.Errorf("create output parent %s: %w", parent, err)
 	}
-	staging, err := os.MkdirTemp(parent, ".steplib-gen-staging-*")
+	staging, err := os.MkdirTemp(parent, ".indexgen-staging-*")
 	if err != nil {
 		return Stats{}, fmt.Errorf("create staging dir: %w", err)
 	}
@@ -111,7 +110,7 @@ func generateFromSteplibClone(inputFS fs.FS, outputDir string, opts Options, log
 	}()
 
 	// Root the tree under the format-version dir (e.g. v2/) inside staging, so
-	// the published outputDir contains <version>/{meta.json,spec,steps}.
+	// the published outputDir contains <version>/{meta.json,index,steps}.
 	w := &writer{outputDir: filepath.Join(staging, steplibindex.VersionDir()), fw: realFileWriter{}, fm: fileutil.NewFileManager(), fileCount: 0, byteCount: 0}
 
 	for _, s := range steps {
@@ -159,8 +158,8 @@ func generateFromSteplibClone(inputFS fs.FS, outputDir string, opts Options, log
 // Generate sets up the steplib identified by steplibURI (cloning it into
 // stepman's local cache via stepman.SetupLibrary if not already present) and
 // writes the V2 inventory tree to outputDir. It is the URI-based entry point
-// used by the CLI; generateFromSteplibClone is the lower-level core that reads
-// from an already-available filesystem.
+// (the bitrise steps generate-steplib subcommand calls it); generateFromSteplibClone
+// is the lower-level core that reads from an already-available filesystem.
 func Generate(steplibURI, outputDir string, opts Options, log stepman.Logger) (Stats, error) {
 	if err := stepman.SetupLibrary(steplibURI, log); err != nil {
 		return Stats{}, fmt.Errorf("setup steplib %s: %w", steplibURI, err)
