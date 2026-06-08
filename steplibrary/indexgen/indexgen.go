@@ -2,9 +2,9 @@
 // bitrise-steplib source. The wire-format types it emits live in
 // steplibrary/steplibindex.
 //
-// Generation stages the whole tree in a sibling temp directory, runs
-// validate.go's Validate against the staged tree, and only then atomically
-// publishes it with a single rename. Validation is unconditional: an invalid
+// Generation stages the whole tree in a sibling temp directory, runs Validate
+// against the staged tree, and only then atomically publishes it with a single
+// rename. Validation is unconditional: an invalid
 // staged tree is never published, so any existing inventory at the output dir
 // is left untouched on a validation failure, and a successful Generate
 // guarantees the published inventory passes Validate.

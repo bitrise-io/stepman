@@ -35,9 +35,8 @@ func (e ValidationError) Error() string {
 // Intended uses:
 //   - Pre-deploy CI gate: run against a freshly generated tree before
 //     publishing to the V2 host. Fail the build on any violation.
-//   - Generator test smoke check: every generator test can pipe its output
-//     through Validate to catch cross-file consistency bugs that targeted
-//     per-file assertions would miss.
+//   - Generator test smoke check: run a generated tree through Validate to
+//     catch cross-file inconsistencies that per-file assertions would miss.
 //
 // A filesystem traversal failure (e.g. an unreadable directory) is itself
 // reported as a violation, so callers only need to check whether the returned
