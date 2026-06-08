@@ -70,6 +70,9 @@ func (v *validator) run() {
 	haveIDs := v.readJSON(steplibindex.StepIDsPathFS(), &stepIDs)
 
 	if haveIDs {
+		if len(stepIDs.StepIDs) == 0 {
+			v.flag(steplibindex.StepIDsPathFS(), "step_ids is empty: a steplib must contain at least one step")
+		}
 		v.checkStepIDsSorted(stepIDs)
 		for _, id := range stepIDs.StepIDs {
 			v.checkStep(id)
@@ -237,9 +240,9 @@ func (v *validator) checkNoStaleFiles() {
 	for _, root := range roots {
 		_ = fs.WalkDir(v.fs, root, func(p string, d fs.DirEntry, err error) error {
 			if err != nil {
-				// A missing root (e.g. v2/steps for a steplib with no steps) is
-				// fine; any other traversal failure is reported as a violation
-				// rather than silently swallowed.
+				// A missing root (e.g. v2/steps when there are no steps) isn't a
+				// traversal failure — the empty steplib is already flagged via the
+				// step_ids check. Any other walk error is reported, not swallowed.
 				if !errors.Is(err, fs.ErrNotExist) {
 					v.flag(p, "walk failed: %s", err)
 				}

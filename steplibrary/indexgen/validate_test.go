@@ -74,6 +74,16 @@ func TestValidate_flagsBadFormatVersion(t *testing.T) {
 	assert.NotNil(t, flagMatching(errs, "meta.json", "format_version"), "bad format_version must be flagged; got %+v", errs)
 }
 
+func TestValidate_flagsEmptySteplib(t *testing.T) {
+	root := runGenerateInventoryRoot(t)
+	// A steplib with no steps is not valid.
+	require.NoError(t, os.WriteFile(filepath.Join(root, steplibindex.StepIDsPathFS()), []byte(`{"step_ids":[]}`), 0o644))
+
+	errs := Validate(os.DirFS(root))
+	assert.NotNil(t, flagMatching(errs, "step_ids.json", "empty"),
+		"a steplib with no steps must be flagged; got %+v", errs)
+}
+
 func TestValidate_flagsUnsortedStepIDs(t *testing.T) {
 	root := runGenerateInventoryRoot(t)
 	// Hand-write an unsorted step_ids.json that still references only real steps
