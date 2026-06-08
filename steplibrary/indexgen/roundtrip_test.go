@@ -1,6 +1,7 @@
 package indexgen
 
 import (
+	"cmp"
 	"encoding/json"
 	"io/fs"
 	"os"
@@ -8,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bitrise-io/stepman/internal/specfixtures"
 	"github.com/bitrise-io/stepman/models"
 	"github.com/bitrise-io/stepman/steplibrary/steplibindex"
+	"github.com/bitrise-io/stepman/stepman"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
@@ -20,12 +21,18 @@ import (
 // contract: a generated step.json must be exactly the V1 step.yml that
 // produced it, just JSON-encoded.
 //
-// For every step.yml in the source fixtures we:
+// It runs against the real default steplib — every step, every version — so it
+// needs network access and is gated on RUN_STEPLIB_GEN (skipped in CI):
 //
-//  1. Parse the source step.yml through the same pipeline the generator
+//	RUN_STEPLIB_GEN=1 go test -run TestRoundTrip -v ./steplibrary/indexgen/
+//
+// STEPLIB_URI overrides the source (default: bitrise-steplib). For every
+// step.yml in the steplib it:
+//
+//  1. Parses the source step.yml through the same pipeline the generator
 //     uses (yaml.Unmarshal + Normalize + FillMissingDefaults) → fromYAML.
-//  2. Parse the generated step.json into a models.StepModel → fromJSON.
-//  3. Marshal both back to JSON and assert semantic equality (assert.JSONEq).
+//  2. Parses the generated step.json into a models.StepModel → fromJSON.
+//  3. Marshals both back to JSON and asserts semantic equality (assert.JSONEq).
 //
 // Comparing via the JSON wire format rather than reflect.DeepEqual on the
 // Go structs is deliberate: an empty slice and a nil slice both serialize
@@ -33,16 +40,26 @@ import (
 // every consumer of the wire format. The contract is "the bytes a consumer
 // receives carry the same step", not "the in-memory Go struct is
 // bit-identical."
-//
-// Any future regression that silently drops a field surfaces here. The
-// validator catches structural problems with the inventory tree as a
-// whole; this catches per-version content drift the validator can't see.
 func TestRoundTrip_stepYAML_to_stepJSON(t *testing.T) {
-	out := runGenerateFromSteplibClone(t) // the v2/ output dir
-	inputFS := specfixtures.SteplibClone()
+	if os.Getenv("RUN_STEPLIB_GEN") == "" {
+		t.Skip("set RUN_STEPLIB_GEN=1 to round-trip every step in a real steplib")
+	}
+	uri := cmp.Or(os.Getenv("STEPLIB_URI"), "https://github.com/bitrise-io/bitrise-steplib.git")
 
-	pairs := collectStepYMLAndJSONPaths(t, inputFS, out)
+	// Generate the V2 tree (Generate clones the steplib into stepman's local
+	// cache), then read the clone back to pair each step.yml with its step.json.
+	out := t.TempDir()
+	_, err := Generate(uri, out, Options{}, testLogger{t})
+	require.NoError(t, err, "Generate")
+
+	route, found := stepman.ReadRoute(uri)
+	require.True(t, found, "no route for %s after Generate", uri)
+	inputFS := os.DirFS(stepman.GetLibraryBaseDirPath(route))
+	v2Dir := filepath.Join(out, steplibindex.VersionDir())
+
+	pairs := collectStepYMLAndJSONPaths(t, inputFS, v2Dir)
 	require.NotEmpty(t, pairs, "expected at least one step.yml/step.json pair to compare")
+	t.Logf("round-tripping %d step versions from %s", len(pairs), uri)
 
 	for _, p := range pairs {
 		t.Run(p.yamlPath, func(t *testing.T) {
