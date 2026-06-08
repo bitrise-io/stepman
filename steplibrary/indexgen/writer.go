@@ -1,4 +1,4 @@
-package specgen
+package indexgen
 
 import (
 	"encoding/json"

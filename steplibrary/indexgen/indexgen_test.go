@@ -1,4 +1,4 @@
-package specgen
+package indexgen
 
 import (
 	"encoding/json"
@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/bitrise-io/stepman/internal/specfixtures"
-	"github.com/bitrise-io/stepman/steplibrary/spec"
+	"github.com/bitrise-io/stepman/steplibrary/steplibindex"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -45,7 +45,7 @@ func runGenerateFromSteplibClone(t *testing.T) string {
 	)
 	require.NoError(t, gotErr, "generateFromSteplibClone")
 	// The tree is rooted under the format-version dir (e.g. v2/).
-	return filepath.Join(out, spec.VersionDir())
+	return filepath.Join(out, steplibindex.VersionDir())
 }
 
 func readJSON(t *testing.T, path string, into any) {
@@ -58,10 +58,10 @@ func readJSON(t *testing.T, path string, into any) {
 func TestGenerator_meta(t *testing.T) {
 	out := runGenerateFromSteplibClone(t)
 
-	var meta spec.Meta
+	var meta steplibindex.Meta
 	readJSON(t, filepath.Join(out, "meta.json"), &meta)
 
-	assert.Equal(t, spec.FormatVersion, meta.FormatVersion, "FormatVersion")
+	assert.Equal(t, steplibindex.FormatVersion, meta.FormatVersion, "FormatVersion")
 	assert.Equal(t, 2, meta.FormatVersion, "FormatVersion literal")
 	assert.Equal(t, fixedTime, meta.UpdatedAt, "UpdatedAt")
 	assert.Equal(t, "deadbeefcafef00d", meta.SteplibCommitSHA, "SteplibCommitSHA")
@@ -75,7 +75,7 @@ func TestGenerator_meta(t *testing.T) {
 func TestGenerator_step_ids_sorted(t *testing.T) {
 	out := runGenerateFromSteplibClone(t)
 
-	var ids spec.StepIDs
+	var ids steplibindex.StepIDs
 	readJSON(t, filepath.Join(out, "index/step_ids.json"), &ids)
 
 	want := []string{"bash-step", "deprecated-step", "hello-step", "multi-platform-step"}
@@ -134,7 +134,7 @@ func TestGenerator_publish_replaces_existing_tree(t *testing.T) {
 
 	_, statErr := os.Stat(stale)
 	assert.True(t, os.IsNotExist(statErr), "stale file should be gone after wholesale replace; got err=%v", statErr)
-	_, statErr = os.Stat(filepath.Join(out, spec.VersionDir(), "meta.json"))
+	_, statErr = os.Stat(filepath.Join(out, steplibindex.VersionDir(), "meta.json"))
 	assert.NoError(t, statErr, "meta.json present after publish")
 }
 

@@ -1,5 +1,5 @@
-// Package spec defines the Go types for the V2 step library inventory wire
-// format. It is shared between the generator (steplibrary/specgen) and the
+// Package steplibindex defines the Go types for the V2 step library inventory wire
+// format. It is shared between the generator (steplibrary/indexgen) and the
 // read path (steplibrary).
 //
 // The V2 layout splits the inventory into two URL prefixes:
@@ -15,7 +15,7 @@
 // null. Optional inventory metadata (Meta.steplib_commit_sha,
 // Meta.steplib_source, Meta.download_locations) uses omitempty and is dropped
 // when empty.
-package spec
+package steplibindex
 
 import (
 	"fmt"

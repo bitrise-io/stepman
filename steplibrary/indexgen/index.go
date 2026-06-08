@@ -1,4 +1,4 @@
-package specgen
+package indexgen
 
 import (
 	"fmt"
@@ -7,10 +7,10 @@ import (
 	"strconv"
 
 	"github.com/bitrise-io/stepman/models"
-	"github.com/bitrise-io/stepman/steplibrary/spec"
+	"github.com/bitrise-io/stepman/steplibrary/steplibindex"
 )
 
-func buildLatestPointer(s parsedStep) spec.LatestPointer {
+func buildLatestPointer(s parsedStep) steplibindex.LatestPointer {
 	byMajor := map[string]models.Semver{}
 	for _, v := range s.versions {
 		majorKey := strconv.FormatUint(v.semver.Major, 10)
@@ -23,20 +23,20 @@ func buildLatestPointer(s parsedStep) spec.LatestPointer {
 	for k, v := range byMajor {
 		latestByMajor[k] = v.String()
 	}
-	return spec.LatestPointer{
+	return steplibindex.LatestPointer{
 		StepID:        s.id,
 		Latest:        s.latest().version,
 		LatestByMajor: latestByMajor,
 	}
 }
 
-func buildVersionsJSON(s parsedStep) spec.Versions {
+func buildVersionsJSON(s parsedStep) steplibindex.Versions {
 	versions := make([]string, 0, len(s.versions))
 	// Newest-first order: walk the ascending-sorted versions in reverse.
 	for i := len(s.versions) - 1; i >= 0; i-- {
 		versions = append(versions, s.versions[i].version)
 	}
-	return spec.Versions{
+	return steplibindex.Versions{
 		StepID:   s.id,
 		Versions: versions,
 	}
@@ -68,7 +68,7 @@ func writeIndexFiles(w *writer, steps []parsedStep) error {
 	for i, s := range steps {
 		ids[i] = s.id
 	}
-	if err := w.writeJSON("index/step_ids.json", spec.StepIDs{StepIDs: ids}); err != nil {
+	if err := w.writeJSON("index/step_ids.json", steplibindex.StepIDs{StepIDs: ids}); err != nil {
 		return err
 	}
 

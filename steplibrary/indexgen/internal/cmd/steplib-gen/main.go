@@ -4,7 +4,7 @@
 //
 //	steplib-gen -steplib <steplib-source-uri> -output <out-dir> [-commit-sha <sha>]
 //
-// The wire-format types in steplibrary/spec are the source of truth for the output.
+// The wire-format types in steplibrary/steplibindex are the source of truth for the output.
 package main
 
 import (
@@ -13,7 +13,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/bitrise-io/stepman/steplibrary/specgen"
+	"github.com/bitrise-io/stepman/steplibrary/indexgen"
 )
 
 type stderrLogger struct{}
@@ -42,7 +42,7 @@ func main() {
 		os.Exit(2)
 	}
 
-	// Left zero unless -timestamp is given; specgen defaults it to now (see
+	// Left zero unless -timestamp is given; indexgen defaults it to now (see
 	// withDefaults), so there's no need to compute the default here.
 	var generatedAt time.Time
 	if *timestamp != "" {
@@ -54,12 +54,12 @@ func main() {
 		generatedAt = ts
 	}
 
-	opts := specgen.Options{
+	opts := indexgen.Options{
 		GeneratedAt:      generatedAt,
 		SteplibCommitSHA: *commitSHA,
 	}
 
-	stats, err := specgen.Generate(*steplib, *output, opts, stderrLogger{})
+	stats, err := indexgen.Generate(*steplib, *output, opts, stderrLogger{})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %s\n", err)
 		os.Exit(1)

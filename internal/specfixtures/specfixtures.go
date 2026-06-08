@@ -1,5 +1,5 @@
 // Package specfixtures provides shared, embedded test fixtures for the V2
-// steplib spec/specgen packages — currently a small sample steplib clone
+// steplib steplibindex/indexgen packages — currently a small sample steplib clone
 // exposed as an fs.FS.
 //
 // It lives under internal/ so only this module can import it (consumers of the
@@ -18,7 +18,7 @@ import (
 var files embed.FS
 
 // SteplibClone returns the sample steplib clone (steplib.yml + steps/<id>/...)
-// rooted so it can be passed straight to the specgen generator.
+// rooted so it can be passed straight to the indexgen generator.
 func SteplibClone() fs.FS {
 	sub, err := fs.Sub(files, "testdata/steplib")
 	if err != nil {

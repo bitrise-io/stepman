@@ -1,4 +1,4 @@
-package specgen
+package indexgen
 
 import (
 	"io/fs"
@@ -8,7 +8,7 @@ import (
 	"testing/fstest"
 
 	"github.com/bitrise-io/stepman/models"
-	"github.com/bitrise-io/stepman/steplibrary/spec"
+	"github.com/bitrise-io/stepman/steplibrary/steplibindex"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -16,7 +16,7 @@ import (
 func TestCollect_step_info_and_asset_copy(t *testing.T) {
 	out := runGenerateFromSteplibClone(t)
 
-	var info spec.StepInfo
+	var info steplibindex.StepInfo
 	readJSON(t, filepath.Join(out, "steps/hello-step/step-info.json"), &info)
 
 	assert.Equal(t, "bitrise", info.Maintainer, "Maintainer")
@@ -45,7 +45,7 @@ func TestCollect_asset_permissions_preserved(t *testing.T) {
 	_, gotErr := generateFromSteplibClone(inputFS, out, Options{GeneratedAt: fixedTime}, testLogger{t})
 	require.NoError(t, gotErr, "generateFromSteplibClone")
 
-	dstInfo, err := os.Stat(filepath.Join(out, spec.VersionDir(), "steps/perm-step/assets/icon.svg"))
+	dstInfo, err := os.Stat(filepath.Join(out, steplibindex.VersionDir(), "steps/perm-step/assets/icon.svg"))
 	require.NoError(t, err, "stat copied asset")
 	assert.Equal(t, mode, dstInfo.Mode().Perm(), "copied asset preserves source file mode")
 }
@@ -53,7 +53,7 @@ func TestCollect_asset_permissions_preserved(t *testing.T) {
 func TestCollect_deprecated_step(t *testing.T) {
 	out := runGenerateFromSteplibClone(t)
 
-	var info spec.StepInfo
+	var info steplibindex.StepInfo
 	readJSON(t, filepath.Join(out, "steps/deprecated-step/step-info.json"), &info)
 
 	assert.Equal(t, "bitrise", info.Maintainer, "Maintainer")
@@ -91,9 +91,9 @@ func TestCollect_invalid_version_dir_skipped(t *testing.T) {
 	assert.Equal(t, 1, stats.StepCount, "StepCount")
 	assert.Equal(t, 1, stats.VersionCount, "VersionCount")
 
-	_, statErr := os.Stat(filepath.Join(out, spec.VersionDir(), "steps/my-step/1.0.0/step.json"))
+	_, statErr := os.Stat(filepath.Join(out, steplibindex.VersionDir(), "steps/my-step/1.0.0/step.json"))
 	assert.NoError(t, statErr, "valid version written")
-	_, statErr = os.Stat(filepath.Join(out, spec.VersionDir(), "steps/my-step/not-a-semver/step.json"))
+	_, statErr = os.Stat(filepath.Join(out, steplibindex.VersionDir(), "steps/my-step/not-a-semver/step.json"))
 	assert.True(t, os.IsNotExist(statErr), "non-semver version dir skipped")
 }
 

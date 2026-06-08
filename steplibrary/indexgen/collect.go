@@ -1,4 +1,4 @@
-package specgen
+package indexgen
 
 import (
 	"errors"
@@ -7,7 +7,7 @@ import (
 	"sort"
 
 	"github.com/bitrise-io/stepman/models"
-	"github.com/bitrise-io/stepman/steplibrary/spec"
+	"github.com/bitrise-io/stepman/steplibrary/steplibindex"
 	"github.com/bitrise-io/stepman/stepman"
 	"gopkg.in/yaml.v2"
 )
@@ -16,7 +16,7 @@ import (
 // phase, used by the write phase to emit per-step and index files.
 type parsedStep struct {
 	id         string
-	info       spec.StepInfo   // step-info.yml + assets/ listing
+	info       steplibindex.StepInfo   // step-info.yml + assets/ listing
 	assetFiles []string        // relative paths under assets/, sorted
 	versions   []parsedVersion // sorted ascending by semver; last is latest
 }
@@ -72,22 +72,22 @@ func readSteplibYML(inputFS fs.FS) (models.StepCollectionModel, error) {
 
 // readStepGroupInfo reads the mandatory step-info.yml at path. A missing file
 // is an error: fs.ErrNotExist propagates to the caller.
-func readStepGroupInfo(inputFS fs.FS, path string) (spec.StepInfo, error) {
+func readStepGroupInfo(inputFS fs.FS, path string) (steplibindex.StepInfo, error) {
 	bytes, err := fs.ReadFile(inputFS, path)
 	if err != nil {
-		return spec.StepInfo{}, err
+		return steplibindex.StepInfo{}, err
 	}
 	var sgi models.StepGroupInfoModel
 	if err := yaml.Unmarshal(bytes, &sgi); err != nil {
-		return spec.StepInfo{}, err
+		return steplibindex.StepInfo{}, err
 	}
-	out := spec.StepInfo{
+	out := steplibindex.StepInfo{
 		Maintainer:  sgi.Maintainer,
 		Deprecation: nil,
 		AssetURLs:   nil,
 	}
 	if sgi.RemovalDate != "" || sgi.DeprecateNotes != "" {
-		out.Deprecation = &spec.Deprecation{
+		out.Deprecation = &steplibindex.Deprecation{
 			RemovalDate: sgi.RemovalDate,
 			Notes:       sgi.DeprecateNotes,
 		}
@@ -150,7 +150,7 @@ func assetURLsForFiles(assetFiles []string) []string {
 func collectStep(inputFS fs.FS, id string, log stepman.Logger) (parsedStep, error) {
 	s := parsedStep{
 		id:         id,
-		info:       spec.StepInfo{Maintainer: "", Deprecation: nil, AssetURLs: nil},
+		info:       steplibindex.StepInfo{Maintainer: "", Deprecation: nil, AssetURLs: nil},
 		assetFiles: nil,
 		versions:   nil,
 	}

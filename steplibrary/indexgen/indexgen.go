@@ -1,7 +1,7 @@
-// Package specgen generates the V2 step library inventory tree from a
+// Package indexgen generates the V2 step library inventory tree from a
 // bitrise-steplib source. The wire-format types it emits live in
-// steplibrary/spec.
-package specgen
+// steplibrary/steplibindex.
+package indexgen
 
 import (
 	"errors"
@@ -13,7 +13,7 @@ import (
 
 	"github.com/bitrise-io/go-utils/command/git"
 	"github.com/bitrise-io/go-utils/v2/fileutil"
-	"github.com/bitrise-io/stepman/steplibrary/spec"
+	"github.com/bitrise-io/stepman/steplibrary/steplibindex"
 	"github.com/bitrise-io/stepman/stepman"
 )
 
@@ -112,7 +112,7 @@ func generateFromSteplibClone(inputFS fs.FS, outputDir string, opts Options, log
 
 	// Root the tree under the format-version dir (e.g. v2/) inside staging, so
 	// the published outputDir contains <version>/{meta.json,spec,steps}.
-	w := &writer{outputDir: filepath.Join(staging, spec.VersionDir()), fw: realFileWriter{}, fm: fileutil.NewFileManager(), fileCount: 0, byteCount: 0}
+	w := &writer{outputDir: filepath.Join(staging, steplibindex.VersionDir()), fw: realFileWriter{}, fm: fileutil.NewFileManager(), fileCount: 0, byteCount: 0}
 
 	for _, s := range steps {
 		if err := writeStepFiles(w, inputFS, s); err != nil {
@@ -124,8 +124,8 @@ func generateFromSteplibClone(inputFS fs.FS, outputDir string, opts Options, log
 		return Stats{}, fmt.Errorf("write index files: %w", err)
 	}
 
-	meta := spec.Meta{
-		FormatVersion:     spec.FormatVersion,
+	meta := steplibindex.Meta{
+		FormatVersion:     steplibindex.FormatVersion,
 		UpdatedAt:         opts.GeneratedAt,
 		SteplibCommitSHA:  opts.SteplibCommitSHA,
 		SteplibSource:     steplibYML.SteplibSource,
