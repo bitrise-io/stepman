@@ -154,6 +154,19 @@ func TestValidate_flagsStepInfoAssetMissing(t *testing.T) {
 		"missing asset referenced by step-info.json must be flagged; got %+v", errs)
 }
 
+func TestValidate_flagsAbsoluteAssetURL(t *testing.T) {
+	root := runGenerateInventoryRoot(t)
+	// asset_urls must be step-dir-relative; an absolute URL violates the spec.
+	// Keep the real relative asset too so only the absolute-URL check fires.
+	bad := []byte(`{"maintainer":"bitrise","deprecation":null,"asset_urls":["assets/icon.svg","https://cdn.example/icon.svg"]}`)
+	require.NoError(t, os.WriteFile(filepath.Join(root, steplibindex.StepInfoPathFS("hello-step")), bad, 0o644))
+
+	errs, err := Validate(os.DirFS(root))
+	require.NoError(t, err)
+	assert.NotNil(t, flagMatching(errs, "hello-step/step-info.json", "absolute URL"),
+		"absolute asset_urls entry must be flagged; got %+v", errs)
+}
+
 func TestValidate_flagsStaleIndexFile(t *testing.T) {
 	root := runGenerateInventoryRoot(t)
 	// Drop a stale file into v2/index/.
