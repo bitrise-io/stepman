@@ -209,7 +209,9 @@ func (v *validator) checkStepInfo(id string) {
 	}
 	for _, rel := range info.AssetURLs {
 		if strings.HasPrefix(rel, "http://") || strings.HasPrefix(rel, "https://") {
-			// Absolute URL — out of scope for filesystem validation.
+			// asset_urls must be step-dir-relative; an absolute URL violates the
+			// spec, so flag it rather than skipping.
+			v.flag(p, "asset_urls entry %q is an absolute URL; must be step-relative", rel)
 			continue
 		}
 		// The step-info.json's asset_urls are written as step-dir-relative
