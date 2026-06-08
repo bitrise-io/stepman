@@ -2,6 +2,7 @@ package indexgen
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"path"
@@ -38,14 +39,13 @@ func (e ValidationError) Error() string {
 //     through Validate to catch cross-file consistency bugs that targeted
 //     per-file assertions would miss.
 //
-// The returned error (the second return value) is reserved for situations
-// where the walk itself cannot proceed (e.g., the filesystem is unreadable).
-// "The tree is malformed" is reported via the ValidationError slice, not
-// the error.
-func Validate(inventoryFS fs.FS) ([]ValidationError, error) {
+// A filesystem traversal failure (e.g. an unreadable directory) is itself
+// reported as a violation, so callers only need to check whether the returned
+// slice is empty.
+func Validate(inventoryFS fs.FS) []ValidationError {
 	v := &validator{fs: inventoryFS, seen: map[string]bool{}, errs: nil}
 	v.run()
-	return v.errs, nil
+	return v.errs
 }
 
 type validator struct {
@@ -236,8 +236,17 @@ func (v *validator) checkNoStaleFiles() {
 	}
 	for _, root := range roots {
 		_ = fs.WalkDir(v.fs, root, func(p string, d fs.DirEntry, err error) error {
-			if err != nil || d.IsDir() {
-				return nil // ignore walk errors (e.g., dir doesn't exist) and directories
+			if err != nil {
+				// A missing root (e.g. v2/steps for a steplib with no steps) is
+				// fine; any other traversal failure is reported as a violation
+				// rather than silently swallowed.
+				if !errors.Is(err, fs.ErrNotExist) {
+					v.flag(p, "walk failed: %s", err)
+				}
+				return nil
+			}
+			if d.IsDir() {
+				return nil
 			}
 			if !v.seen[p] {
 				v.flag(p, "unexpected file under %s/", root)

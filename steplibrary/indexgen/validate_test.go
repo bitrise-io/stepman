@@ -1,7 +1,10 @@
 package indexgen
 
 import (
+	"errors"
+	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -50,8 +53,7 @@ func flagMatching(errs []ValidationError, pathContains, msgContains string) *Val
 func TestValidate_passesOnGeneratedOutput(t *testing.T) {
 	root := runGenerateInventoryRoot(t)
 
-	errs, err := Validate(os.DirFS(root))
-	require.NoError(t, err, "Validate")
+	errs := Validate(os.DirFS(root))
 	assert.Empty(t, errs, "generator output should validate cleanly; got %+v", errs)
 }
 
@@ -59,8 +61,7 @@ func TestValidate_flagsMissingMeta(t *testing.T) {
 	root := runGenerateInventoryRoot(t)
 	require.NoError(t, os.Remove(filepath.Join(root, steplibindex.MetaPathFS())))
 
-	errs, err := Validate(os.DirFS(root))
-	require.NoError(t, err)
+	errs := Validate(os.DirFS(root))
 	assert.NotNil(t, flagMatching(errs, "meta.json", "missing"), "missing meta.json must be flagged; got %+v", errs)
 }
 
@@ -69,8 +70,7 @@ func TestValidate_flagsBadFormatVersion(t *testing.T) {
 	bad := []byte(`{"format_version": 99, "updated_at": "2026-05-15T12:00:00Z"}`)
 	require.NoError(t, os.WriteFile(filepath.Join(root, steplibindex.MetaPathFS()), bad, 0o644))
 
-	errs, err := Validate(os.DirFS(root))
-	require.NoError(t, err)
+	errs := Validate(os.DirFS(root))
 	assert.NotNil(t, flagMatching(errs, "meta.json", "format_version"), "bad format_version must be flagged; got %+v", errs)
 }
 
@@ -81,8 +81,7 @@ func TestValidate_flagsUnsortedStepIDs(t *testing.T) {
 	bad := []byte(`{"step_ids": ["hello-step", "bash-step", "deprecated-step", "multi-platform-step"]}`)
 	require.NoError(t, os.WriteFile(filepath.Join(root, steplibindex.StepIDsPathFS()), bad, 0o644))
 
-	errs, err := Validate(os.DirFS(root))
-	require.NoError(t, err)
+	errs := Validate(os.DirFS(root))
 	assert.NotNil(t, flagMatching(errs, "step_ids.json", "not sorted"), "unsorted step_ids must be flagged; got %+v", errs)
 }
 
@@ -91,8 +90,7 @@ func TestValidate_flagsLatestPointingAtMissingVersion(t *testing.T) {
 	bad := []byte(`{"step_id": "hello-step", "latest": "99.99.99", "latest_by_major": {"99": "99.99.99"}}`)
 	require.NoError(t, os.WriteFile(filepath.Join(root, steplibindex.LatestPointerPathFS("hello-step")), bad, 0o644))
 
-	errs, err := Validate(os.DirFS(root))
-	require.NoError(t, err)
+	errs := Validate(os.DirFS(root))
 	assert.NotNil(t, flagMatching(errs, "hello-step/latest.json", "not in"),
 		"latest pointing at missing version must be flagged; got %+v", errs)
 }
@@ -103,8 +101,7 @@ func TestValidate_flagsLatestByMajorWrongMajor(t *testing.T) {
 	bad := []byte(`{"step_id": "hello-step", "latest": "2.0.0", "latest_by_major": {"1": "2.0.0", "2": "2.0.0"}}`)
 	require.NoError(t, os.WriteFile(filepath.Join(root, steplibindex.LatestPointerPathFS("hello-step")), bad, 0o644))
 
-	errs, err := Validate(os.DirFS(root))
-	require.NoError(t, err)
+	errs := Validate(os.DirFS(root))
 	assert.NotNil(t, flagMatching(errs, "hello-step/latest.json", "different major"),
 		"latest_by_major pointing at wrong major must be flagged; got %+v", errs)
 }
@@ -115,8 +112,7 @@ func TestValidate_flagsLatestStepIDMismatch(t *testing.T) {
 	bad := []byte(`{"step_id": "wrong-id", "latest": "2.0.0", "latest_by_major": {"1": "1.1.0", "2": "2.0.0"}}`)
 	require.NoError(t, os.WriteFile(filepath.Join(root, steplibindex.LatestPointerPathFS("hello-step")), bad, 0o644))
 
-	errs, err := Validate(os.DirFS(root))
-	require.NoError(t, err)
+	errs := Validate(os.DirFS(root))
 	assert.NotNil(t, flagMatching(errs, "hello-step/latest.json", "expected"),
 		"latest.json step_id mismatch must be flagged; got %+v", errs)
 }
@@ -126,8 +122,7 @@ func TestValidate_flagsMissingStepJSON(t *testing.T) {
 	// Delete hello-step's 1.0.0/step.json while leaving the version in versions.json.
 	require.NoError(t, os.Remove(filepath.Join(root, steplibindex.StepJSONPathFS("hello-step", "1.0.0"))))
 
-	errs, err := Validate(os.DirFS(root))
-	require.NoError(t, err)
+	errs := Validate(os.DirFS(root))
 	assert.NotNil(t, flagMatching(errs, "hello-step/1.0.0/step.json", "missing"),
 		"missing step.json for a declared version must be flagged; got %+v", errs)
 }
@@ -137,8 +132,7 @@ func TestValidate_flagsMissingStepInfo(t *testing.T) {
 	// step-info.json is mandatory: deleting it must be flagged (not skipped).
 	require.NoError(t, os.Remove(filepath.Join(root, steplibindex.StepInfoPathFS("hello-step"))))
 
-	errs, err := Validate(os.DirFS(root))
-	require.NoError(t, err)
+	errs := Validate(os.DirFS(root))
 	assert.NotNil(t, flagMatching(errs, "hello-step/step-info.json", "missing"),
 		"missing mandatory step-info.json must be flagged; got %+v", errs)
 }
@@ -148,8 +142,7 @@ func TestValidate_flagsStepInfoAssetMissing(t *testing.T) {
 	// Delete the asset hello-step's step-info.json references.
 	require.NoError(t, os.Remove(filepath.Join(root, steplibindex.StepAssetPathFS("hello-step", "icon.svg"))))
 
-	errs, err := Validate(os.DirFS(root))
-	require.NoError(t, err)
+	errs := Validate(os.DirFS(root))
 	assert.NotNil(t, flagMatching(errs, "hello-step/step-info.json", "does not exist"),
 		"missing asset referenced by step-info.json must be flagged; got %+v", errs)
 }
@@ -161,8 +154,7 @@ func TestValidate_flagsAbsoluteAssetURL(t *testing.T) {
 	bad := []byte(`{"maintainer":"bitrise","deprecation":null,"asset_urls":["assets/icon.svg","https://cdn.example/icon.svg"]}`)
 	require.NoError(t, os.WriteFile(filepath.Join(root, steplibindex.StepInfoPathFS("hello-step")), bad, 0o644))
 
-	errs, err := Validate(os.DirFS(root))
-	require.NoError(t, err)
+	errs := Validate(os.DirFS(root))
 	assert.NotNil(t, flagMatching(errs, "hello-step/step-info.json", "absolute URL"),
 		"absolute asset_urls entry must be flagged; got %+v", errs)
 }
@@ -173,8 +165,7 @@ func TestValidate_flagsStaleIndexFile(t *testing.T) {
 	stalePath := filepath.Join(root, steplibindex.VersionDir(), steplibindex.IndexRootFS, "stale.json")
 	require.NoError(t, os.WriteFile(stalePath, []byte("{}"), 0o644))
 
-	errs, err := Validate(os.DirFS(root))
-	require.NoError(t, err)
+	errs := Validate(os.DirFS(root))
 	assert.NotNil(t, flagMatching(errs, "stale.json", "unexpected"),
 		"unexpected file under index/ must be flagged; got %+v", errs)
 }
@@ -186,18 +177,42 @@ func TestValidate_flagsStaleStepDir(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Dir(stalePath), 0o755))
 	require.NoError(t, os.WriteFile(stalePath, []byte(`{"title":"ghost"}`), 0o644))
 
-	errs, err := Validate(os.DirFS(root))
-	require.NoError(t, err)
+	errs := Validate(os.DirFS(root))
 	assert.NotNil(t, flagMatching(errs, "ghost-step", "unexpected"),
 		"step dir not in step_ids.json must be flagged; got %+v", errs)
+}
+
+// failingReadDirFS wraps an fs.FS and returns a non-ErrNotExist error when
+// ReadDir is called on failDir — to exercise the stale-file walk's error path.
+type failingReadDirFS struct {
+	fs.FS
+	failDir string
+}
+
+func (f failingReadDirFS) ReadDir(name string) ([]fs.DirEntry, error) {
+	if name == f.failDir {
+		return nil, errors.New("simulated readdir failure")
+	}
+	return fs.ReadDir(f.FS, name)
+}
+
+func TestValidate_flagsWalkFailure(t *testing.T) {
+	root := runGenerateInventoryRoot(t)
+	// A real (non-ErrNotExist) traversal failure must be reported as a
+	// violation, not silently swallowed.
+	failDir := path.Join(steplibindex.VersionDir(), steplibindex.StepsRootFS)
+	fsys := failingReadDirFS{FS: os.DirFS(root), failDir: failDir}
+
+	errs := Validate(fsys)
+	assert.NotNil(t, flagMatching(errs, failDir, "walk failed"),
+		"a walk failure must be reported as a violation; got %+v", errs)
 }
 
 func TestValidate_flagsInvalidJSON(t *testing.T) {
 	root := runGenerateInventoryRoot(t)
 	require.NoError(t, os.WriteFile(filepath.Join(root, steplibindex.MetaPathFS()), []byte("not json"), 0o644))
 
-	errs, err := Validate(os.DirFS(root))
-	require.NoError(t, err)
+	errs := Validate(os.DirFS(root))
 	assert.NotNil(t, flagMatching(errs, "meta.json", "invalid JSON"),
 		"invalid JSON must be flagged; got %+v", errs)
 }
