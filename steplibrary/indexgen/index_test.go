@@ -43,4 +43,3 @@ func TestIndex_versions_newest_first(t *testing.T) {
 	assert.Equal(t, "hello-step", versions.StepID, "StepID")
 	assert.Equal(t, []string{"2.0.0", "1.1.0", "1.0.0"}, versions.Versions, "Versions newest-first")
 }
-
