@@ -65,7 +65,7 @@ Everything else in `step.yml` is **passed through verbatim** via `copyStepYML` t
 │  └─ steps/
 │     └─ <id>/
 │        ├─ latest.json                   ← latest + latest_by_major (resolves Latest/MajorLocked)
-│        └─ versions.json                 ← per-step version list + per-version metadata
+│        └─ versions.json                 ← per-step version list (newest-first version strings)
 │                                           (resolves MinorLocked + "does this version exist?")
 │
 └─ steps/                                 ← SOURCE OF TRUTH, self-contained per step
@@ -310,24 +310,18 @@ Per-step latest pointers. Answers `Latest` and `MajorLocked` constraints in one 
 
 ### `spec/steps/<id>/versions.json`
 
-Per-step version list with the metadata stepman needs for `MinorLocked` resolution. Larger than `latest.json`; only fetched when minor-locked or when the consumer needs version details.
+Per-step list of version strings, newest-first — what stepman needs for `MinorLocked` resolution (filter `major.minor`, pick highest patch) and the "does this version exist?" check. Only fetched when minor-locked or when the consumer needs the full version list.
 
 ```json
 {
   "step_id": "git-clone",
-  "latest": "8.5.0",
-  "versions": [
-    { "version": "8.5.0", "published_at": "2026-03-10T12:57:02Z", "commit": "df4081a169..." },
-    { "version": "8.4.2", "published_at": "...",                  "commit": "..."          },
-    { "version": "8.4.1", "published_at": "...",                  "commit": "..."          },
-    { "version": "7.0.2", "published_at": "...",                  "commit": "..."          }
-  ]
+  "versions": ["8.5.0", "8.4.2", "8.4.1", "7.0.2"]
 }
 ```
 
-Ordered newest-first. (Binary availability isn't surfaced here — clients learn it from the per-version `step.json`'s `executables` when they fetch it.)
+Ordered newest-first, so `versions[0]` is the latest. No `latest` field — the latest pointer lives in `latest.json`. Per-version detail (commit, published_at, executables, ...) is **not** duplicated here either — it lives in each `steps/<id>/<version>/step.json`, fetched once the version is resolved.
 
-**Size estimate:** for git-clone with ~35 versions, ~3 KB raw / ~700 bytes gzipped. Smallest steps: ~1 KB.
+**Size estimate:** for git-clone with ~35 versions, well under ~1 KB raw / a few hundred bytes gzipped.
 
 ---
 
