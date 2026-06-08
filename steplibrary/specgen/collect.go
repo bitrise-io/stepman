@@ -135,15 +135,16 @@ func parseStepYML(inputFS fs.FS, path string) (models.StepModel, error) {
 	return step, nil
 }
 
-// mapAssetFileToURL maps each asset filename to its step-relative URL. Returns a
-// non-nil (possibly empty) map so asset_urls renders as {}, never null.
-func mapAssetFileToURL(assetFiles []string) map[string]string {
-	assetURLs := make(map[string]string, len(assetFiles))
+// assetURLsForFiles maps each asset filename to its step-relative URL, in the
+// (sorted) order of assetFiles. Returns a non-nil (possibly empty) slice so
+// asset_urls renders as [], never null.
+func assetURLsForFiles(assetFiles []string) []string {
+	urls := make([]string, 0, len(assetFiles))
 	for _, f := range assetFiles {
-		assetURLs[f] = "assets/" + f
+		urls = append(urls, "assets/"+f)
 	}
 
-	return assetURLs
+	return urls
 }
 
 func collectStep(inputFS fs.FS, id string, log stepman.Logger) (parsedStep, error) {
@@ -166,7 +167,7 @@ func collectStep(inputFS fs.FS, id string, log stepman.Logger) (parsedStep, erro
 		return s, fmt.Errorf("list assets for %s: %w", id, err)
 	}
 	s.assetFiles = assetFiles
-	s.info.AssetURLs = mapAssetFileToURL(assetFiles)
+	s.info.AssetURLs = assetURLsForFiles(assetFiles)
 
 	subEntries, err := fs.ReadDir(inputFS, stepDir)
 	if err != nil {

@@ -21,7 +21,7 @@ func TestCollect_step_info_and_asset_copy(t *testing.T) {
 
 	assert.Equal(t, "bitrise", info.Maintainer, "Maintainer")
 	assert.Nil(t, info.Deprecation, "Deprecation")
-	assert.Equal(t, map[string]string{"icon.svg": "assets/icon.svg"}, info.AssetURLs, "AssetURLs")
+	assert.Equal(t, []string{"assets/icon.svg"}, info.AssetURLs, "AssetURLs")
 
 	// Asset file copied.
 	_, gotErr := os.Stat(filepath.Join(out, "steps/hello-step/assets/icon.svg"))

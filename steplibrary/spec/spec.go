@@ -40,11 +40,11 @@ type Meta struct {
 // StepInfo is the per-step metadata file at steps/<id>/step-info.json.
 // Holds facts that span versions: maintainer, deprecation, asset list.
 // Asset URLs are relative to the file's own location for self-containment.
-// Deprecation is null for active steps; AssetURLs is {} for steps with no assets.
+// Deprecation is null for active steps; AssetURLs is [] for steps with no assets.
 type StepInfo struct {
-	Maintainer  string            `json:"maintainer"`
-	Deprecation *Deprecation      `json:"deprecation"`
-	AssetURLs   map[string]string `json:"asset_urls"`
+	Maintainer  string       `json:"maintainer"`
+	Deprecation *Deprecation `json:"deprecation"`
+	AssetURLs   []string     `json:"asset_urls"`
 }
 
 // Deprecation carries the removal_date and notes for a deprecated step.
