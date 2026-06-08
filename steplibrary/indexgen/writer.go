@@ -18,14 +18,6 @@ type fileWriter interface {
 
 type realFileWriter struct{}
 
-func (realFileWriter) MkdirAll(path string, perm os.FileMode) error {
-	return os.MkdirAll(path, perm)
-}
-
-func (realFileWriter) WriteFile(name string, data []byte, perm os.FileMode) error {
-	return os.WriteFile(name, data, perm)
-}
-
 // writer emits files under outputDir and tracks file count + byte count for Stats.
 type writer struct {
 	outputDir string
@@ -72,4 +64,12 @@ func (w *writer) copyFileFromFS(srcFS fs.FS, srcPath, relDst string) error {
 	w.fileCount++
 	w.byteCount += info.Size()
 	return nil
+}
+
+func (realFileWriter) MkdirAll(path string, perm os.FileMode) error {
+	return os.MkdirAll(path, perm)
+}
+
+func (realFileWriter) WriteFile(name string, data []byte, perm os.FileMode) error {
+	return os.WriteFile(name, data, perm)
 }
