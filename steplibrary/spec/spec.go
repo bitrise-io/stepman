@@ -1,6 +1,6 @@
 // Package spec defines the Go types for the V2 step library inventory wire
-// format described in STEP-2374-plan.md. It is shared between the generator
-// (steplibrary/specgen) and the read path (steplibrary).
+// format. It is shared between the generator (steplibrary/specgen) and the
+// read path (steplibrary).
 //
 // The V2 layout splits the inventory into two URL prefixes:
 //   - steps/  — source of truth, self-contained per step, immutable per version
@@ -9,6 +9,12 @@
 // All files are JSON. Per-version step manifests (steps/<id>/<v>/step.json)
 // use models.StepModel directly; the types below describe the new
 // inventory-level and index files that have no V1 equivalent.
+//
+// Wire shape is kept stable: index and per-step collections always render as
+// [] or {} (never null) and nullable values (Deprecation, published_at) as
+// null. Optional inventory metadata (Meta.steplib_commit_sha,
+// Meta.steplib_source, Meta.download_locations) uses omitempty and is dropped
+// when empty.
 package spec
 
 import (
@@ -34,18 +40,18 @@ type Meta struct {
 // StepInfo is the per-step metadata file at steps/<id>/step-info.json.
 // Holds facts that span versions: maintainer, deprecation, asset list.
 // Asset URLs are relative to the file's own location for self-containment.
-// The Deprecation field is always present in JSON (null for active steps).
+// Deprecation is null for active steps; AssetURLs is {} for steps with no assets.
 type StepInfo struct {
-	Maintainer  string            `json:"maintainer,omitempty"`
+	Maintainer  string            `json:"maintainer"`
 	Deprecation *Deprecation      `json:"deprecation"`
-	AssetURLs   map[string]string `json:"asset_urls,omitempty"`
+	AssetURLs   map[string]string `json:"asset_urls"`
 }
 
 // Deprecation carries the removal_date and notes for a deprecated step.
 // A nil Deprecation on StepInfo means the step is active.
 type Deprecation struct {
-	RemovalDate string `json:"removal_date,omitempty"`
-	Notes       string `json:"notes,omitempty"`
+	RemovalDate string `json:"removal_date"`
+	Notes       string `json:"notes"`
 }
 
 // StepIDs is spec/step_ids.json: sorted list of all step IDs in the steplib.
@@ -56,9 +62,8 @@ type StepIDs struct {
 // LatestPointer is spec/steps/<id>/latest.json: per-step latest pointers.
 // Answers Latest and MajorLocked constraints in a single small fetch.
 type LatestPointer struct {
-	StepID string `json:"step_id"`
-	Latest string `json:"latest"`
-	// Always populated (a step always has >=1 version), so no omitempty.
+	StepID        string            `json:"step_id"`
+	Latest        string            `json:"latest"`
 	LatestByMajor map[string]string `json:"latest_by_major"`
 }
 
@@ -73,6 +78,6 @@ type Versions struct {
 // VersionEntry is a single entry in Versions.Versions.
 type VersionEntry struct {
 	Version     string     `json:"version"`
-	PublishedAt *time.Time `json:"published_at,omitempty"`
-	Commit      string     `json:"commit,omitempty"`
+	PublishedAt *time.Time `json:"published_at"`
+	Commit      string     `json:"commit"`
 }

@@ -33,6 +33,31 @@ type parsedVersion struct {
 // one version.
 func (s parsedStep) latest() parsedVersion { return s.versions[len(s.versions)-1] }
 
+func collectSteps(inputFS fs.FS, log stepman.Logger) ([]parsedStep, error) {
+	entries, err := fs.ReadDir(inputFS, "steps")
+	if err != nil {
+		return nil, fmt.Errorf("read steps: %w", err)
+	}
+
+	var out []parsedStep
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		s, err := collectStep(inputFS, e.Name(), log)
+		if err != nil {
+			return nil, err
+		}
+		if len(s.versions) == 0 {
+			log.Warnf("step %s has no parseable versions, skipping", s.id)
+			continue
+		}
+		out = append(out, s)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].id < out[j].id })
+	return out, nil
+}
+
 func readSteplibYML(inputFS fs.FS) (models.StepCollectionModel, error) {
 	bytes, err := fs.ReadFile(inputFS, "steplib.yml")
 	if err != nil {
@@ -110,6 +135,17 @@ func parseStepYML(inputFS fs.FS, path string) (models.StepModel, error) {
 	return step, nil
 }
 
+// mapAssetFileToURL maps each asset filename to its step-relative URL. Returns a
+// non-nil (possibly empty) map so asset_urls renders as {}, never null.
+func mapAssetFileToURL(assetFiles []string) map[string]string {
+	assetURLs := make(map[string]string, len(assetFiles))
+	for _, f := range assetFiles {
+		assetURLs[f] = "assets/" + f
+	}
+
+	return assetURLs
+}
+
 func collectStep(inputFS fs.FS, id string, log stepman.Logger) (parsedStep, error) {
 	s := parsedStep{
 		id:         id,
@@ -130,14 +166,7 @@ func collectStep(inputFS fs.FS, id string, log stepman.Logger) (parsedStep, erro
 		return s, fmt.Errorf("list assets for %s: %w", id, err)
 	}
 	s.assetFiles = assetFiles
-	if len(assetFiles) > 0 {
-		if s.info.AssetURLs == nil {
-			s.info.AssetURLs = make(map[string]string, len(assetFiles))
-		}
-		for _, f := range assetFiles {
-			s.info.AssetURLs[f] = "assets/" + f
-		}
-	}
+	s.info.AssetURLs = mapAssetFileToURL(assetFiles)
 
 	subEntries, err := fs.ReadDir(inputFS, stepDir)
 	if err != nil {
@@ -163,29 +192,4 @@ func collectStep(inputFS fs.FS, id string, log stepman.Logger) (parsedStep, erro
 		return models.CmpSemver(s.versions[i].semver, s.versions[j].semver) < 0
 	})
 	return s, nil
-}
-
-func collectSteps(inputFS fs.FS, log stepman.Logger) ([]parsedStep, error) {
-	entries, err := fs.ReadDir(inputFS, "steps")
-	if err != nil {
-		return nil, fmt.Errorf("read steps: %w", err)
-	}
-
-	var out []parsedStep
-	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
-		s, err := collectStep(inputFS, e.Name(), log)
-		if err != nil {
-			return nil, err
-		}
-		if len(s.versions) == 0 {
-			log.Warnf("step %s has no parseable versions, skipping", s.id)
-			continue
-		}
-		out = append(out, s)
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].id < out[j].id })
-	return out, nil
 }
