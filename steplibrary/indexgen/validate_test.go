@@ -189,6 +189,18 @@ func TestValidate_flagsStaleStepDir(t *testing.T) {
 		"step dir not in step_ids.json must be flagged; got %+v", errs)
 }
 
+func TestValidate_flagsUnreferencedAsset(t *testing.T) {
+	root := runGenerateInventoryRoot(t)
+	// An asset present on disk but not listed in step-info.json's asset_urls is
+	// not consumed by checkStepInfo, so the stale-file walk must flag it.
+	extra := filepath.Join(root, steplibindex.StepAssetPathFS("hello-step", "extra.svg"))
+	require.NoError(t, os.WriteFile(extra, []byte("<svg/>"), 0o644))
+
+	errs := Validate(os.DirFS(root))
+	assert.NotNil(t, flagMatching(errs, "hello-step/assets/extra.svg", "unexpected"),
+		"an asset on disk but missing from step-info.json must be flagged; got %+v", errs)
+}
+
 func TestValidate_flagsInvalidJSON(t *testing.T) {
 	root := runGenerateInventoryRoot(t)
 	require.NoError(t, os.WriteFile(filepath.Join(root, steplibindex.MetaPathFS()), []byte("not json"), 0o644))
