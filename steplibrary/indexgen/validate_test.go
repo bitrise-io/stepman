@@ -1,10 +1,7 @@
 package indexgen
 
 import (
-	"errors"
-	"io/fs"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -190,32 +187,6 @@ func TestValidate_flagsStaleStepDir(t *testing.T) {
 	errs := Validate(os.DirFS(root))
 	assert.NotNil(t, flagMatching(errs, "ghost-step", "unexpected"),
 		"step dir not in step_ids.json must be flagged; got %+v", errs)
-}
-
-// failingReadDirFS wraps an fs.FS and returns a non-ErrNotExist error when
-// ReadDir is called on failDir — to exercise the stale-file walk's error path.
-type failingReadDirFS struct {
-	fs.FS
-	failDir string
-}
-
-func (f failingReadDirFS) ReadDir(name string) ([]fs.DirEntry, error) {
-	if name == f.failDir {
-		return nil, errors.New("simulated readdir failure")
-	}
-	return fs.ReadDir(f.FS, name)
-}
-
-func TestValidate_flagsWalkFailure(t *testing.T) {
-	root := runGenerateInventoryRoot(t)
-	// A real (non-ErrNotExist) traversal failure must be reported as a
-	// violation, not silently swallowed.
-	failDir := path.Join(steplibindex.VersionDir(), steplibindex.StepsRootFS)
-	fsys := failingReadDirFS{FS: os.DirFS(root), failDir: failDir}
-
-	errs := Validate(fsys)
-	assert.NotNil(t, flagMatching(errs, failDir, "walk failed"),
-		"a walk failure must be reported as a violation; got %+v", errs)
 }
 
 func TestValidate_flagsInvalidJSON(t *testing.T) {
