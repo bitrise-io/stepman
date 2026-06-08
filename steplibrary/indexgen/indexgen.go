@@ -144,7 +144,11 @@ func generateFromSteplibClone(inputFS fs.FS, outputDir string, opts Options, log
 	// published, so any existing inventory at outputDir is left untouched. staging
 	// is the dir CONTAINING the version dir (v2/), the root Validate expects.
 	if violations := Validate(os.DirFS(staging)); len(violations) > 0 {
-		return Stats{}, fmt.Errorf("staged inventory failed validation (%d violations, first: %s)", len(violations), violations[0])
+		errs := make([]error, len(violations))
+		for i, v := range violations {
+			errs[i] = v
+		}
+		return Stats{}, fmt.Errorf("staged inventory failed validation (%d violations):\n%w", len(violations), errors.Join(errs...))
 	}
 
 	if err := publish(staging, outputDir); err != nil {
