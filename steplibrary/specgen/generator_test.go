@@ -138,16 +138,19 @@ func TestGenerator_publish_replaces_existing_tree(t *testing.T) {
 }
 
 func TestWithDefaults_fills_zero_generated_at(t *testing.T) {
-	before := time.Now()
-	opts := withDefaults(Options{SteplibCommitSHA: "abc"})
-	after := time.Now()
+	// Empty steplibDir: skip HEAD resolution, only GeneratedAt is defaulted.
+	opts, err := withDefaults(Options{SteplibCommitSHA: "abc"}, "")
+	require.NoError(t, err, "withDefaults")
 
-	assert.WithinRange(t, opts.GeneratedAt, before, after, "GeneratedAt defaulted to now")
+	assert.WithinDuration(t, time.Now().UTC(), opts.GeneratedAt, 2*time.Second, "GeneratedAt defaulted to ~now")
+	assert.Equal(t, opts.GeneratedAt.Truncate(time.Second), opts.GeneratedAt, "normalized to whole seconds (RFC3339)")
+	assert.Equal(t, time.UTC, opts.GeneratedAt.Location(), "normalized to UTC")
 	assert.Equal(t, "abc", opts.SteplibCommitSHA, "non-zero fields must not be overwritten")
 }
 
 func TestWithDefaults_preserves_non_zero_generated_at(t *testing.T) {
-	opts := withDefaults(Options{GeneratedAt: fixedTime})
+	opts, err := withDefaults(Options{GeneratedAt: fixedTime}, "")
+	require.NoError(t, err, "withDefaults")
 	assert.Equal(t, fixedTime, opts.GeneratedAt, "GeneratedAt preserved")
 }
 

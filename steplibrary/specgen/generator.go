@@ -20,8 +20,9 @@ import (
 // Options control generator behavior. Zero values are filled with sensible
 // defaults; callers (CLI / tests) override what they need.
 type Options struct {
-	// GeneratedAt is written to meta.json. Optional: when zero it defaults to
-	// time.Now().UTC(). Tests set it for deterministic output.
+	// GeneratedAt is written to meta.json (RFC3339). Optional: when zero it
+	// defaults to now. Normalized to UTC whole seconds either way. Tests set it
+	// for deterministic output.
 	GeneratedAt time.Time
 	// SteplibCommitSHA is written to meta.json. Optional: the URI entry point
 	// fills it from the clone's HEAD commit when empty.
@@ -37,12 +38,26 @@ type Stats struct {
 	Duration     time.Duration
 }
 
-// withDefaults fills zero-valued options.
-func withDefaults(o Options) Options {
+// withDefaults fills zero-valued options. steplibDir is the steplib's git
+// working copy, used to default SteplibCommitSHA to its HEAD commit when the
+// caller didn't pin one; pass "" to leave SteplibCommitSHA untouched (e.g. when
+// generating from a non-git fs.FS).
+func withDefaults(o Options, steplibDir string) (Options, error) {
 	if o.GeneratedAt.IsZero() {
-		o.GeneratedAt = time.Now().UTC()
+		o.GeneratedAt = time.Now()
 	}
-	return o
+	// meta.json's updated_at is RFC3339; normalize to UTC whole seconds so a
+	// defaulted now() matches the precision of a -timestamp value (parsed as
+	// RFC3339) and never serializes sub-second digits.
+	o.GeneratedAt = o.GeneratedAt.UTC().Truncate(time.Second)
+	if o.SteplibCommitSHA == "" && steplibDir != "" {
+		sha, err := headCommitSHA(steplibDir)
+		if err != nil {
+			return o, fmt.Errorf("resolve steplib HEAD commit: %w", err)
+		}
+		o.SteplibCommitSHA = sha
+	}
+	return o, nil
 }
 
 // headCommitSHA returns the HEAD commit hash of the git working copy at dir.
@@ -61,7 +76,11 @@ func headCommitSHA(dir string) (string, error) {
 // existing tree at outputDir is replaced wholesale.
 func generateFromSteplibClone(inputFS fs.FS, outputDir string, opts Options, log stepman.Logger) (_ Stats, err error) {
 	start := time.Now()
-	opts = withDefaults(opts)
+	// No git dir here (fs.FS source); SteplibCommitSHA is defaulted by Generate.
+	opts, err = withDefaults(opts, "")
+	if err != nil {
+		return Stats{}, err
+	}
 
 	steplibYML, err := readSteplibYML(inputFS)
 	if err != nil {
@@ -150,15 +169,9 @@ func Generate(steplibURI, outputDir string, opts Options, log stepman.Logger) (S
 	}
 	libDir := stepman.GetLibraryBaseDirPath(route)
 
-	// Default the recorded commit SHA to the checked-out library's HEAD when
-	// the caller didn't pin one.
-	if opts.SteplibCommitSHA == "" {
-		sha, err := headCommitSHA(libDir)
-		if err != nil {
-			return Stats{}, fmt.Errorf("resolve steplib HEAD commit: %w", err)
-		}
-		opts.SteplibCommitSHA = sha
+	opts, err := withDefaults(opts, libDir)
+	if err != nil {
+		return Stats{}, err
 	}
-
 	return generateFromSteplibClone(os.DirFS(libDir), outputDir, opts, log)
 }
