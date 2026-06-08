@@ -191,8 +191,8 @@ func TestValidate_flagsStaleStepDir(t *testing.T) {
 
 func TestValidate_flagsUnreferencedAsset(t *testing.T) {
 	root := runGenerateInventoryRoot(t)
-	// An asset present on disk but not listed in step-info.json's asset_urls is
-	// not consumed by checkStepInfo, so the stale-file walk must flag it.
+	// An asset present on disk but not listed in step-info.json's asset_urls
+	// must be flagged by the stale-file walk.
 	extra := filepath.Join(root, steplibindex.StepAssetPathFS("hello-step", "extra.svg"))
 	require.NoError(t, os.WriteFile(extra, []byte("<svg/>"), 0o644))
 
