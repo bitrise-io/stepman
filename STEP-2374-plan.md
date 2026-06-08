@@ -56,7 +56,7 @@ Everything else in `step.yml` is **passed through verbatim** via `copyStepYML` t
 ## V2 inventory layout
 
 ```
-/
+v2/                                           ← format-version root (matches meta.json format_version)
 ├─ meta.json                              ← inventory-level metadata
 │
 ├─ spec/                                  ← DERIVED index files
@@ -76,6 +76,8 @@ Everything else in `step.yml` is **passed through verbatim** via `copyStepYML` t
       └─ <version>/
          └─ step.json                     ← full per-version step manifest (immutable, 1y TTL)
 ```
+
+The whole tree is rooted under `v2/` (the format-version directory, matching `format_version` in `meta.json`) so multiple format versions can be hosted side by side. Paths shown elsewhere in this doc are relative to that version root.
 
 (Prebuilt binaries and source archives are NOT hosted under `steps/`. They
 stay in their existing separate storage; `step.json`'s
