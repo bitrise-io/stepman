@@ -13,6 +13,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// minimalStepYAML returns the smallest step.yml body that passes Validate:
+// a title plus a non-empty source block (git + a 40-char commit). Used by
+// tests that build synthetic input filesystems and don't care about the
+// step's content beyond "this version exists and is well-formed". Without a
+// source block the generator's validate-before-publish step would reject the
+// staged tree (checkStepJSON flags a missing source.git/source.commit).
+func minimalStepYAML(title string) []byte {
+	return []byte(
+		"title: " + title + "\n" +
+			"source:\n" +
+			"  git: https://example.com/repo.git\n" +
+			"  commit: '0000000000000000000000000000000000000000'\n",
+	)
+}
+
 func TestCollect_step_info_and_asset_copy(t *testing.T) {
 	out := runGenerateFromSteplibClone(t)
 
@@ -37,7 +52,7 @@ func TestCollect_asset_permissions_preserved(t *testing.T) {
 	inputFS := fstest.MapFS{
 		"steplib.yml":                     {Data: []byte("format_version: '0.9.0'\nsteplib_source: 'https://example.com'\n")},
 		"steps/perm-step/step-info.yml":   {Data: []byte("maintainer: test\n")},
-		"steps/perm-step/1.0.0/step.yml":  {Data: []byte("title: Perm Step\n")},
+		"steps/perm-step/1.0.0/step.yml":  {Data: minimalStepYAML("Perm Step")},
 		"steps/perm-step/assets/icon.svg": {Data: []byte("<svg/>"), Mode: mode},
 	}
 
@@ -80,9 +95,9 @@ func TestCollect_invalid_version_dir_skipped(t *testing.T) {
 	inputFS := fstest.MapFS{
 		"steplib.yml":                            {Data: []byte("format_version: '0.9.0'\n")},
 		"steps/my-step/step-info.yml":            {Data: []byte("maintainer: test\n")},
-		"steps/my-step/1.0.0/step.yml":           {Data: []byte("title: My Step\n")},
-		"steps/my-step/not-a-semver/step.yml":    {Data: []byte("title: Should be skipped\n")},
-		"steps/my-step/also-not-semver/step.yml": {Data: []byte("title: Also skipped\n")},
+		"steps/my-step/1.0.0/step.yml":           {Data: minimalStepYAML("My Step")},
+		"steps/my-step/not-a-semver/step.yml":    {Data: minimalStepYAML("Should be skipped")},
+		"steps/my-step/also-not-semver/step.yml": {Data: minimalStepYAML("Also skipped")},
 	}
 	out := t.TempDir()
 	stats, gotErr := generateFromSteplibClone(inputFS, out, Options{GeneratedAt: fixedTime}, testLogger{t})

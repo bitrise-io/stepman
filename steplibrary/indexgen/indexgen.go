@@ -1,6 +1,13 @@
 // Package indexgen generates the V2 step library inventory tree from a
 // bitrise-steplib source. The wire-format types it emits live in
 // steplibrary/steplibindex.
+//
+// Generation stages the whole tree in a sibling temp directory, runs
+// validate.go's Validate against the staged tree, and only then atomically
+// publishes it with a single rename. Validation is unconditional: an invalid
+// staged tree is never published, so any existing inventory at the output dir
+// is left untouched on a validation failure, and a successful Generate
+// guarantees the published inventory passes Validate.
 package indexgen
 
 import (
@@ -154,6 +161,18 @@ func generateFromSteplibClone(inputFS fs.FS, outputDir string, opts Options, log
 	}
 	if err := w.writeJSON("meta.json", meta); err != nil {
 		return Stats{}, fmt.Errorf("write meta.json: %w", err)
+	}
+
+	// Validate the fully-staged tree before publishing. An invalid tree is
+	// never published, so any existing inventory at outputDir is left
+	// untouched on a validation failure. staging is the dir CONTAINING the
+	// version dir (v2/), which is exactly the root Validate expects.
+	violations, err := Validate(os.DirFS(staging))
+	if err != nil {
+		return Stats{}, fmt.Errorf("validate staged inventory: %w", err)
+	}
+	if len(violations) > 0 {
+		return Stats{}, fmt.Errorf("staged inventory failed validation (%d violations, first: %s)", len(violations), violations[0])
 	}
 
 	// Publish: swap the freshly staged tree in for any existing one.
