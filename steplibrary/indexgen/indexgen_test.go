@@ -2,7 +2,6 @@ package indexgen
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -24,13 +23,6 @@ func (l testLogger) Debugf(format string, v ...any) { l.t.Logf("DEBUG "+format, 
 func (l testLogger) Infof(format string, v ...any)  { l.t.Logf("INFO "+format, v...) }
 func (l testLogger) Warnf(format string, v ...any)  { l.t.Logf("WARN "+format, v...) }
 func (l testLogger) Errorf(format string, v ...any) { l.t.Logf("ERROR "+format, v...) }
-
-type exampleLogger struct{}
-
-func (exampleLogger) Debugf(string, ...any) {}
-func (exampleLogger) Infof(string, ...any)  {}
-func (exampleLogger) Warnf(string, ...any)  {}
-func (exampleLogger) Errorf(string, ...any) {}
 
 // runGenerateFromSteplibClone runs the generator against the checked-in
 // testdata using a fresh temp output dir. Returns the output dir for assertions.
@@ -153,21 +145,4 @@ func TestWithDefaults_preserves_non_zero_generated_at(t *testing.T) {
 	opts, err := withDefaults(Options{GeneratedAt: fixedTime}, "")
 	require.NoError(t, err, "withDefaults")
 	assert.Equal(t, fixedTime, opts.GeneratedAt, "GeneratedAt preserved")
-}
-
-func Example_generateFromSteplibClone() {
-	tmp, err := os.MkdirTemp("", "specv2-example-")
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	defer func() { _ = os.RemoveAll(tmp) }()
-
-	stats, err := generateFromSteplibClone(specfixtures.SteplibClone(), tmp, Options{GeneratedAt: fixedTime}, exampleLogger{})
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	fmt.Printf("steps=%d versions=%d", stats.StepCount, stats.VersionCount)
-	// Output: steps=4 versions=6
 }
