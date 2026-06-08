@@ -1,7 +1,14 @@
-// Package specgen generates the V2 step library inventory tree from a
+// Package indexgen generates the V2 step library inventory tree from a
 // bitrise-steplib source. The wire-format types it emits live in
-// steplibrary/spec.
-package specgen
+// steplibrary/steplibindex.
+//
+// Generation stages the whole tree in a sibling temp directory, runs
+// validate.go's Validate against the staged tree, and only then atomically
+// publishes it with a single rename. Validation is unconditional: an invalid
+// staged tree is never published, so any existing inventory at the output dir
+// is left untouched on a validation failure, and a successful Generate
+// guarantees the published inventory passes Validate.
+package indexgen
 
 import (
 	"errors"
@@ -13,15 +20,16 @@ import (
 
 	"github.com/bitrise-io/go-utils/command/git"
 	"github.com/bitrise-io/go-utils/v2/fileutil"
-	"github.com/bitrise-io/stepman/steplibrary/spec"
+	"github.com/bitrise-io/stepman/steplibrary/steplibindex"
 	"github.com/bitrise-io/stepman/stepman"
 )
 
 // Options control generator behavior. Zero values are filled with sensible
 // defaults; callers (CLI / tests) override what they need.
 type Options struct {
-	// GeneratedAt is written to meta.json. Optional: when zero it defaults to
-	// time.Now().UTC(). Tests set it for deterministic output.
+	// GeneratedAt is written to meta.json (RFC3339). Optional: when zero it
+	// defaults to now. Normalized to UTC whole seconds either way. Tests set it
+	// for deterministic output.
 	GeneratedAt time.Time
 	// SteplibCommitSHA is written to meta.json. Optional: the URI entry point
 	// fills it from the clone's HEAD commit when empty.
@@ -37,12 +45,26 @@ type Stats struct {
 	Duration     time.Duration
 }
 
-// withDefaults fills zero-valued options.
-func withDefaults(o Options) Options {
+// withDefaults fills zero-valued options. steplibDir is the steplib's git
+// working copy, used to default SteplibCommitSHA to its HEAD commit when the
+// caller didn't pin one; pass "" to leave SteplibCommitSHA untouched (e.g. when
+// generating from a non-git fs.FS).
+func withDefaults(o Options, steplibDir string) (Options, error) {
 	if o.GeneratedAt.IsZero() {
-		o.GeneratedAt = time.Now().UTC()
+		o.GeneratedAt = time.Now()
 	}
-	return o
+	// meta.json's updated_at is RFC3339; normalize to UTC whole seconds so a
+	// defaulted now() matches the precision of a -timestamp value (parsed as
+	// RFC3339) and never serializes sub-second digits.
+	o.GeneratedAt = o.GeneratedAt.UTC().Truncate(time.Second)
+	if o.SteplibCommitSHA == "" && steplibDir != "" {
+		sha, err := headCommitSHA(steplibDir)
+		if err != nil {
+			return o, fmt.Errorf("resolve steplib HEAD commit: %w", err)
+		}
+		o.SteplibCommitSHA = sha
+	}
+	return o, nil
 }
 
 // headCommitSHA returns the HEAD commit hash of the git working copy at dir.
@@ -54,14 +76,18 @@ func headCommitSHA(dir string) (string, error) {
 	return repo.RevParse("HEAD").RunAndReturnTrimmedCombinedOutput()
 }
 
-// GenerateFromSteplibClone reads a bitrise-steplib clone from inputFS and writes
+// generateFromSteplibClone reads a bitrise-steplib clone from inputFS and writes
 // the V2 inventory tree to outputDir. The tree is staged in a sibling temp
 // directory and published with a single rename on success, so a failure
 // mid-generation never leaves a half-written inventory at outputDir; any
 // existing tree at outputDir is replaced wholesale.
-func GenerateFromSteplibClone(inputFS fs.FS, outputDir string, opts Options, log stepman.Logger) (_ Stats, err error) {
+func generateFromSteplibClone(inputFS fs.FS, outputDir string, opts Options, log stepman.Logger) (_ Stats, err error) {
 	start := time.Now()
-	opts = withDefaults(opts)
+	// No git dir here (fs.FS source); SteplibCommitSHA is defaulted by Generate.
+	opts, err = withDefaults(opts, "")
+	if err != nil {
+		return Stats{}, err
+	}
 
 	steplibYML, err := readSteplibYML(inputFS)
 	if err != nil {
@@ -91,7 +117,9 @@ func GenerateFromSteplibClone(inputFS fs.FS, outputDir string, opts Options, log
 		}
 	}()
 
-	w := &writer{outputDir: staging, fw: realFileWriter{}, fm: fileutil.NewFileManager(), fileCount: 0, byteCount: 0}
+	// Root the tree under the format-version dir (e.g. v2/) inside staging, so
+	// the published outputDir contains <version>/{meta.json,spec,steps}.
+	w := &writer{outputDir: filepath.Join(staging, steplibindex.VersionDir()), fw: realFileWriter{}, fm: fileutil.NewFileManager(), fileCount: 0, byteCount: 0}
 
 	for _, s := range steps {
 		if err := writeStepFiles(w, inputFS, s); err != nil {
@@ -99,12 +127,12 @@ func GenerateFromSteplibClone(inputFS fs.FS, outputDir string, opts Options, log
 		}
 	}
 
-	if err := writeSpecFiles(w, steps); err != nil {
-		return Stats{}, fmt.Errorf("write spec files: %w", err)
+	if err := writeIndexFiles(w, steps); err != nil {
+		return Stats{}, fmt.Errorf("write index files: %w", err)
 	}
 
-	meta := spec.Meta{
-		FormatVersion:     spec.FormatVersion,
+	meta := steplibindex.Meta{
+		FormatVersion:     steplibindex.FormatVersion,
 		UpdatedAt:         opts.GeneratedAt,
 		SteplibCommitSHA:  opts.SteplibCommitSHA,
 		SteplibSource:     steplibYML.SteplibSource,
@@ -112,6 +140,18 @@ func GenerateFromSteplibClone(inputFS fs.FS, outputDir string, opts Options, log
 	}
 	if err := w.writeJSON("meta.json", meta); err != nil {
 		return Stats{}, fmt.Errorf("write meta.json: %w", err)
+	}
+
+	// Validate the fully-staged tree before publishing. An invalid tree is
+	// never published, so any existing inventory at outputDir is left
+	// untouched on a validation failure. staging is the dir CONTAINING the
+	// version dir (v2/), which is exactly the root Validate expects.
+	violations, err := Validate(os.DirFS(staging))
+	if err != nil {
+		return Stats{}, fmt.Errorf("validate staged inventory: %w", err)
+	}
+	if len(violations) > 0 {
+		return Stats{}, fmt.Errorf("staged inventory failed validation (%d violations, first: %s)", len(violations), violations[0])
 	}
 
 	// Publish: swap the freshly staged tree in for any existing one.
@@ -138,7 +178,7 @@ func GenerateFromSteplibClone(inputFS fs.FS, outputDir string, opts Options, log
 // Generate sets up the steplib identified by steplibURI (cloning it into
 // stepman's local cache via stepman.SetupLibrary if not already present) and
 // writes the V2 inventory tree to outputDir. It is the URI-based entry point
-// used by the CLI; GenerateFromSteplibClone is the lower-level core that reads
+// used by the CLI; generateFromSteplibClone is the lower-level core that reads
 // from an already-available filesystem.
 func Generate(steplibURI, outputDir string, opts Options, log stepman.Logger) (Stats, error) {
 	if err := stepman.SetupLibrary(steplibURI, log); err != nil {
@@ -150,15 +190,9 @@ func Generate(steplibURI, outputDir string, opts Options, log stepman.Logger) (S
 	}
 	libDir := stepman.GetLibraryBaseDirPath(route)
 
-	// Default the recorded commit SHA to the checked-out library's HEAD when
-	// the caller didn't pin one.
-	if opts.SteplibCommitSHA == "" {
-		sha, err := headCommitSHA(libDir)
-		if err != nil {
-			return Stats{}, fmt.Errorf("resolve steplib HEAD commit: %w", err)
-		}
-		opts.SteplibCommitSHA = sha
+	opts, err := withDefaults(opts, libDir)
+	if err != nil {
+		return Stats{}, err
 	}
-
-	return GenerateFromSteplibClone(os.DirFS(libDir), outputDir, opts, log)
+	return generateFromSteplibClone(os.DirFS(libDir), outputDir, opts, log)
 }

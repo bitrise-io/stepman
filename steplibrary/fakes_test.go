@@ -8,7 +8,7 @@ import (
 
 	"github.com/bitrise-io/go-utils/pointers"
 	"github.com/bitrise-io/stepman/models"
-	"github.com/bitrise-io/stepman/steplibrary/spec"
+	"github.com/bitrise-io/stepman/steplibrary/steplibindex"
 )
 
 // discardLogger is a stepman.Logger that drops all output.
@@ -27,8 +27,8 @@ func (m FakeAPI) GetAllStepIDs(_ context.Context) ([]string, error) {
 	return []string{"xcode-test", "script"}, nil
 }
 
-func (m FakeAPI) GetLatestStepVersions(_ context.Context, id string) (spec.LatestPointer, error) {
-	versions := map[string]spec.LatestPointer{
+func (m FakeAPI) GetLatestStepVersions(_ context.Context, id string) (steplibindex.LatestPointer, error) {
+	versions := map[string]steplibindex.LatestPointer{
 		"script": {
 			StepID: "script",
 			Latest: "3.0.0",
@@ -42,7 +42,7 @@ func (m FakeAPI) GetLatestStepVersions(_ context.Context, id string) (spec.Lates
 
 	v, ok := versions[id]
 	if !ok {
-		return spec.LatestPointer{}, errors.New("not found")
+		return steplibindex.LatestPointer{}, errors.New("not found")
 	}
 	return v, nil
 }
@@ -58,19 +58,17 @@ func (m FakeAPI) GetAllStepVersions(_ context.Context, id string) ([]string, err
 	return v, nil
 }
 
-func (m FakeAPI) GetStepGroupInfo(_ context.Context, id string) (spec.StepInfo, error) {
-	infos := map[string]spec.StepInfo{
+func (m FakeAPI) GetStepGroupInfo(_ context.Context, id string) (steplibindex.StepInfo, error) {
+	infos := map[string]steplibindex.StepInfo{
 		"script": {
 			Maintainer:  "bitrise",
 			Deprecation: nil,
-			AssetURLs: map[string]string{
-				"icon.svg": "assets/icon.svg",
-			},
+			AssetURLs:   []string{"assets/icon.svg"},
 		},
 	}
 	v, ok := infos[id]
 	if !ok {
-		return spec.StepInfo{}, errors.New("not found")
+		return steplibindex.StepInfo{}, errors.New("not found")
 	}
 	return v, nil
 }

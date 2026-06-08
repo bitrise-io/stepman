@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path"
 	"slices"
 	"strconv"
 
 	"github.com/bitrise-io/stepman/models"
-	"github.com/bitrise-io/stepman/steplibrary/spec"
+	"github.com/bitrise-io/stepman/steplibrary/steplibindex"
 )
 
 func (s *Steplib) getStepVersionInfo(ctx context.Context, stepID, version string) (models.StepInfoModel, ResolvedStepVersion, error) {
@@ -39,7 +40,7 @@ func (s *Steplib) getStepVersionInfo(ctx context.Context, stepID, version string
 		err = fmt.Errorf("invalid step version constraint: %s", version)
 	}
 
-	var latestVersions spec.LatestPointer
+	var latestVersions steplibindex.LatestPointer
 	if err == nil {
 		latestVersions, err = s.api.GetLatestStepVersions(ctx, stepID)
 		if err != nil {
@@ -47,7 +48,7 @@ func (s *Steplib) getStepVersionInfo(ctx context.Context, stepID, version string
 		}
 	}
 
-	var groupInfo spec.StepInfo
+	var groupInfo steplibindex.StepInfo
 	if err == nil {
 		groupInfo, err = s.api.GetStepGroupInfo(ctx, stepID)
 		if err != nil {
@@ -114,10 +115,19 @@ func (s *Steplib) getStepVersionInfo(ctx context.Context, stepID, version string
 // toStepGroupInfoModel flattens v2's nested `deprecation` object into v1's
 // `RemovalDate` + `DeprecateNotes` fields so the rest of the codebase keeps
 // reading the same model shape.
-func toStepGroupInfoModel(info spec.StepInfo) models.StepGroupInfoModel {
+func toStepGroupInfoModel(info steplibindex.StepInfo) models.StepGroupInfoModel {
+	// v2's asset_urls is a []string of step-relative URLs; v1's model keys them
+	// by asset filename. Rebuild that map (e.g. "assets/icon.svg" -> {"icon.svg": ...}).
+	var assetURLs map[string]string
+	if len(info.AssetURLs) > 0 {
+		assetURLs = make(map[string]string, len(info.AssetURLs))
+		for _, u := range info.AssetURLs {
+			assetURLs[path.Base(u)] = u
+		}
+	}
 	out := models.StepGroupInfoModel{
 		Maintainer:     info.Maintainer,
-		AssetURLs:      info.AssetURLs,
+		AssetURLs:      assetURLs,
 		RemovalDate:    "",
 		DeprecateNotes: "",
 	}

@@ -3,16 +3,16 @@ package steplibrary
 import (
 	"testing"
 
-	"github.com/bitrise-io/stepman/steplibrary/spec"
+	"github.com/bitrise-io/stepman/steplibrary/steplibindex"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestToStepGroupInfoModel(t *testing.T) {
 	t.Run("active step has empty deprecation fields", func(t *testing.T) {
-		got := toStepGroupInfoModel(spec.StepInfo{
+		got := toStepGroupInfoModel(steplibindex.StepInfo{
 			Maintainer:  "bitrise",
 			Deprecation: nil,
-			AssetURLs:   map[string]string{"icon.svg": "assets/icon.svg"},
+			AssetURLs:   []string{"assets/icon.svg"},
 		})
 		assert.Equal(t, "bitrise", got.Maintainer, "Maintainer")
 		assert.Empty(t, got.RemovalDate, "RemovalDate")
@@ -21,9 +21,9 @@ func TestToStepGroupInfoModel(t *testing.T) {
 	})
 
 	t.Run("deprecated step flattens nested fields", func(t *testing.T) {
-		got := toStepGroupInfoModel(spec.StepInfo{
+		got := toStepGroupInfoModel(steplibindex.StepInfo{
 			Maintainer: "community",
-			Deprecation: &spec.Deprecation{
+			Deprecation: &steplibindex.Deprecation{
 				RemovalDate: "2025-12-31",
 				Notes:       "Replaced by `new-step`.",
 			},

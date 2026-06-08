@@ -15,22 +15,22 @@ import (
 
 func TestHTTPAPI(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/spec/step_ids.json", func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"format_version":"2.0.0","step_ids":["hello-step","git-clone"]}`))
+	mux.HandleFunc("/v2/index/step_ids.json", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"step_ids":["hello-step","git-clone"]}`))
 	})
-	mux.HandleFunc("/spec/steps/hello-step/latest.json", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/v2/index/steps/hello-step/latest.json", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"step_id":"hello-step","latest":"2.0.0","latest_by_major":{"1":"1.1.0","2":"2.0.0"}}`))
 	})
-	mux.HandleFunc("/spec/steps/hello-step/versions.json", func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"step_id":"hello-step","latest":"2.0.0","versions":[{"version":"2.0.0"},{"version":"1.1.0"},{"version":"1.0.0"}]}`))
+	mux.HandleFunc("/v2/index/steps/hello-step/versions.json", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"step_id":"hello-step","versions":["2.0.0","1.1.0","1.0.0"]}`))
 	})
-	mux.HandleFunc("/steps/hello-step/step-info.json", func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"maintainer":"bitrise","deprecation":null,"asset_urls":{"icon.svg":"assets/icon.svg"}}`))
+	mux.HandleFunc("/v2/steps/hello-step/step-info.json", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"maintainer":"bitrise","deprecation":null,"asset_urls":["assets/icon.svg"]}`))
 	})
-	mux.HandleFunc("/steps/hello-step/2.0.0/step.json", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/v2/steps/hello-step/2.0.0/step.json", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"title":"Hello","summary":"says hi"}`))
 	})
-	mux.HandleFunc("/steps/hello-step/2.0.0/src.zip", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/v2/steps/hello-step/2.0.0/src.zip", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("PK\x03\x04seed-zip-bytes"))
 	})
 
@@ -65,7 +65,7 @@ func TestHTTPAPI(t *testing.T) {
 		require.NoError(t, gotErr, "GetStepGroupInfo")
 		assert.Equal(t, "bitrise", got.Maintainer, "Maintainer")
 		assert.Nil(t, got.Deprecation, "Deprecation")
-		assert.Equal(t, "assets/icon.svg", got.AssetURLs["icon.svg"], "AssetURLs[icon.svg]")
+		assert.Equal(t, []string{"assets/icon.svg"}, got.AssetURLs, "AssetURLs")
 	})
 
 	t.Run("GetStepModel decodes step.json into models.StepModel", func(t *testing.T) {

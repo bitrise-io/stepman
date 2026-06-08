@@ -1,4 +1,4 @@
-package steplibrary
+package indexgen_test
 
 import (
 	"context"
@@ -9,37 +9,52 @@ import (
 
 	"github.com/bitrise-io/stepman/internal/httpfetch"
 	"github.com/bitrise-io/stepman/internal/specfixtures"
-	"github.com/bitrise-io/stepman/steplibrary/specgen"
+	"github.com/bitrise-io/stepman/steplibrary"
+	"github.com/bitrise-io/stepman/steplibrary/indexgen"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// TestHTTPAPI_Integration generates a V2 inventory from the specgen testdata
-// into a temp dir, serves it over httptest, and exercises HTTPAPI against it.
-// This is a true generator → HTTP → reader end-to-end check: the schema shapes
-// are validated against freshly generated output, with no checked-in fixture
-// to drift out of sync with the generator.
+// discardLogger is a stepman.Logger that drops all output.
+type discardLogger struct{}
+
+func (discardLogger) Debugf(string, ...any) {}
+func (discardLogger) Errorf(string, ...any) {}
+func (discardLogger) Warnf(string, ...any)  {}
+func (discardLogger) Infof(string, ...any)  {}
+
+// TestHTTPAPI_Integration generates a V2 inventory from the specfixtures
+// testdata into a temp dir, serves it over httptest, and exercises
+// steplibrary.HTTPAPI against it. This is a true generator → HTTP → reader
+// end-to-end check: the schema shapes are validated against freshly generated
+// output, with no checked-in fixture to drift out of sync with the generator.
+//
+// It lives in indexgen's test package so it can drive the unexported fs.FS
+// generator via the GenerateFromSteplibCloneForTest hook without exporting it
+// from the production API.
 func TestHTTPAPI_Integration(t *testing.T) {
 	outDir := t.TempDir()
-	_, err := specgen.GenerateFromSteplibClone(
+	_, err := indexgen.GenerateFromSteplibCloneForTest(
 		specfixtures.SteplibClone(),
 		outDir,
-		specgen.Options{GeneratedAt: time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC), SteplibCommitSHA: ""},
+		indexgen.Options{GeneratedAt: time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC), SteplibCommitSHA: ""},
 		discardLogger{},
 	)
 	require.NoError(t, err, "generate V2 inventory")
 
+	// The tree is rooted under v2/; serving outDir lets the reader's v2/-prefixed
+	// path helpers resolve against srv.URL directly.
 	srv := httptest.NewServer(http.FileServer(http.Dir(outDir)))
 	t.Cleanup(srv.Close)
 
-	api := NewHTTPAPI(srv.URL, httpfetch.NewWithClient(srv.Client()))
+	api := steplibrary.NewHTTPAPI(srv.URL, httpfetch.NewWithClient(srv.Client()))
 	ctx := context.Background()
 
 	t.Run("GetAllStepIDs returns sample step IDs", func(t *testing.T) {
 		got, gotErr := api.GetAllStepIDs(ctx)
 		require.NoError(t, gotErr, "GetAllStepIDs")
-		assert.Equal(t, []string{"bash-step", "deprecated-step", "hello-step", "multi-platform-step", "no-info-step"}, got, "step IDs")
+		assert.Equal(t, []string{"bash-step", "deprecated-step", "hello-step", "multi-platform-step"}, got, "step IDs")
 	})
 
 	t.Run("GetLatestStepVersions(hello-step)", func(t *testing.T) {
@@ -62,7 +77,7 @@ func TestHTTPAPI_Integration(t *testing.T) {
 		require.NoError(t, gotErr, "GetStepGroupInfo")
 		assert.Equal(t, "bitrise", got.Maintainer, "Maintainer")
 		assert.Nil(t, got.Deprecation, "Deprecation")
-		assert.Equal(t, "assets/icon.svg", got.AssetURLs["icon.svg"], "AssetURLs[icon.svg]")
+		assert.Equal(t, []string{"assets/icon.svg"}, got.AssetURLs, "AssetURLs")
 	})
 
 	t.Run("GetStepGroupInfo(deprecated-step) exposes deprecation metadata", func(t *testing.T) {
@@ -75,7 +90,7 @@ func TestHTTPAPI_Integration(t *testing.T) {
 	})
 
 	t.Run("GetStepModel(hello-step, 2.0.0) decodes step.json", func(t *testing.T) {
-		got, gotErr := api.GetStepModel(ctx, ResolvedStepVersion{ID: "hello-step", Version: "2.0.0"})
+		got, gotErr := api.GetStepModel(ctx, steplibrary.ResolvedStepVersion{ID: "hello-step", Version: "2.0.0"})
 		require.NoError(t, gotErr, "GetStepModel")
 		require.NotNil(t, got.Title, "Title")
 		assert.Equal(t, "Hello Step", *got.Title, "Title")

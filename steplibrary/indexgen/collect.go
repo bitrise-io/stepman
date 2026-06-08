@@ -1,4 +1,4 @@
-package specgen
+package indexgen
 
 import (
 	"errors"
@@ -7,7 +7,7 @@ import (
 	"sort"
 
 	"github.com/bitrise-io/stepman/models"
-	"github.com/bitrise-io/stepman/steplibrary/spec"
+	"github.com/bitrise-io/stepman/steplibrary/steplibindex"
 	"github.com/bitrise-io/stepman/stepman"
 	"gopkg.in/yaml.v2"
 )
@@ -15,11 +15,10 @@ import (
 // parsedStep is the intermediate representation collected during the walk
 // phase, used by the write phase to emit per-step and index files.
 type parsedStep struct {
-	id          string
-	info        spec.StepInfo   // step-info.yml + assets/ listing
-	hasInfoFile bool            // whether step-info.yml existed
-	assetFiles  []string        // relative paths under assets/, sorted
-	versions    []parsedVersion // sorted ascending by semver; last is latest
+	id         string
+	info       steplibindex.StepInfo   // step-info.yml + assets/ listing
+	assetFiles []string        // relative paths under assets/, sorted
+	versions   []parsedVersion // sorted ascending by semver; last is latest
 }
 
 // parsedVersion is a single step version with its semver parsed once at collect
@@ -34,6 +33,31 @@ type parsedVersion struct {
 // one version.
 func (s parsedStep) latest() parsedVersion { return s.versions[len(s.versions)-1] }
 
+func collectSteps(inputFS fs.FS, log stepman.Logger) ([]parsedStep, error) {
+	entries, err := fs.ReadDir(inputFS, "steps")
+	if err != nil {
+		return nil, fmt.Errorf("read steps: %w", err)
+	}
+
+	var out []parsedStep
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		s, err := collectStep(inputFS, e.Name(), log)
+		if err != nil {
+			return nil, err
+		}
+		if len(s.versions) == 0 {
+			log.Warnf("step %s has no parseable versions, skipping", s.id)
+			continue
+		}
+		out = append(out, s)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].id < out[j].id })
+	return out, nil
+}
+
 func readSteplibYML(inputFS fs.FS) (models.StepCollectionModel, error) {
 	bytes, err := fs.ReadFile(inputFS, "steplib.yml")
 	if err != nil {
@@ -46,30 +70,29 @@ func readSteplibYML(inputFS fs.FS) (models.StepCollectionModel, error) {
 	return c, nil
 }
 
-func readStepGroupInfo(inputFS fs.FS, path string) (spec.StepInfo, bool, error) {
+// readStepGroupInfo reads the mandatory step-info.yml at path. A missing file
+// is an error: fs.ErrNotExist propagates to the caller.
+func readStepGroupInfo(inputFS fs.FS, path string) (steplibindex.StepInfo, error) {
 	bytes, err := fs.ReadFile(inputFS, path)
 	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return spec.StepInfo{}, false, nil
-		}
-		return spec.StepInfo{}, false, err
+		return steplibindex.StepInfo{}, err
 	}
 	var sgi models.StepGroupInfoModel
 	if err := yaml.Unmarshal(bytes, &sgi); err != nil {
-		return spec.StepInfo{}, true, err
+		return steplibindex.StepInfo{}, err
 	}
-	out := spec.StepInfo{
+	out := steplibindex.StepInfo{
 		Maintainer:  sgi.Maintainer,
 		Deprecation: nil,
 		AssetURLs:   nil,
 	}
 	if sgi.RemovalDate != "" || sgi.DeprecateNotes != "" {
-		out.Deprecation = &spec.Deprecation{
+		out.Deprecation = &steplibindex.Deprecation{
 			RemovalDate: sgi.RemovalDate,
 			Notes:       sgi.DeprecateNotes,
 		}
 	}
-	return out, true, nil
+	return out, nil
 }
 
 func listAssets(inputFS fs.FS, dir string) ([]string, error) {
@@ -112,36 +135,39 @@ func parseStepYML(inputFS fs.FS, path string) (models.StepModel, error) {
 	return step, nil
 }
 
+// assetURLsForFiles maps each asset filename to its step-relative URL, in the
+// (sorted) order of assetFiles. Returns a non-nil (possibly empty) slice so
+// asset_urls renders as [], never null.
+func assetURLsForFiles(assetFiles []string) []string {
+	urls := make([]string, 0, len(assetFiles))
+	for _, f := range assetFiles {
+		urls = append(urls, "assets/"+f)
+	}
+
+	return urls
+}
+
 func collectStep(inputFS fs.FS, id string, log stepman.Logger) (parsedStep, error) {
 	s := parsedStep{
-		id:          id,
-		info:        spec.StepInfo{Maintainer: "", Deprecation: nil, AssetURLs: nil},
-		hasInfoFile: false,
-		assetFiles:  nil,
-		versions:    nil,
+		id:         id,
+		info:       steplibindex.StepInfo{Maintainer: "", Deprecation: nil, AssetURLs: nil},
+		assetFiles: nil,
+		versions:   nil,
 	}
 	stepDir := "steps/" + id
 
-	info, hasInfo, err := readStepGroupInfo(inputFS, stepDir+"/step-info.yml")
+	info, err := readStepGroupInfo(inputFS, stepDir+"/step-info.yml")
 	if err != nil {
 		return s, fmt.Errorf("read step-info.yml for %s: %w", id, err)
 	}
 	s.info = info
-	s.hasInfoFile = hasInfo
 
 	assetFiles, err := listAssets(inputFS, stepDir+"/assets")
 	if err != nil {
 		return s, fmt.Errorf("list assets for %s: %w", id, err)
 	}
 	s.assetFiles = assetFiles
-	if len(assetFiles) > 0 {
-		if s.info.AssetURLs == nil {
-			s.info.AssetURLs = make(map[string]string, len(assetFiles))
-		}
-		for _, f := range assetFiles {
-			s.info.AssetURLs[f] = "assets/" + f
-		}
-	}
+	s.info.AssetURLs = assetURLsForFiles(assetFiles)
 
 	subEntries, err := fs.ReadDir(inputFS, stepDir)
 	if err != nil {
@@ -167,29 +193,4 @@ func collectStep(inputFS fs.FS, id string, log stepman.Logger) (parsedStep, erro
 		return models.CmpSemver(s.versions[i].semver, s.versions[j].semver) < 0
 	})
 	return s, nil
-}
-
-func collectSteps(inputFS fs.FS, log stepman.Logger) ([]parsedStep, error) {
-	entries, err := fs.ReadDir(inputFS, "steps")
-	if err != nil {
-		return nil, fmt.Errorf("read steps: %w", err)
-	}
-
-	var out []parsedStep
-	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
-		s, err := collectStep(inputFS, e.Name(), log)
-		if err != nil {
-			return nil, err
-		}
-		if len(s.versions) == 0 {
-			log.Warnf("step %s has no parseable versions, skipping", s.id)
-			continue
-		}
-		out = append(out, s)
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].id < out[j].id })
-	return out, nil
 }

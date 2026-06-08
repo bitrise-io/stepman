@@ -6,15 +6,15 @@ project_type: other
 # bitrise CLI built against this stepman checkout.
 #
 # The orchestrator below:
-#   1. Sets up $STEPLIB_URI into stepman's local cache and generates the V2
-#      inventory from it via `go run ./steplibrary/specgen/internal/cmd/steplib-gen`.
-#   2. Hosts the generated tree on a local HTTP server.
-#   3. Clones github.com/bitrise-io/bitrise, rewires its go.mod with a
+#   1. Clones github.com/bitrise-io/bitrise, rewires its go.mod with a
 #      `replace github.com/bitrise-io/stepman => <this repo>` directive,
 #      and builds the CLI to a temp path.
-#   4. Runs `_tests/specv2/test_workflow.yml` through the freshly built CLI
-#      with BITRISE_EXPERIMENT_STEPLIB_V2=true so step activation goes
-#      through the v2 HTTPAPI + precompiled-binary download path.
+#   2. Generates the V2 inventory from $STEPLIB_URI into $V2_OUTPUT_DIR via the
+#      freshly built CLI's `bitrise steps generate-steplib` command.
+#   3. Hosts the generated tree on a local HTTP server.
+#   4. Runs `_tests/specv2/test_workflow.yml` through the CLI with
+#      BITRISE_EXPERIMENT_STEPLIB_V2=true so step activation goes through the
+#      v2 HTTPAPI + precompiled-binary download path.
 #
 # Invoke with:
 #   bitrise run --config bitrise_specv2.yml test-specv2
@@ -32,38 +32,6 @@ workflows:
   test-specv2:
     title: End-to-end steplib v2 test via real bitrise CLI
     steps:
-    - script:
-        title: Generate V2 inventory into $V2_OUTPUT_DIR
-        inputs:
-        - content: |-
-            #!/usr/bin/env bash
-            set -ex
-            cd "$STEPMAN_DIR"
-            rm -rf "$V2_OUTPUT_DIR"
-            # steplib-gen sets up (clones) $STEPLIB_URI into stepman's local
-            # cache and generates the V2 tree from it.
-            go run ./steplibrary/specgen/internal/cmd/steplib-gen \
-                -steplib "$STEPLIB_URI" \
-                -output "$V2_OUTPUT_DIR"
-    - script:
-        title: Start local HTTP server on $V2_OUTPUT_DIR
-        inputs:
-        - content: |-
-            #!/usr/bin/env bash
-            set -ex
-            python3 -m http.server "$SPECV2_PORT" --directory "$V2_OUTPUT_DIR" \
-                > /tmp/specv2-server.log 2>&1 &
-            echo $! > /tmp/specv2-server.pid
-            for i in $(seq 1 20); do
-                if curl -fsS "http://localhost:$SPECV2_PORT/spec/step_ids.json" > /dev/null; then
-                    echo "Server up on http://localhost:$SPECV2_PORT"
-                    exit 0
-                fi
-                sleep 0.2
-            done
-            echo "Server failed to start; log:" >&2
-            cat /tmp/specv2-server.log >&2
-            exit 1
     - script:
         title: Clone bitrise + replace stepman + build CLI
         inputs:
@@ -85,6 +53,38 @@ workflows:
             go mod vendor
             go build -o "$BITRISE_BIN" .
             "$BITRISE_BIN" --version
+    - script:
+        title: Generate V2 inventory into $V2_OUTPUT_DIR
+        inputs:
+        - content: |-
+            #!/usr/bin/env bash
+            set -ex
+            rm -rf "$V2_OUTPUT_DIR"
+            # generate-steplib sets up (clones) $STEPLIB_URI into stepman's local
+            # cache and generates the V2 tree from it (calls indexgen.Generate).
+            # The subcommand lands in STEP-2428, which merges right after this PR.
+            "$BITRISE_BIN" steps generate-steplib \
+                --steplib "$STEPLIB_URI" \
+                --output "$V2_OUTPUT_DIR"
+    - script:
+        title: Start local HTTP server on $V2_OUTPUT_DIR
+        inputs:
+        - content: |-
+            #!/usr/bin/env bash
+            set -ex
+            python3 -m http.server "$SPECV2_PORT" --directory "$V2_OUTPUT_DIR" \
+                > /tmp/specv2-server.log 2>&1 &
+            echo $! > /tmp/specv2-server.pid
+            for i in $(seq 1 20); do
+                if curl -fsS "http://localhost:$SPECV2_PORT/v2/index/step_ids.json" > /dev/null; then
+                    echo "Server up on http://localhost:$SPECV2_PORT"
+                    exit 0
+                fi
+                sleep 0.2
+            done
+            echo "Server failed to start; log:" >&2
+            cat /tmp/specv2-server.log >&2
+            exit 1
     - script:
         title: Run test workflow with steplib v2 enabled
         inputs:

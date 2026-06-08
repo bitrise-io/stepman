@@ -1,4 +1,4 @@
-package specgen
+package indexgen
 
 import (
 	"encoding/json"
@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/bitrise-io/stepman/internal/specfixtures"
-	"github.com/bitrise-io/stepman/steplibrary/spec"
+	"github.com/bitrise-io/stepman/steplibrary/steplibindex"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -37,14 +37,15 @@ func (exampleLogger) Errorf(string, ...any) {}
 func runGenerateFromSteplibClone(t *testing.T) string {
 	t.Helper()
 	out := t.TempDir()
-	_, gotErr := GenerateFromSteplibClone(
+	_, gotErr := generateFromSteplibClone(
 		specfixtures.SteplibClone(),
 		out,
 		Options{GeneratedAt: fixedTime, SteplibCommitSHA: "deadbeefcafef00d"},
 		testLogger{t},
 	)
-	require.NoError(t, gotErr, "GenerateFromSteplibClone")
-	return out
+	require.NoError(t, gotErr, "generateFromSteplibClone")
+	// The tree is rooted under the format-version dir (e.g. v2/).
+	return filepath.Join(out, steplibindex.VersionDir())
 }
 
 func readJSON(t *testing.T, path string, into any) {
@@ -57,10 +58,10 @@ func readJSON(t *testing.T, path string, into any) {
 func TestGenerator_meta(t *testing.T) {
 	out := runGenerateFromSteplibClone(t)
 
-	var meta spec.Meta
+	var meta steplibindex.Meta
 	readJSON(t, filepath.Join(out, "meta.json"), &meta)
 
-	assert.Equal(t, spec.FormatVersion, meta.FormatVersion, "FormatVersion")
+	assert.Equal(t, steplibindex.FormatVersion, meta.FormatVersion, "FormatVersion")
 	assert.Equal(t, 2, meta.FormatVersion, "FormatVersion literal")
 	assert.Equal(t, fixedTime, meta.UpdatedAt, "UpdatedAt")
 	assert.Equal(t, "deadbeefcafef00d", meta.SteplibCommitSHA, "SteplibCommitSHA")
@@ -74,31 +75,31 @@ func TestGenerator_meta(t *testing.T) {
 func TestGenerator_step_ids_sorted(t *testing.T) {
 	out := runGenerateFromSteplibClone(t)
 
-	var ids spec.StepIDs
-	readJSON(t, filepath.Join(out, "spec/step_ids.json"), &ids)
+	var ids steplibindex.StepIDs
+	readJSON(t, filepath.Join(out, "index/step_ids.json"), &ids)
 
-	want := []string{"bash-step", "deprecated-step", "hello-step", "multi-platform-step", "no-info-step"}
+	want := []string{"bash-step", "deprecated-step", "hello-step", "multi-platform-step"}
 	assert.Equal(t, want, ids.StepIDs, "step IDs")
 	assert.True(t, sort.StringsAreSorted(ids.StepIDs), "step IDs are sorted")
 }
 
 func TestGenerator_stats(t *testing.T) {
 	out := t.TempDir()
-	stats, gotErr := GenerateFromSteplibClone(
+	stats, gotErr := generateFromSteplibClone(
 		specfixtures.SteplibClone(),
 		out,
 		Options{GeneratedAt: fixedTime},
 		testLogger{t},
 	)
-	require.NoError(t, gotErr, "GenerateFromSteplibClone")
+	require.NoError(t, gotErr, "generateFromSteplibClone")
 
-	assert.Equal(t, 5, stats.StepCount, "StepCount")
-	// hello-step:3 + deprecated:1 + multi-platform:1 + bash:1 + no-info:1
-	assert.Equal(t, 7, stats.VersionCount, "VersionCount")
-	// step-level: bash(2) + deprecated(2) + hello(5) + multi-platform(3) + no-info(1) = 13
-	// spec/:      step_ids + 5×(latest+versions) = 11
+	assert.Equal(t, 4, stats.StepCount, "StepCount")
+	// hello-step:3 + deprecated:1 + multi-platform:1 + bash:1
+	assert.Equal(t, 6, stats.VersionCount, "VersionCount")
+	// step-level: bash(2) + deprecated(2) + hello(5) + multi-platform(3) = 12
+	// index/:      step_ids + 4×(latest+versions) = 9
 	// meta.json:  1
-	assert.Equal(t, 25, stats.FilesWritten, "FilesWritten")
+	assert.Equal(t, 22, stats.FilesWritten, "FilesWritten")
 	assert.Positive(t, stats.BytesWritten, "BytesWritten")
 }
 
@@ -111,8 +112,8 @@ func TestGenerator_authored_files_are_owner_only(t *testing.T) {
 	require.NoError(t, err, "stat meta.json")
 	assert.Equal(t, os.FileMode(0o600), metaInfo.Mode().Perm(), "authored file is 0600")
 
-	dirInfo, err := os.Stat(filepath.Join(out, "spec"))
-	require.NoError(t, err, "stat spec/ dir")
+	dirInfo, err := os.Stat(filepath.Join(out, "index"))
+	require.NoError(t, err, "stat index/ dir")
 	assert.Equal(t, os.FileMode(0o700), dirInfo.Mode().Perm(), "authored dir is 0700")
 }
 
@@ -123,7 +124,7 @@ func TestGenerator_publish_replaces_existing_tree(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Dir(stale), 0o755), "seed stale dir")
 	require.NoError(t, os.WriteFile(stale, []byte("{}"), 0o644), "seed stale file")
 
-	_, err := GenerateFromSteplibClone(
+	_, err := generateFromSteplibClone(
 		specfixtures.SteplibClone(),
 		out,
 		Options{GeneratedAt: fixedTime, SteplibCommitSHA: ""},
@@ -133,25 +134,28 @@ func TestGenerator_publish_replaces_existing_tree(t *testing.T) {
 
 	_, statErr := os.Stat(stale)
 	assert.True(t, os.IsNotExist(statErr), "stale file should be gone after wholesale replace; got err=%v", statErr)
-	_, statErr = os.Stat(filepath.Join(out, "meta.json"))
+	_, statErr = os.Stat(filepath.Join(out, steplibindex.VersionDir(), "meta.json"))
 	assert.NoError(t, statErr, "meta.json present after publish")
 }
 
 func TestWithDefaults_fills_zero_generated_at(t *testing.T) {
-	before := time.Now()
-	opts := withDefaults(Options{SteplibCommitSHA: "abc"})
-	after := time.Now()
+	// Empty steplibDir: skip HEAD resolution, only GeneratedAt is defaulted.
+	opts, err := withDefaults(Options{SteplibCommitSHA: "abc"}, "")
+	require.NoError(t, err, "withDefaults")
 
-	assert.WithinRange(t, opts.GeneratedAt, before, after, "GeneratedAt defaulted to now")
+	assert.WithinDuration(t, time.Now().UTC(), opts.GeneratedAt, 2*time.Second, "GeneratedAt defaulted to ~now")
+	assert.Equal(t, opts.GeneratedAt.Truncate(time.Second), opts.GeneratedAt, "normalized to whole seconds (RFC3339)")
+	assert.Equal(t, time.UTC, opts.GeneratedAt.Location(), "normalized to UTC")
 	assert.Equal(t, "abc", opts.SteplibCommitSHA, "non-zero fields must not be overwritten")
 }
 
 func TestWithDefaults_preserves_non_zero_generated_at(t *testing.T) {
-	opts := withDefaults(Options{GeneratedAt: fixedTime})
+	opts, err := withDefaults(Options{GeneratedAt: fixedTime}, "")
+	require.NoError(t, err, "withDefaults")
 	assert.Equal(t, fixedTime, opts.GeneratedAt, "GeneratedAt preserved")
 }
 
-func ExampleGenerateFromSteplibClone() {
+func Example_generateFromSteplibClone() {
 	tmp, err := os.MkdirTemp("", "specv2-example-")
 	if err != nil {
 		fmt.Println(err)
@@ -159,11 +163,11 @@ func ExampleGenerateFromSteplibClone() {
 	}
 	defer func() { _ = os.RemoveAll(tmp) }()
 
-	stats, err := GenerateFromSteplibClone(specfixtures.SteplibClone(), tmp, Options{GeneratedAt: fixedTime}, exampleLogger{})
+	stats, err := generateFromSteplibClone(specfixtures.SteplibClone(), tmp, Options{GeneratedAt: fixedTime}, exampleLogger{})
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 	fmt.Printf("steps=%d versions=%d", stats.StepCount, stats.VersionCount)
-	// Output: steps=5 versions=7
+	// Output: steps=4 versions=6
 }
