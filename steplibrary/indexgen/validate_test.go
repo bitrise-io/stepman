@@ -135,6 +135,15 @@ func TestValidate(t *testing.T) {
 			},
 			wantPath: "hello-step/step-info.json", wantMsg: "absolute URL",
 		},
+		"absolute asset_urls path": {
+			mutate: func(t *testing.T, root string) {
+				// "/assets/icon.svg" mirrors the real relative asset, so it would
+				// resolve and pass if absolute paths weren't rejected outright. Keep
+				// the real relative entry so only the absolute-path check fires.
+				writeFile(t, root, steplibindex.StepInfoPathFS("hello-step"), `{"maintainer":"bitrise","deprecation":null,"asset_urls":["assets/icon.svg","/assets/icon.svg"]}`)
+			},
+			wantPath: "hello-step/step-info.json", wantMsg: "absolute path",
+		},
 		"asset on disk missing from step-info.json": {
 			mutate: func(t *testing.T, root string) {
 				writeFile(t, root, steplibindex.StepAssetPathFS("hello-step", "extra.svg"), "<svg/>")

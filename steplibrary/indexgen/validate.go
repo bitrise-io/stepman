@@ -216,6 +216,13 @@ func (v *validator) checkStepInfo(id string) {
 			v.flag(p, "asset_urls entry %q is an absolute URL; must be step-relative", rel)
 			continue
 		}
+		if path.IsAbs(rel) {
+			// An absolute path is not step-relative either; without this check
+			// path.Join below would absorb the leading slash and could resolve it
+			// to a real asset, silently masking the violation.
+			v.flag(p, "asset_urls entry %q is an absolute path; must be step-relative", rel)
+			continue
+		}
 		// The step-info.json's asset_urls are written as step-dir-relative
 		// (e.g. "assets/icon.svg"); resolve them against the step's own dir.
 		assetPath := path.Join(steplibindex.StepDirFS(id), rel)
