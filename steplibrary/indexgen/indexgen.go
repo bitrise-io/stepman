@@ -133,9 +133,10 @@ func generateFromSteplibClone(inputFS fs.FS, outputDir string, opts Options, log
 		}
 	}()
 
-	// Root the tree under the format-version dir (e.g. v2/) inside staging, so
-	// the published outputDir contains <version>/{meta.json,index,steps}.
-	w := &writer{outputDir: filepath.Join(staging, steplibindex.VersionDir()), fw: realFileWriter{}, fm: fileutil.NewFileManager(), fileCount: 0, byteCount: 0}
+	// The writer is rooted at the inventory root (staging); every path it gets
+	// comes from steplibindex, which roots files under the format-version dir
+	// (e.g. v2/), so the published outputDir contains <version>/{meta,index,steps}.
+	w := &writer{outputDir: staging, fw: realFileWriter{}, fm: fileutil.NewFileManager(), fileCount: 0, byteCount: 0}
 	if err := writeInventory(w, inputFS, steps, steplibYML, opts); err != nil {
 		return Stats{}, err
 	}
@@ -190,7 +191,7 @@ func writeInventory(w *writer, inputFS fs.FS, steps []parsedStep, steplibYML mod
 		SteplibSource:     steplibYML.SteplibSource,
 		DownloadLocations: steplibYML.DownloadLocations,
 	}
-	if err := w.writeJSON("meta.json", meta); err != nil {
+	if err := w.writeJSON(steplibindex.MetaPath().FS(), meta); err != nil {
 		return fmt.Errorf("write meta.json: %w", err)
 	}
 	return nil
