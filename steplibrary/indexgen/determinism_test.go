@@ -5,10 +5,8 @@ import (
 	"encoding/hex"
 	"io/fs"
 	"os"
-	"path/filepath"
 	"testing"
 
-	"github.com/bitrise-io/stepman/internal/specfixtures"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -25,18 +23,10 @@ import (
 // Comparison is by per-file SHA-256 keyed on the output-relative path
 // (covering the whole v2/ tree); a failure prints which path's hash differs.
 func TestGenerator_deterministic_output(t *testing.T) {
-	opts := Options{GeneratedAt: fixedTime, SteplibCommitSHA: "deadbeefcafef00d"}
-
-	out1 := t.TempDir()
-	_, err := generateFromSteplibClone(specfixtures.SteplibClone(), out1, opts, testLogger{t})
-	require.NoError(t, err, "first generation")
-
-	out2 := t.TempDir()
-	_, err = generateFromSteplibClone(specfixtures.SteplibClone(), out2, opts, testLogger{t})
-	require.NoError(t, err, "second generation")
-
-	hashes1 := hashAllFiles(t, out1)
-	hashes2 := hashAllFiles(t, out2)
+	// Two runs of the same helper = identical fixture, Options, and logger; any
+	// output difference is therefore non-determinism in the generator.
+	hashes1 := hashAllFiles(t, runGenerateFromSteplibClone(t))
+	hashes2 := hashAllFiles(t, runGenerateFromSteplibClone(t))
 
 	require.NotEmpty(t, hashes1, "first generation produced no files")
 	assert.Equal(t, hashes1, hashes2,
@@ -56,7 +46,7 @@ func hashAllFiles(t *testing.T, dir string) map[string]string {
 		if d.IsDir() {
 			return nil
 		}
-		bytes, err := os.ReadFile(filepath.Join(dir, p))
+		bytes, err := fs.ReadFile(dirFS, p)
 		if err != nil {
 			return err
 		}
