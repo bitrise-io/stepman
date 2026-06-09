@@ -42,14 +42,6 @@ func runGenerateFromSteplibClone(t *testing.T) string {
 	return out
 }
 
-// generatedVersionDir is the version-dir (v2/) root of a freshly generated tree,
-// where the index/steps/meta files live. Most generator-output assertions want
-// this; Validate wants the parent (runGenerateFromSteplibClone).
-func generatedVersionDir(t *testing.T) string {
-	t.Helper()
-	return filepath.Join(runGenerateFromSteplibClone(t), steplibindex.VersionDir())
-}
-
 func readJSON(t *testing.T, path string, into any) {
 	t.Helper()
 	bytes, err := os.ReadFile(path)
@@ -58,10 +50,10 @@ func readJSON(t *testing.T, path string, into any) {
 }
 
 func TestGenerator_meta(t *testing.T) {
-	out := generatedVersionDir(t)
+	root := runGenerateFromSteplibClone(t)
 
 	var meta steplibindex.Meta
-	readJSON(t, filepath.Join(out, "meta.json"), &meta)
+	readJSON(t, filepath.Join(root, steplibindex.MetaPath().FS()), &meta)
 
 	assert.Equal(t, steplibindex.FormatVersion, meta.FormatVersion, "FormatVersion")
 	assert.Equal(t, 2, meta.FormatVersion, "FormatVersion literal")
@@ -75,10 +67,10 @@ func TestGenerator_meta(t *testing.T) {
 }
 
 func TestGenerator_step_ids_sorted(t *testing.T) {
-	out := generatedVersionDir(t)
+	root := runGenerateFromSteplibClone(t)
 
 	var ids steplibindex.StepIDs
-	readJSON(t, filepath.Join(out, "index/step_ids.json"), &ids)
+	readJSON(t, filepath.Join(root, steplibindex.StepIDsPath().FS()), &ids)
 
 	want := []string{"bash-step", "deprecated-step", "hello-step", "multi-platform-step"}
 	assert.Equal(t, want, ids.StepIDs, "step IDs")
@@ -106,15 +98,15 @@ func TestGenerator_stats(t *testing.T) {
 }
 
 func TestGenerator_authored_files_are_owner_only(t *testing.T) {
-	out := generatedVersionDir(t)
+	root := runGenerateFromSteplibClone(t)
 
 	// Files and dirs the generator authors get owner-only perms (no group/other).
 	// Copied assets keep their source perms and are covered separately.
-	metaInfo, err := os.Stat(filepath.Join(out, "meta.json"))
+	metaInfo, err := os.Stat(filepath.Join(root, steplibindex.MetaPath().FS()))
 	require.NoError(t, err, "stat meta.json")
 	assert.Equal(t, os.FileMode(0o600), metaInfo.Mode().Perm(), "authored file is 0600")
 
-	dirInfo, err := os.Stat(filepath.Join(out, "index"))
+	dirInfo, err := os.Stat(filepath.Join(root, steplibindex.VersionDir(), steplibindex.IndexRootFS))
 	require.NoError(t, err, "stat index/ dir")
 	assert.Equal(t, os.FileMode(0o700), dirInfo.Mode().Perm(), "authored dir is 0700")
 }
@@ -136,7 +128,7 @@ func TestGenerator_publish_replaces_existing_tree(t *testing.T) {
 
 	_, statErr := os.Stat(stale)
 	assert.True(t, os.IsNotExist(statErr), "stale file should be gone after wholesale replace; got err=%v", statErr)
-	_, statErr = os.Stat(filepath.Join(out, steplibindex.VersionDir(), "meta.json"))
+	_, statErr = os.Stat(filepath.Join(out, steplibindex.MetaPath().FS()))
 	assert.NoError(t, statErr, "meta.json present after publish")
 }
 
