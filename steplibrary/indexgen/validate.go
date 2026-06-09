@@ -2,7 +2,6 @@ package indexgen
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/fs"
 	"path"
@@ -28,6 +27,11 @@ func (e ValidationError) Error() string {
 	return fmt.Sprintf("%s: %s", e.Path, e.Msg)
 }
 
+// violationf builds a ValidationError with a formatted message.
+func violationf(p, format string, args ...any) ValidationError {
+	return ValidationError{Path: p, Msg: fmt.Sprintf(format, args...)}
+}
+
 // Validate walks the V2 inventory tree rooted at inventoryFS and returns the
 // list of consistency violations. An empty slice means the tree is internally
 // consistent.
@@ -42,110 +46,120 @@ func (e ValidationError) Error() string {
 // reported as a violation, so callers only need to check whether the returned
 // slice is empty.
 func Validate(inventoryFS fs.FS) []ValidationError {
-	v := &validator{fs: inventoryFS, seen: map[string]bool{}, errs: nil}
-	v.run()
-	return v.errs
+	v := &validator{fs: inventoryFS, seen: map[string]bool{}}
+	issues := v.collect()
+
+	// Sort violations by (Path, Msg) so the output is deterministic across runs.
+	// Without this, map-iteration order leaks into the output and breaks any
+	// consumer that diffs error logs (golden files, CI dashboards, etc.).
+	sort.Slice(issues, func(i, j int) bool {
+		if issues[i].Path != issues[j].Path {
+			return issues[i].Path < issues[j].Path
+		}
+		return issues[i].Msg < issues[j].Msg
+	})
+	return issues
 }
 
+// validator carries the read-only inventory and the set of paths consumed so
+// far. Each check returns its own violations; the consumed set is the one piece
+// of cross-check state (populated as files are read, drained by the stale-file
+// sweep at the end).
 type validator struct {
 	fs   fs.FS
 	seen map[string]bool // paths the validator has consumed; remainder is stale
-	errs []ValidationError
-}
-
-func (v *validator) flag(p, msg string, args ...any) {
-	v.errs = append(v.errs, ValidationError{Path: p, Msg: fmt.Sprintf(msg, args...)})
 }
 
 func (v *validator) consume(p string) { v.seen[p] = true }
 
-func (v *validator) run() {
+func (v *validator) collect() []ValidationError {
+	var issues []ValidationError
+
 	var meta steplibindex.Meta
-	if v.readJSON(steplibindex.MetaPathFS(), &meta) {
-		v.checkMeta(meta)
+	metaIssues, ok := v.readJSON(steplibindex.MetaPathFS(), &meta)
+	issues = append(issues, metaIssues...)
+	if ok {
+		issues = append(issues, v.checkMeta(meta)...)
 	}
 
 	var stepIDs steplibindex.StepIDs
-	haveIDs := v.readJSON(steplibindex.StepIDsPathFS(), &stepIDs)
-
+	stepIDsIssues, haveIDs := v.readJSON(steplibindex.StepIDsPathFS(), &stepIDs)
+	issues = append(issues, stepIDsIssues...)
 	if haveIDs {
 		if len(stepIDs.StepIDs) == 0 {
-			v.flag(steplibindex.StepIDsPathFS(), "step_ids is empty: a steplib must contain at least one step")
+			issues = append(issues, violationf(steplibindex.StepIDsPathFS(), "step_ids is empty: a steplib must contain at least one step"))
 		}
-		v.checkStepIDsSorted(stepIDs)
+		issues = append(issues, v.checkStepIDsSorted(stepIDs)...)
 		for _, id := range stepIDs.StepIDs {
-			v.checkStep(id)
+			issues = append(issues, v.checkStep(id)...)
 		}
 	}
 
-	v.checkNoStaleFiles()
-
-	// Sort violations by (Path, Msg) so the error output is deterministic
-	// across runs. Without this, map-iteration order leaks into the
-	// validator's output and breaks any consumer that diffs error logs
-	// (golden files, CI dashboards, etc.).
-	sort.Slice(v.errs, func(i, j int) bool {
-		if v.errs[i].Path != v.errs[j].Path {
-			return v.errs[i].Path < v.errs[j].Path
-		}
-		return v.errs[i].Msg < v.errs[j].Msg
-	})
+	issues = append(issues, v.staleFileViolations()...)
+	return issues
 }
 
-// readJSON marks the file as consumed and parses it into `into`. Returns
-// false (and logs a violation) on missing/unreadable/invalid JSON.
-func (v *validator) readJSON(p string, into any) bool {
+// readJSON marks the file as consumed and parses it into `into`. ok is false
+// (and a violation is returned) on missing/unreadable/invalid JSON; on success
+// it returns no violations.
+func (v *validator) readJSON(p string, into any) (issues []ValidationError, ok bool) {
 	v.consume(p)
 	bytes, err := fs.ReadFile(v.fs, p)
 	if err != nil {
-		v.flag(p, "missing or unreadable: %s", err)
-		return false
+		return []ValidationError{violationf(p, "missing or unreadable: %s", err)}, false
 	}
 	if err := json.Unmarshal(bytes, into); err != nil {
-		v.flag(p, "invalid JSON: %s", err)
-		return false
+		return []ValidationError{violationf(p, "invalid JSON: %s", err)}, false
 	}
-	return true
+	return nil, true
 }
 
-func (v *validator) checkMeta(m steplibindex.Meta) {
+func (v *validator) checkMeta(m steplibindex.Meta) []ValidationError {
+	var issues []ValidationError
 	if m.FormatVersion != steplibindex.FormatVersion {
-		v.flag(steplibindex.MetaPathFS(), "format_version is %d, expected %d", m.FormatVersion, steplibindex.FormatVersion)
+		issues = append(issues, violationf(steplibindex.MetaPathFS(), "format_version is %d, expected %d", m.FormatVersion, steplibindex.FormatVersion))
 	}
 	if m.UpdatedAt.IsZero() {
-		v.flag(steplibindex.MetaPathFS(), "updated_at is zero")
+		issues = append(issues, violationf(steplibindex.MetaPathFS(), "updated_at is zero"))
 	}
+	return issues
 }
 
-func (v *validator) checkStepIDsSorted(ids steplibindex.StepIDs) {
+func (v *validator) checkStepIDsSorted(ids steplibindex.StepIDs) []ValidationError {
+	var issues []ValidationError
 	if !sort.StringsAreSorted(ids.StepIDs) {
-		v.flag(steplibindex.StepIDsPathFS(), "step_ids is not sorted lexicographically")
+		issues = append(issues, violationf(steplibindex.StepIDsPathFS(), "step_ids is not sorted lexicographically"))
 	}
 	// Duplicate detection.
 	seen := make(map[string]bool, len(ids.StepIDs))
 	for _, id := range ids.StepIDs {
 		if seen[id] {
-			v.flag(steplibindex.StepIDsPathFS(), "duplicate step id %q", id)
+			issues = append(issues, violationf(steplibindex.StepIDsPathFS(), "duplicate step id %q", id))
 		}
 		seen[id] = true
 	}
+	return issues
 }
 
-func (v *validator) checkStep(id string) {
+func (v *validator) checkStep(id string) []ValidationError {
 	latestPath := steplibindex.LatestPointerPathFS(id)
 	versionsPath := steplibindex.VersionsPathFS(id)
 
+	var issues []ValidationError
+
 	var latest steplibindex.LatestPointer
-	haveLatest := v.readJSON(latestPath, &latest)
+	latestIssues, haveLatest := v.readJSON(latestPath, &latest)
+	issues = append(issues, latestIssues...)
 
 	var versions steplibindex.Versions
-	haveVersions := v.readJSON(versionsPath, &versions)
+	versionsIssues, haveVersions := v.readJSON(versionsPath, &versions)
+	issues = append(issues, versionsIssues...)
 
 	if haveLatest && latest.StepID != id {
-		v.flag(latestPath, "step_id is %q, expected %q", latest.StepID, id)
+		issues = append(issues, violationf(latestPath, "step_id is %q, expected %q", latest.StepID, id))
 	}
 	if haveVersions && versions.StepID != id {
-		v.flag(versionsPath, "step_id is %q, expected %q", versions.StepID, id)
+		issues = append(issues, violationf(versionsPath, "step_id is %q, expected %q", versions.StepID, id))
 	}
 
 	// Cross-check pointers against the versions list.
@@ -157,14 +171,14 @@ func (v *validator) checkStep(id string) {
 	}
 	if haveLatest && haveVersions {
 		if !declaredVersions[latest.Latest] {
-			v.flag(latestPath, "latest %q is not in %s", latest.Latest, versionsPath)
+			issues = append(issues, violationf(latestPath, "latest %q is not in %s", latest.Latest, versionsPath))
 		}
 		for major, ver := range latest.LatestByMajor {
 			if !declaredVersions[ver] {
-				v.flag(latestPath, "latest_by_major[%q]=%q is not in versions.json", major, ver)
+				issues = append(issues, violationf(latestPath, "latest_by_major[%q]=%q is not in versions.json", major, ver))
 			}
 			if !strings.HasPrefix(ver, major+".") {
-				v.flag(latestPath, "latest_by_major[%q]=%q has a different major", major, ver)
+				issues = append(issues, violationf(latestPath, "latest_by_major[%q]=%q has a different major", major, ver))
 			}
 		}
 	}
@@ -172,59 +186,62 @@ func (v *validator) checkStep(id string) {
 	// Every declared version must have its step.json on disk.
 	if haveVersions {
 		for _, ver := range versions.Versions {
-			v.checkStepJSON(id, ver)
+			issues = append(issues, v.checkStepJSON(id, ver)...)
 		}
 	}
 
-	v.checkStepInfo(id)
+	issues = append(issues, v.checkStepInfo(id)...)
+	return issues
 }
 
-func (v *validator) checkStepJSON(id, version string) {
+func (v *validator) checkStepJSON(id, version string) []ValidationError {
 	p := steplibindex.StepJSONPathFS(id, version)
 	var step models.StepModel
-	if !v.readJSON(p, &step) {
-		return
+	if issues, ok := v.readJSON(p, &step); !ok {
+		return issues
 	}
 	if step.Source == nil {
-		v.flag(p, "missing source")
-		return
+		return []ValidationError{violationf(p, "missing source")}
 	}
+	var issues []ValidationError
 	if step.Source.Git == "" {
-		v.flag(p, "missing source.git")
+		issues = append(issues, violationf(p, "missing source.git"))
 	}
 	if step.Source.Commit == "" {
-		v.flag(p, "missing source.commit")
+		issues = append(issues, violationf(p, "missing source.commit"))
 	}
+	return issues
 }
 
-func (v *validator) checkStepInfo(id string) {
+func (v *validator) checkStepInfo(id string) []ValidationError {
 	p := steplibindex.StepInfoPathFS(id)
 	if _, err := fs.Stat(v.fs, p); err != nil {
 		// step-info.json is mandatory: the generator writes it for every step.
 		v.consume(p)
-		v.flag(p, "missing or unreadable: %s", err)
-		return
+		return []ValidationError{violationf(p, "missing or unreadable: %s", err)}
 	}
 	var info steplibindex.StepInfo
-	if !v.readJSON(p, &info) {
-		return
+	if issues, ok := v.readJSON(p, &info); !ok {
+		return issues
 	}
+	var issues []ValidationError
 	stepDir := steplibindex.StepDirFS(id)
 	for _, rel := range info.AssetURLs {
 		// asset_urls are step-dir-relative (e.g. "assets/icon.svg"); resolve each
 		// against the step's own dir, after rejecting anything that isn't a clean
 		// step-relative reference.
 		if problem := validateAssetURL(rel, stepDir); problem != "" {
-			v.flag(p, "asset_urls entry %q %s; must be step-relative", rel, problem)
+			issues = append(issues, violationf(p, "asset_urls entry %q %s; must be step-relative", rel, problem))
 			continue
 		}
 		assetPath := path.Join(stepDir, rel)
 		if _, err := fs.Stat(v.fs, assetPath); err != nil {
-			v.flag(p, "asset_urls entry %q points to %q which does not exist", rel, assetPath)
+			issues = append(issues, violationf(p, "asset_urls entry %q points to %q which does not exist", rel, assetPath))
 			continue
 		}
 		v.consume(assetPath)
 	}
+	return issues
 }
 
 // validateAssetURL reports why rel is not a valid step-relative asset reference,
@@ -247,37 +264,32 @@ func validateAssetURL(rel, stepDir string) string {
 	return ""
 }
 
-// checkNoStaleFiles walks v2/steps and v2/index once each and flags any file
-// the validator did not consume above. This catches "left-over files from a
-// previous generation" — e.g., a step that was later removed, or a stray
-// file from a generator bug.
-func (v *validator) checkNoStaleFiles() {
+// staleFileViolations walks v2/steps and v2/index once each and returns a
+// violation for every file the checks above did not consume — left-over files
+// from a previous generation (a removed step), or a stray file from a generator
+// bug. It reads the accumulated seen set, so it must run after all other checks.
+func (v *validator) staleFileViolations() []ValidationError {
 	roots := []string{
 		path.Join(steplibindex.VersionDir(), steplibindex.StepsRootFS),
 		path.Join(steplibindex.VersionDir(), steplibindex.IndexRootFS),
 	}
+	var issues []ValidationError
 	for _, root := range roots {
-		if walkErr := fs.WalkDir(v.fs, root, func(p string, d fs.DirEntry, err error) error {
-			if err != nil {
-				// A missing root (e.g. v2/steps when there are no steps) isn't a
-				// traversal failure — the empty steplib is already flagged via the
-				// step_ids check. Any other walk error is reported, not swallowed.
-				if !errors.Is(err, fs.ErrNotExist) {
-					v.flag(p, "walk failed: %s", err)
-				}
-				return nil
-			}
-			if d.IsDir() {
-				return nil
-			}
-			if !v.seen[p] {
-				v.flag(p, "unexpected file under %s/", root)
+		walkErr := fs.WalkDir(v.fs, root, func(p string, d fs.DirEntry, err error) error {
+			switch {
+			case err != nil:
+				// A missing or unreadable expected root is itself a violation.
+				issues = append(issues, violationf(p, "walk failed: %s", err))
+			case !d.IsDir() && !v.seen[p]:
+				issues = append(issues, violationf(p, "unexpected file under %s/", root))
 			}
 			return nil
-		}); walkErr != nil {
+		})
+		if walkErr != nil {
 			// The callback handles each entry's error and always returns nil, so
 			// this only fires if that ever changes — don't let it be dropped.
-			v.flag(root, "walk aborted: %s", walkErr)
+			issues = append(issues, violationf(root, "walk aborted: %s", walkErr))
 		}
 	}
+	return issues
 }
