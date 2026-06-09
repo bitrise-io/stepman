@@ -24,8 +24,11 @@ func (l testLogger) Infof(format string, v ...any)  { l.t.Logf("INFO "+format, v
 func (l testLogger) Warnf(format string, v ...any)  { l.t.Logf("WARN "+format, v...) }
 func (l testLogger) Errorf(format string, v ...any) { l.t.Logf("ERROR "+format, v...) }
 
-// runGenerateFromSteplibClone runs the generator against the checked-in
-// testdata using a fresh temp output dir. Returns the output dir for assertions.
+// runGenerateFromSteplibClone runs the generator against the checked-in testdata
+// in a fresh temp dir and returns the inventory root: the dir CONTAINING the
+// version dir (v2/), which is the root Validate expects. Each call is an
+// isolated, disposable copy — callers may mutate the tree without touching the
+// read-only embedded fixture.
 func runGenerateFromSteplibClone(t *testing.T) string {
 	t.Helper()
 	out := t.TempDir()
@@ -36,8 +39,15 @@ func runGenerateFromSteplibClone(t *testing.T) string {
 		testLogger{t},
 	)
 	require.NoError(t, gotErr, "generateFromSteplibClone")
-	// The tree is rooted under the format-version dir (e.g. v2/).
-	return filepath.Join(out, steplibindex.VersionDir())
+	return out
+}
+
+// generatedVersionDir is the version-dir (v2/) root of a freshly generated tree,
+// where the index/steps/meta files live. Most generator-output assertions want
+// this; Validate wants the parent (runGenerateFromSteplibClone).
+func generatedVersionDir(t *testing.T) string {
+	t.Helper()
+	return filepath.Join(runGenerateFromSteplibClone(t), steplibindex.VersionDir())
 }
 
 func readJSON(t *testing.T, path string, into any) {
@@ -48,7 +58,7 @@ func readJSON(t *testing.T, path string, into any) {
 }
 
 func TestGenerator_meta(t *testing.T) {
-	out := runGenerateFromSteplibClone(t)
+	out := generatedVersionDir(t)
 
 	var meta steplibindex.Meta
 	readJSON(t, filepath.Join(out, "meta.json"), &meta)
@@ -65,7 +75,7 @@ func TestGenerator_meta(t *testing.T) {
 }
 
 func TestGenerator_step_ids_sorted(t *testing.T) {
-	out := runGenerateFromSteplibClone(t)
+	out := generatedVersionDir(t)
 
 	var ids steplibindex.StepIDs
 	readJSON(t, filepath.Join(out, "index/step_ids.json"), &ids)
@@ -96,7 +106,7 @@ func TestGenerator_stats(t *testing.T) {
 }
 
 func TestGenerator_authored_files_are_owner_only(t *testing.T) {
-	out := runGenerateFromSteplibClone(t)
+	out := generatedVersionDir(t)
 
 	// Files and dirs the generator authors get owner-only perms (no group/other).
 	// Copied assets keep their source perms and are covered separately.

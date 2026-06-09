@@ -6,28 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bitrise-io/stepman/internal/specfixtures"
 	"github.com/bitrise-io/stepman/steplibrary/steplibindex"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// generateFreshInventory generates a tree into a fresh temp dir and returns the
-// inventory root: the dir CONTAINING the version dir (v2/), which is the root
-// Validate expects. Each call is an isolated, disposable copy — tests mutate
-// files under root and re-run Validate without touching the shared fixture.
-func generateFreshInventory(t *testing.T) string {
-	t.Helper()
-	root := t.TempDir()
-	_, gotErr := generateFromSteplibClone(
-		specfixtures.SteplibClone(),
-		root,
-		Options{GeneratedAt: fixedTime, SteplibCommitSHA: "deadbeefcafef00d"},
-		testLogger{t},
-	)
-	require.NoError(t, gotErr, "generateFromSteplibClone")
-	return root
-}
 
 // flagMatching returns the first violation whose Path and Msg both contain the
 // given substrings, or nil. Lets cases assert "the right violation fired"
@@ -144,6 +126,15 @@ func TestValidate(t *testing.T) {
 			},
 			wantPath: "hello-step/step-info.json", wantMsg: "absolute path",
 		},
+		"asset_urls escapes the step directory": {
+			mutate: func(t *testing.T, root string) {
+				// "../../bash-step/..." resolves to a sibling step's real file, so it
+				// would pass if only absolute paths were rejected. Keep the real
+				// relative asset so only the escape check fires.
+				writeFile(t, root, steplibindex.StepInfoPathFS("hello-step"), `{"maintainer":"bitrise","deprecation":null,"asset_urls":["assets/icon.svg","assets/../../bash-step/step-info.json"]}`)
+			},
+			wantPath: "hello-step/step-info.json", wantMsg: "escapes",
+		},
 		"asset on disk missing from step-info.json": {
 			mutate: func(t *testing.T, root string) {
 				writeFile(t, root, steplibindex.StepAssetPathFS("hello-step", "extra.svg"), "<svg/>")
@@ -168,7 +159,7 @@ func TestValidate(t *testing.T) {
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			root := generateFreshInventory(t)
+			root := runGenerateFromSteplibClone(t)
 			tc.mutate(t, root)
 
 			errs := Validate(os.DirFS(root))

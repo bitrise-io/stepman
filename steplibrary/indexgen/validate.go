@@ -209,29 +209,42 @@ func (v *validator) checkStepInfo(id string) {
 	if !v.readJSON(p, &info) {
 		return
 	}
+	stepDir := steplibindex.StepDirFS(id)
 	for _, rel := range info.AssetURLs {
-		if strings.HasPrefix(rel, "http://") || strings.HasPrefix(rel, "https://") {
-			// asset_urls must be step-dir-relative; an absolute URL violates the
-			// spec, so flag it rather than skipping.
-			v.flag(p, "asset_urls entry %q is an absolute URL; must be step-relative", rel)
+		// asset_urls are step-dir-relative (e.g. "assets/icon.svg"); resolve each
+		// against the step's own dir, after rejecting anything that isn't a clean
+		// step-relative reference.
+		if problem := validateAssetURL(rel, stepDir); problem != "" {
+			v.flag(p, "asset_urls entry %q %s; must be step-relative", rel, problem)
 			continue
 		}
-		if path.IsAbs(rel) {
-			// An absolute path is not step-relative either; without this check
-			// path.Join below would absorb the leading slash and could resolve it
-			// to a real asset, silently masking the violation.
-			v.flag(p, "asset_urls entry %q is an absolute path; must be step-relative", rel)
-			continue
-		}
-		// The step-info.json's asset_urls are written as step-dir-relative
-		// (e.g. "assets/icon.svg"); resolve them against the step's own dir.
-		assetPath := path.Join(steplibindex.StepDirFS(id), rel)
+		assetPath := path.Join(stepDir, rel)
 		if _, err := fs.Stat(v.fs, assetPath); err != nil {
 			v.flag(p, "asset_urls entry %q points to %q which does not exist", rel, assetPath)
 			continue
 		}
 		v.consume(assetPath)
 	}
+}
+
+// validateAssetURL reports why rel is not a valid step-relative asset reference,
+// or "" if it is fine. The single rule — relative, scheme-less, and resolving
+// within stepDir — rejects absolute URLs, absolute paths, and parent-directory
+// traversal alike, so a bad entry can't slip through one gap while another is
+// guarded.
+func validateAssetURL(rel, stepDir string) string {
+	switch {
+	case strings.Contains(rel, "://"):
+		return "is an absolute URL"
+	case path.IsAbs(rel):
+		return "is an absolute path"
+	}
+	// path.Join cleans the result, collapsing any "../"; if it no longer sits
+	// under stepDir the entry escaped the step's own directory.
+	if resolved := path.Join(stepDir, rel); resolved != stepDir && !strings.HasPrefix(resolved, stepDir+"/") {
+		return "escapes the step directory"
+	}
+	return ""
 }
 
 // checkNoStaleFiles walks v2/steps and v2/index once each and flags any file
