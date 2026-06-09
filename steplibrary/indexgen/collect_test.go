@@ -18,7 +18,7 @@ import (
 // tests that build synthetic input filesystems and don't care about the
 // step's content beyond "this version exists and is well-formed". Without a
 // source block the generator's validate-before-publish step would reject the
-// staged tree (checkStepJSON flags a missing source.git/source.commit).
+// staged tree (missing source.git/source.commit).
 func minimalStepYAML(title string) []byte {
 	return []byte(
 		"title: " + title + "\n" +
@@ -44,9 +44,9 @@ func TestCollect_step_info_and_asset_copy(t *testing.T) {
 
 func TestCollect_asset_permissions_preserved(t *testing.T) {
 	// Embedded fixtures can't carry real file permissions, so drive the
-	// generator from an in-memory FS where the asset's mode is set explicitly
-	// (and distinct from the writer's 0644 default), then assert the copy
-	// preserves it.
+	// generator from an in-memory FS where the asset's mode is set explicitly to
+	// a value distinct from common defaults (and from the 0600 the writer uses
+	// for files it authors), then assert the copy preserves it.
 	const mode = os.FileMode(0o640)
 	inputFS := fstest.MapFS{
 		"steplib.yml":                     {Data: []byte("format_version: '0.9.0'\nsteplib_source: 'https://example.com'\n")},
@@ -92,11 +92,12 @@ func TestCollect_missing_step_info_is_error(t *testing.T) {
 
 func TestCollect_invalid_version_dir_skipped(t *testing.T) {
 	inputFS := fstest.MapFS{
-		"steplib.yml":                            {Data: []byte("format_version: '0.9.0'\n")},
-		"steps/my-step/step-info.yml":            {Data: []byte("maintainer: test\n")},
-		"steps/my-step/1.0.0/step.yml":           {Data: minimalStepYAML("My Step")},
-		"steps/my-step/not-a-semver/step.yml":    {Data: minimalStepYAML("Should be skipped")},
-		"steps/my-step/also-not-semver/step.yml": {Data: minimalStepYAML("Also skipped")},
+		"steplib.yml":                  {Data: []byte("format_version: '0.9.0'\n")},
+		"steps/my-step/step-info.yml":  {Data: []byte("maintainer: test\n")},
+		"steps/my-step/1.0.0/step.yml": {Data: minimalStepYAML("My Step")},
+		// Non-semver version dirs are skipped, so their content is never read.
+		"steps/my-step/not-a-semver/step.yml":    {Data: []byte("title: Should be skipped\n")},
+		"steps/my-step/also-not-semver/step.yml": {Data: []byte("title: Also skipped\n")},
 	}
 	out := t.TempDir()
 	stats, gotErr := generateFromSteplibClone(inputFS, out, Options{GeneratedAt: fixedTime}, testLogger{t})
@@ -146,11 +147,8 @@ func TestCollect_bash_step_has_no_executables(t *testing.T) {
 
 	// The Script step ships no precompiled binary, so activation builds from
 	// source (Executables nil). It also declares no toolkit, and the generator
-	// preserves that verbatim — like V1's parse pipeline (Normalize +
-	// FillMissingDefaults), it never synthesizes a default toolkit. The bash +
-	// step.sh default is applied at run time (toolkits.ToolkitForStep defaults to
-	// BashToolkit, which uses step.sh when no entry file is set), not baked into
-	// step.json.
+	// preserves that verbatim — it never synthesizes a default. The bash +
+	// step.sh default is applied at run time, not baked into step.json.
 	assert.Nil(t, step.Executables, "Executables")
 	assert.Nil(t, step.Toolkit, "Toolkit")
 	require.NotNil(t, step.Title, "Title")
