@@ -29,7 +29,7 @@ func minimalStepYAML(title string) []byte {
 }
 
 func TestCollect_step_info_and_asset_copy(t *testing.T) {
-	out := runGenerateFromSteplibClone(t)
+	out := generatedVersionDir(t)
 
 	var info steplibindex.StepInfo
 	readJSON(t, filepath.Join(out, "steps/hello-step/step-info.json"), &info)
@@ -66,7 +66,7 @@ func TestCollect_asset_permissions_preserved(t *testing.T) {
 }
 
 func TestCollect_deprecated_step(t *testing.T) {
-	out := runGenerateFromSteplibClone(t)
+	out := generatedVersionDir(t)
 
 	var info steplibindex.StepInfo
 	readJSON(t, filepath.Join(out, "steps/deprecated-step/step-info.json"), &info)
@@ -113,7 +113,7 @@ func TestCollect_invalid_version_dir_skipped(t *testing.T) {
 }
 
 func TestCollect_multi_platform_executables(t *testing.T) {
-	out := runGenerateFromSteplibClone(t)
+	out := generatedVersionDir(t)
 
 	var step models.StepModel
 	readJSON(t, filepath.Join(out, "steps/multi-platform-step/3.2.1/step.json"), &step)
@@ -142,7 +142,7 @@ func TestCollect_multi_platform_executables(t *testing.T) {
 }
 
 func TestCollect_bash_step_has_no_executables(t *testing.T) {
-	out := runGenerateFromSteplibClone(t)
+	out := generatedVersionDir(t)
 
 	var step models.StepModel
 	readJSON(t, filepath.Join(out, "steps/bash-step/1.0.0/step.json"), &step)

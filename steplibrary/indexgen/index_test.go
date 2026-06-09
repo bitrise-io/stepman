@@ -9,7 +9,7 @@ import (
 )
 
 func TestIndex_per_step_latest_pointer(t *testing.T) {
-	out := runGenerateFromSteplibClone(t)
+	out := generatedVersionDir(t)
 
 	var latest steplibindex.LatestPointer
 	readJSON(t, filepath.Join(out, "index/steps/hello-step/latest.json"), &latest)
@@ -23,7 +23,7 @@ func TestIndex_per_step_latest_pointer(t *testing.T) {
 }
 
 func TestIndex_single_version_latest_pointer(t *testing.T) {
-	out := runGenerateFromSteplibClone(t)
+	out := generatedVersionDir(t)
 
 	// bash-step has exactly one version (1.0.0) in a single major.
 	var latest steplibindex.LatestPointer
@@ -35,7 +35,7 @@ func TestIndex_single_version_latest_pointer(t *testing.T) {
 }
 
 func TestIndex_versions_newest_first(t *testing.T) {
-	out := runGenerateFromSteplibClone(t)
+	out := generatedVersionDir(t)
 
 	var versions steplibindex.Versions
 	readJSON(t, filepath.Join(out, "index/steps/hello-step/versions.json"), &versions)
