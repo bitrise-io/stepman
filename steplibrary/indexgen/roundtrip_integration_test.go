@@ -1,6 +1,9 @@
+//go:build integration
+
 package indexgen
 
 import (
+	"cmp"
 	"encoding/json"
 	"io/fs"
 	"os"
@@ -8,9 +11,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bitrise-io/stepman/internal/specfixtures"
 	"github.com/bitrise-io/stepman/models"
 	"github.com/bitrise-io/stepman/steplibrary/steplibindex"
+	"github.com/bitrise-io/stepman/stepman"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
@@ -20,29 +23,34 @@ import (
 // contract: a generated step.json must be exactly the V1 step.yml that
 // produced it, just JSON-encoded.
 //
-// For every step.yml in the source fixtures we:
+// It runs against the real default steplib — every step, every version — so it
+// needs network and builds only under the "integration" build tag (excluded
+// from a normal `go test ./...`); STEPLIB_URI overrides the source. For each
+// step it parses the source step.yml through the same pipeline the generator
+// uses, parses the generated step.json, and asserts the two serialize to equal
+// JSON.
 //
-//  1. Parse the source step.yml through the same pipeline the generator
-//     uses (yaml.Unmarshal + Normalize + FillMissingDefaults) → fromYAML.
-//  2. Parse the generated step.json into a models.StepModel → fromJSON.
-//  3. Marshal both back to JSON and assert semantic equality (assert.JSONEq).
-//
-// Comparing via the JSON wire format rather than reflect.DeepEqual on the
-// Go structs is deliberate: an empty slice and a nil slice both serialize
-// to the same JSON under omitempty, so they're semantically equivalent for
-// every consumer of the wire format. The contract is "the bytes a consumer
-// receives carry the same step", not "the in-memory Go struct is
-// bit-identical."
-//
-// Any future regression that silently drops a field surfaces here. The
-// validator catches structural problems with the inventory tree as a
-// whole; this catches per-version content drift the validator can't see.
+// The comparison is via the JSON wire format, not reflect.DeepEqual on the Go
+// structs, on purpose: a nil and an empty slice serialize identically under
+// omitempty, so they're equivalent to every consumer of the bytes. The contract
+// is "the bytes carry the same step", not "the in-memory struct is identical".
 func TestRoundTrip_stepYAML_to_stepJSON(t *testing.T) {
-	out := runGenerateFromSteplibClone(t) // the v2/ output dir
-	inputFS := specfixtures.SteplibClone()
+	uri := cmp.Or(os.Getenv("STEPLIB_URI"), "https://github.com/bitrise-io/bitrise-steplib.git")
 
-	pairs := collectStepYMLAndJSONPaths(t, inputFS, out)
+	// Generate the V2 tree (Generate clones the steplib into stepman's local
+	// cache), then read the clone back to pair each step.yml with its step.json.
+	out := t.TempDir()
+	_, err := Generate(uri, out, Options{}, testLogger{t})
+	require.NoError(t, err, "Generate")
+
+	route, found := stepman.ReadRoute(uri)
+	require.True(t, found, "no route for %s after Generate", uri)
+	inputFS := os.DirFS(stepman.GetLibraryBaseDirPath(route))
+	v2Dir := filepath.Join(out, steplibindex.VersionDir())
+
+	pairs := collectStepYMLAndJSONPaths(t, inputFS, v2Dir)
 	require.NotEmpty(t, pairs, "expected at least one step.yml/step.json pair to compare")
+	t.Logf("round-tripping %d step versions from %s", len(pairs), uri)
 
 	for _, p := range pairs {
 		t.Run(p.yamlPath, func(t *testing.T) {
@@ -68,7 +76,7 @@ type stepYAMLJSONPair struct {
 // collectStepYMLAndJSONPaths walks inputFS's source steps/ tree for every
 // step.yml and returns the matching pair of (input step.yml path, generated
 // step.json path under the v2 output dir). Asserts each generated step.json
-// exists. Non-semver version dirs are skipped to match the generator.
+// exists.
 func collectStepYMLAndJSONPaths(t *testing.T, inputFS fs.FS, outV2Dir string) []stepYAMLJSONPair {
 	t.Helper()
 	var pairs []stepYAMLJSONPair
@@ -77,21 +85,13 @@ func collectStepYMLAndJSONPaths(t *testing.T, inputFS fs.FS, outV2Dir string) []
 		if walkErr != nil {
 			return walkErr
 		}
-		if d.IsDir() || filepath.Base(p) != "step.yml" {
+		if d.IsDir() {
 			return nil
 		}
-		// p looks like "steps/<id>/<version>/step.yml" — drop the trailing
-		// "/step.yml" to get the version dir, then locate the JSON counterpart
-		// in the v2 output (which mirrors the steps/<id>/<version>/ layout).
-		rel := strings.TrimSuffix(p, "/step.yml") // steps/<id>/<version>
-		segs := strings.Split(rel, "/")
-		if len(segs) != 3 {
-			return nil // not a steps/<id>/<version> path
+		jsonPath, ok := generatedStepJSONPath(p, outV2Dir)
+		if !ok {
+			return nil
 		}
-		if _, err := models.ParseSemver(segs[2]); err != nil {
-			return nil // non-semver version dir: generator skips these
-		}
-		jsonPath := filepath.Join(outV2Dir, rel, "step.json")
 		require.FileExists(t, jsonPath, "generated step.json missing for %s", p)
 		pairs = append(pairs, stepYAMLJSONPair{yamlPath: p, jsonPath: jsonPath})
 		return nil
@@ -99,11 +99,29 @@ func collectStepYMLAndJSONPaths(t *testing.T, inputFS fs.FS, outV2Dir string) []
 	return pairs
 }
 
+// generatedStepJSONPath maps a source "steps/<id>/<version>/step.yml" path to
+// its generated step.json path under v2Dir. ok is false for paths the
+// generator doesn't emit a step.json for: non-step.yml files and non-semver
+// version dirs.
+func generatedStepJSONPath(p, v2Dir string) (jsonPath string, ok bool) {
+	if filepath.Base(p) != "step.yml" {
+		return "", false
+	}
+	rel := strings.TrimSuffix(p, "/step.yml") // steps/<id>/<version>
+	segs := strings.Split(rel, "/")
+	if len(segs) != 3 {
+		return "", false // not a steps/<id>/<version> path
+	}
+	if _, err := models.ParseSemver(segs[2]); err != nil {
+		return "", false // non-semver version dir: generator skips these
+	}
+	return filepath.Join(v2Dir, rel, "step.json"), true
+}
+
 // parseStepYMLForRoundTrip mirrors the generator's canonical step.yml parse
-// pipeline (yaml.Unmarshal + Normalize + FillMissingDefaults). It is
-// duplicated here on purpose: the round-trip property we're asserting is
-// "the bytes the generator emits decode back to whatever its pipeline
-// produced", so we re-derive the expected model from first principles
+// pipeline. It is duplicated here on purpose: the round-trip property we're
+// asserting is "the bytes the generator emits decode back to whatever its
+// pipeline produced", so we re-derive the expected model from first principles
 // rather than calling the generator's internal helper.
 func parseStepYMLForRoundTrip(t *testing.T, inputFS fs.FS, ymlPath string) models.StepModel {
 	t.Helper()

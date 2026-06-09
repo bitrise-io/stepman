@@ -28,21 +28,30 @@ func NewHTTPAPI(baseURL string, fetcher httpfetch.Client) *HTTPAPI {
 
 func (h *HTTPAPI) GetAllStepIDs(ctx context.Context) ([]string, error) {
 	var payload steplibindex.StepIDs
-	if err := h.fetchJSON(ctx, steplibindex.StepIDsPathURL(), &payload); err != nil {
+	if err := h.fetchJSON(ctx, steplibindex.StepIDsPath().URL(), &payload); err != nil {
 		return nil, err
 	}
 	return payload.StepIDs, nil
 }
 
 func (h *HTTPAPI) GetLatestStepVersions(ctx context.Context, id string) (steplibindex.LatestPointer, error) {
+	//nolint:exhaustruct // server JSON dictates which fields are populated
 	var out steplibindex.LatestPointer
-	err := h.fetchJSON(ctx, steplibindex.LatestPointerPathURL(id), &out)
+	p, err := steplibindex.LatestPointerPath(id)
+	if err != nil {
+		return out, err
+	}
+	err = h.fetchJSON(ctx, p.URL(), &out)
 	return out, err
 }
 
 func (h *HTTPAPI) GetAllStepVersions(ctx context.Context, id string) ([]string, error) {
+	p, err := steplibindex.VersionsPath(id)
+	if err != nil {
+		return nil, err
+	}
 	var payload steplibindex.Versions
-	if err := h.fetchJSON(ctx, steplibindex.VersionsPathURL(id), &payload); err != nil {
+	if err := h.fetchJSON(ctx, p.URL(), &payload); err != nil {
 		return nil, err
 	}
 	return payload.Versions, nil
@@ -51,7 +60,11 @@ func (h *HTTPAPI) GetAllStepVersions(ctx context.Context, id string) ([]string, 
 func (h *HTTPAPI) GetStepGroupInfo(ctx context.Context, id string) (steplibindex.StepInfo, error) {
 	//nolint:exhaustruct // Deprecation is optional, nil means active
 	out := steplibindex.StepInfo{}
-	err := h.fetchJSON(ctx, steplibindex.StepInfoPathURL(id), &out)
+	p, err := steplibindex.StepInfoPath(id)
+	if err != nil {
+		return out, err
+	}
+	err = h.fetchJSON(ctx, p.URL(), &out)
 	return out, err
 }
 
@@ -60,7 +73,11 @@ func (h *HTTPAPI) GetStepGroupInfo(ctx context.Context, id string) (steplibindex
 func (h *HTTPAPI) GetStepModel(ctx context.Context, step ResolvedStepVersion) (models.StepModel, error) {
 	//nolint:exhaustruct // server JSON dictates which fields are populated
 	var out models.StepModel
-	err := h.fetchJSON(ctx, steplibindex.StepJSONPathURL(step.ID, step.Version), &out)
+	p, err := steplibindex.StepJSONPath(step.ID, step.Version)
+	if err != nil {
+		return out, err
+	}
+	err = h.fetchJSON(ctx, p.URL(), &out)
 	return out, err
 }
 
