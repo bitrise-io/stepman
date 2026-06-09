@@ -257,7 +257,7 @@ func (v *validator) checkNoStaleFiles() {
 		path.Join(steplibindex.VersionDir(), steplibindex.IndexRootFS),
 	}
 	for _, root := range roots {
-		_ = fs.WalkDir(v.fs, root, func(p string, d fs.DirEntry, err error) error {
+		if walkErr := fs.WalkDir(v.fs, root, func(p string, d fs.DirEntry, err error) error {
 			if err != nil {
 				// A missing root (e.g. v2/steps when there are no steps) isn't a
 				// traversal failure — the empty steplib is already flagged via the
@@ -274,6 +274,10 @@ func (v *validator) checkNoStaleFiles() {
 				v.flag(p, "unexpected file under %s/", root)
 			}
 			return nil
-		})
+		}); walkErr != nil {
+			// The callback handles each entry's error and always returns nil, so
+			// this only fires if that ever changes — don't let it be dropped.
+			v.flag(root, "walk aborted: %s", walkErr)
+		}
 	}
 }
