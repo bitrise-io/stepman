@@ -197,11 +197,14 @@ func writeInventory(w *writer, inputFS fs.FS, steps []parsedStep, steplibYML mod
 }
 
 // publish atomically swaps the staged tree in for any existing one at outputDir.
-func publish(staging, outputDir string) error {
+func publish(stagingDir, outputDir string) error {
+	if _, err := os.Stat(stagingDir); err != nil {
+		return fmt.Errorf("staging dir (%s): %w", stagingDir, err)
+	}
 	if err := os.RemoveAll(outputDir); err != nil {
 		return fmt.Errorf("clear output dir %s: %w", outputDir, err)
 	}
-	if err := os.Rename(staging, outputDir); err != nil {
+	if err := os.Rename(stagingDir, outputDir); err != nil {
 		return fmt.Errorf("publish inventory to %s: %w", outputDir, err)
 	}
 	return nil
