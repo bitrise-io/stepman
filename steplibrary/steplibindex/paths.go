@@ -59,7 +59,7 @@ type seg struct {
 	dyn bool
 }
 
-func lit(v string) seg { return seg{v: v} }
+func lit(v string) seg { return seg{v: v, dyn: false} }
 func dyn(v string) seg { return seg{v: v, dyn: true} }
 
 // validateSegment rejects a dynamic segment that is not a safe single path
