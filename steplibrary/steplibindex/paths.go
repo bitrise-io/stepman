@@ -1,118 +1,157 @@
 package steplibindex
 
 import (
+	"errors"
+	"fmt"
 	"net/url"
 	"path"
+	"strings"
 )
 
 // Paths to every file in the V2 inventory tree. There must be exactly one
-// source of truth for the layout so that the generator, the HTTP reader, and
-// the validator never drift.
+// source of truth for the layout so the generator, the HTTP reader, and the
+// validator never drift.
 //
-// Two parallel families are exposed because the two consumption modes are
-// genuinely different:
+// Each file is one constructor returning a Path, which carries both addressing
+// modes so they can't drift from each other:
 //
-//   - Filesystem paths (FS-suffixed) are slash-separated, relative to the
-//     inventory root, and suitable for fs.FS lookups, path.Join, and the
-//     generator's writer.
-//   - URL paths (URL-suffixed) are absolute (leading slash) and have
-//     url.PathEscape applied to the dynamic id/version segments so that
-//     unusual but valid step IDs (e.g. ones containing reserved URL chars)
-//     never break the HTTP reader.
+//   - FS():  the inventory-relative path as a forward-slash string — the form
+//     io/fs requires (os.DirFS, fs.ReadFile, fs.WalkDir, …). It is slash-
+//     separated on every OS, so it is built with path.Join, never
+//     filepath.Join; ids and versions are left raw (unescaped).
+//   - URL(): absolute (leading slash), with url.PathEscape applied to the
+//     dynamic id/version segments — for the HTTP reader.
+//
+// Dynamic segments (step id, version, asset file) are validated as safe single
+// path components: a constructor returns an error if a segment is empty, a
+// "."/".." traversal element, or contains a path separator or NUL. This is a
+// security boundary — the segment is interpolated into filesystem and URL paths,
+// so an unchecked separator or ".." could read or write outside the step's
+// subtree. Directories (StepDirFS, IndexStepDirFS, StepAssetDirFS) are FS-only:
+// they are path bases / walk roots, never fetched by URL.
 
-// Top-level directories inside the inventory tree.
-//
-// Note: the helpers below that build index/steps/<id>/... paths use the
-// inline literal "steps" rather than referencing StepsRootFS. This is
-// deliberate: the "steps" segment under index/ is the per-step *index* dir
-// (a different namespace from the top-level source-of-truth steps/ tree),
-// and reusing StepsRootFS there would conflate the two. The name collision
-// is in the V2 layout itself; the constants do not paper over it.
+// Top-level directories inside the inventory tree. The "steps" segment under
+// index/ is the per-step index namespace — distinct from this top-level
+// source-of-truth steps/ tree — so it is written inline, not via StepsRootFS.
 const (
 	StepsRootFS = "steps"
 	IndexRootFS = "index"
 )
 
-// MetaPathFS returns the inventory-relative path of v2/meta.json.
-func MetaPathFS() string { return path.Join(VersionDir(), "meta.json") }
-
-// MetaPathURL returns the URL form of MetaPathFS.
-func MetaPathURL() string { return "/" + MetaPathFS() }
-
-// StepIDsPathFS returns the inventory-relative path of v2/index/step_ids.json.
-func StepIDsPathFS() string { return path.Join(VersionDir(), IndexRootFS, "step_ids.json") }
-
-// StepIDsPathURL returns the URL form of StepIDsPathFS.
-func StepIDsPathURL() string { return "/" + StepIDsPathFS() }
-
-// LatestPointerPathFS returns the inventory-relative path of
-// v2/index/steps/<id>/latest.json.
-func LatestPointerPathFS(stepID string) string {
-	return path.Join(VersionDir(), IndexRootFS, "steps", stepID, "latest.json")
+// Path is a single file in the V2 inventory tree, addressable as a filesystem
+// path (FS) or an HTTP URL path (URL). Both forms are built together so they
+// cannot drift.
+type Path struct {
+	fs  string
+	url string
 }
 
-// LatestPointerPathURL returns the URL form of LatestPointerPathFS with the
-// step ID URL-escaped.
-func LatestPointerPathURL(stepID string) string {
-	return "/" + path.Join(VersionDir(), IndexRootFS, "steps", url.PathEscape(stepID), "latest.json")
+// FS returns the slash-separated path relative to the inventory root.
+func (p Path) FS() string { return p.fs }
+
+// URL returns the absolute, percent-escaped URL path.
+func (p Path) URL() string { return p.url }
+
+// seg is one path segment. Dynamic segments (step id, version, asset file) are
+// validated and percent-escaped in the URL form; static ones are taken verbatim.
+type seg struct {
+	v   string
+	dyn bool
 }
 
-// VersionsPathFS returns the inventory-relative path of
-// v2/index/steps/<id>/versions.json.
-func VersionsPathFS(stepID string) string {
-	return path.Join(VersionDir(), IndexRootFS, "steps", stepID, "versions.json")
+func lit(v string) seg { return seg{v: v} }
+func dyn(v string) seg { return seg{v: v, dyn: true} }
+
+// validateSegment rejects a dynamic segment that is not a safe single path
+// component, so it can never escape or restructure the path it is spliced into.
+func validateSegment(s string) error {
+	switch {
+	case s == "":
+		return errors.New("path segment is empty")
+	case s == "." || s == "..":
+		return fmt.Errorf("path segment %q is a directory-traversal element", s)
+	case strings.ContainsAny(s, `/\`):
+		return fmt.Errorf("path segment %q contains a path separator", s)
+	case strings.ContainsRune(s, 0):
+		return fmt.Errorf("path segment %q contains a NUL byte", s)
+	}
+	return nil
 }
 
-// VersionsPathURL returns the URL form of VersionsPathFS with the step ID
-// URL-escaped.
-func VersionsPathURL(stepID string) string {
-	return "/" + path.Join(VersionDir(), IndexRootFS, "steps", url.PathEscape(stepID), "versions.json")
+// build assembles a Path from segments under the version dir (e.g. v2/),
+// validating every dynamic segment. It is the single place each layout is
+// spelled out, so the FS and URL forms are always derived from the same list.
+func build(segs ...seg) (Path, error) {
+	fsParts := []string{VersionDir()}
+	urlParts := []string{VersionDir()}
+	for _, s := range segs {
+		if s.dyn {
+			if err := validateSegment(s.v); err != nil {
+				return Path{}, err
+			}
+			urlParts = append(urlParts, url.PathEscape(s.v))
+		} else {
+			urlParts = append(urlParts, s.v)
+		}
+		fsParts = append(fsParts, s.v)
+	}
+	return Path{fs: path.Join(fsParts...), url: "/" + path.Join(urlParts...)}, nil
 }
 
-// StepInfoPathFS returns the inventory-relative path of
-// v2/steps/<id>/step-info.json.
-func StepInfoPathFS(stepID string) string {
-	return path.Join(VersionDir(), StepsRootFS, stepID, "step-info.json")
+// staticPath builds a Path from static segments only; with no dynamic input
+// there is nothing to validate, so it cannot fail.
+func staticPath(segs ...string) Path {
+	joined := path.Join(append([]string{VersionDir()}, segs...)...)
+	return Path{fs: joined, url: "/" + joined}
 }
 
-// StepInfoPathURL returns the URL form of StepInfoPathFS with the step ID
-// URL-escaped.
-func StepInfoPathURL(stepID string) string {
-	return "/" + path.Join(VersionDir(), StepsRootFS, url.PathEscape(stepID), "step-info.json")
+// MetaPath is v2/meta.json.
+func MetaPath() Path { return staticPath("meta.json") }
+
+// StepIDsPath is v2/index/step_ids.json.
+func StepIDsPath() Path { return staticPath(IndexRootFS, "step_ids.json") }
+
+// LatestPointerPath is v2/index/steps/<id>/latest.json.
+func LatestPointerPath(stepID string) (Path, error) {
+	return build(lit(IndexRootFS), lit("steps"), dyn(stepID), lit("latest.json"))
 }
 
-// StepJSONPathFS returns the inventory-relative path of
-// v2/steps/<id>/<version>/step.json.
-func StepJSONPathFS(stepID, version string) string {
-	return path.Join(VersionDir(), StepsRootFS, stepID, version, "step.json")
+// VersionsPath is v2/index/steps/<id>/versions.json.
+func VersionsPath(stepID string) (Path, error) {
+	return build(lit(IndexRootFS), lit("steps"), dyn(stepID), lit("versions.json"))
 }
 
-// StepJSONPathURL returns the URL form of StepJSONPathFS with the step ID
-// and version URL-escaped.
-func StepJSONPathURL(stepID, version string) string {
-	return "/" + path.Join(VersionDir(), StepsRootFS, url.PathEscape(stepID), url.PathEscape(version), "step.json")
+// StepInfoPath is v2/steps/<id>/step-info.json.
+func StepInfoPath(stepID string) (Path, error) {
+	return build(lit(StepsRootFS), dyn(stepID), lit("step-info.json"))
 }
 
-// StepAssetDirFS returns the inventory-relative path of v2/steps/<id>/assets.
-func StepAssetDirFS(stepID string) string {
-	return path.Join(VersionDir(), StepsRootFS, stepID, "assets")
+// StepJSONPath is v2/steps/<id>/<version>/step.json.
+func StepJSONPath(stepID, version string) (Path, error) {
+	return build(lit(StepsRootFS), dyn(stepID), dyn(version), lit("step.json"))
 }
 
-// StepAssetPathFS returns the inventory-relative path of
-// v2/steps/<id>/assets/<file>.
-func StepAssetPathFS(stepID, file string) string {
-	return path.Join(VersionDir(), StepsRootFS, stepID, "assets", file)
+// StepAssetPath is v2/steps/<id>/assets/<file>.
+func StepAssetPath(stepID, file string) (Path, error) {
+	return build(lit(StepsRootFS), dyn(stepID), lit("assets"), dyn(file))
 }
 
-// StepDirFS returns the inventory-relative path of the v2/steps/<id>/ directory
-// (the per-step subtree that holds step-info.json, assets/, and per-version
-// dirs).
-func StepDirFS(stepID string) string {
-	return path.Join(VersionDir(), StepsRootFS, stepID)
+// StepDirFS is the v2/steps/<id>/ directory (the per-step source subtree:
+// step-info.json, assets/, and per-version dirs).
+func StepDirFS(stepID string) (string, error) {
+	p, err := build(lit(StepsRootFS), dyn(stepID))
+	return p.FS(), err
 }
 
-// IndexStepDirFS returns the inventory-relative path of the
-// v2/index/steps/<id>/ directory (the per-step subtree of derived index files).
-func IndexStepDirFS(stepID string) string {
-	return path.Join(VersionDir(), IndexRootFS, "steps", stepID)
+// IndexStepDirFS is the v2/index/steps/<id>/ directory (the per-step subtree of
+// derived index files).
+func IndexStepDirFS(stepID string) (string, error) {
+	p, err := build(lit(IndexRootFS), lit("steps"), dyn(stepID))
+	return p.FS(), err
+}
+
+// StepAssetDirFS is the v2/steps/<id>/assets directory.
+func StepAssetDirFS(stepID string) (string, error) {
+	p, err := build(lit(StepsRootFS), dyn(stepID), lit("assets"))
+	return p.FS(), err
 }

@@ -1,6 +1,7 @@
 package indexgen
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"io/fs"
@@ -76,18 +77,18 @@ func (v *validator) collect() []ValidationError {
 	var issues []ValidationError
 
 	var meta steplibindex.Meta
-	metaIssues, ok := v.readJSON(steplibindex.MetaPathFS(), &meta)
+	metaIssues, ok := v.readJSON(steplibindex.MetaPath().FS(), &meta)
 	issues = append(issues, metaIssues...)
 	if ok {
 		issues = append(issues, v.checkMeta(meta)...)
 	}
 
 	var stepIDs steplibindex.StepIDs
-	stepIDsIssues, haveIDs := v.readJSON(steplibindex.StepIDsPathFS(), &stepIDs)
+	stepIDsIssues, haveIDs := v.readJSON(steplibindex.StepIDsPath().FS(), &stepIDs)
 	issues = append(issues, stepIDsIssues...)
 	if haveIDs {
 		if len(stepIDs.StepIDs) == 0 {
-			issues = append(issues, violationf(steplibindex.StepIDsPathFS(), "step_ids is empty: a steplib must contain at least one step"))
+			issues = append(issues, violationf(steplibindex.StepIDsPath().FS(), "step_ids is empty: a steplib must contain at least one step"))
 		}
 		issues = append(issues, v.checkStepIDsSorted(stepIDs)...)
 		for _, id := range stepIDs.StepIDs {
@@ -117,10 +118,10 @@ func (v *validator) readJSON(p string, into any) (issues []ValidationError, ok b
 func (v *validator) checkMeta(m steplibindex.Meta) []ValidationError {
 	var issues []ValidationError
 	if m.FormatVersion != steplibindex.FormatVersion {
-		issues = append(issues, violationf(steplibindex.MetaPathFS(), "format_version is %d, expected %d", m.FormatVersion, steplibindex.FormatVersion))
+		issues = append(issues, violationf(steplibindex.MetaPath().FS(), "format_version is %d, expected %d", m.FormatVersion, steplibindex.FormatVersion))
 	}
 	if m.UpdatedAt.IsZero() {
-		issues = append(issues, violationf(steplibindex.MetaPathFS(), "updated_at is zero"))
+		issues = append(issues, violationf(steplibindex.MetaPath().FS(), "updated_at is zero"))
 	}
 	return issues
 }
@@ -128,13 +129,13 @@ func (v *validator) checkMeta(m steplibindex.Meta) []ValidationError {
 func (v *validator) checkStepIDsSorted(ids steplibindex.StepIDs) []ValidationError {
 	var issues []ValidationError
 	if !sort.StringsAreSorted(ids.StepIDs) {
-		issues = append(issues, violationf(steplibindex.StepIDsPathFS(), "step_ids is not sorted lexicographically"))
+		issues = append(issues, violationf(steplibindex.StepIDsPath().FS(), "step_ids is not sorted lexicographically"))
 	}
 	// Duplicate detection.
 	seen := make(map[string]bool, len(ids.StepIDs))
 	for _, id := range ids.StepIDs {
 		if seen[id] {
-			issues = append(issues, violationf(steplibindex.StepIDsPathFS(), "duplicate step id %q", id))
+			issues = append(issues, violationf(steplibindex.StepIDsPath().FS(), "duplicate step id %q", id))
 		}
 		seen[id] = true
 	}
@@ -142,8 +143,17 @@ func (v *validator) checkStepIDsSorted(ids steplibindex.StepIDs) []ValidationErr
 }
 
 func (v *validator) checkStep(id string) []ValidationError {
-	latestPath := steplibindex.LatestPointerPathFS(id)
-	versionsPath := steplibindex.VersionsPathFS(id)
+	// Build the step's paths once; a non-nil error means the id itself is not a
+	// safe path segment, which is a violation of step_ids.json.
+	latestP, errLatest := steplibindex.LatestPointerPath(id)
+	versionsP, errVersions := steplibindex.VersionsPath(id)
+	infoP, errInfo := steplibindex.StepInfoPath(id)
+	stepDir, errDir := steplibindex.StepDirFS(id)
+	if err := cmp.Or(errLatest, errVersions, errInfo, errDir); err != nil {
+		return []ValidationError{violationf(steplibindex.StepIDsPath().FS(), "step id %q is invalid: %s", id, err)}
+	}
+	latestPath := latestP.FS()
+	versionsPath := versionsP.FS()
 
 	var issues []ValidationError
 
@@ -186,16 +196,23 @@ func (v *validator) checkStep(id string) []ValidationError {
 	// Every declared version must have its step.json on disk.
 	if haveVersions {
 		for _, ver := range versions.Versions {
-			issues = append(issues, v.checkStepJSON(id, ver)...)
+			issues = append(issues, v.checkStepJSON(id, ver, versionsPath)...)
 		}
 	}
 
-	issues = append(issues, v.checkStepInfo(id)...)
+	issues = append(issues, v.checkStepInfo(infoP.FS(), stepDir)...)
 	return issues
 }
 
-func (v *validator) checkStepJSON(id, version string) []ValidationError {
-	p := steplibindex.StepJSONPathFS(id, version)
+// checkStepJSON validates v2/steps/<id>/<version>/step.json. versionsPath is the
+// step's versions.json, where an invalid version string is reported (the version
+// comes from there).
+func (v *validator) checkStepJSON(id, version, versionsPath string) []ValidationError {
+	stepJSON, err := steplibindex.StepJSONPath(id, version)
+	if err != nil {
+		return []ValidationError{violationf(versionsPath, "version %q is invalid: %s", version, err)}
+	}
+	p := stepJSON.FS()
 	var step models.StepModel
 	if issues, ok := v.readJSON(p, &step); !ok {
 		return issues
@@ -213,30 +230,30 @@ func (v *validator) checkStepJSON(id, version string) []ValidationError {
 	return issues
 }
 
-func (v *validator) checkStepInfo(id string) []ValidationError {
-	p := steplibindex.StepInfoPathFS(id)
-	if _, err := fs.Stat(v.fs, p); err != nil {
+// checkStepInfo validates the step's step-info.json (at infoPath) and that each
+// asset_urls entry is a step-relative path resolving to a real file under stepDir.
+func (v *validator) checkStepInfo(infoPath, stepDir string) []ValidationError {
+	if _, err := fs.Stat(v.fs, infoPath); err != nil {
 		// step-info.json is mandatory: the generator writes it for every step.
-		v.consume(p)
-		return []ValidationError{violationf(p, "missing or unreadable: %s", err)}
+		v.consume(infoPath)
+		return []ValidationError{violationf(infoPath, "missing or unreadable: %s", err)}
 	}
 	var info steplibindex.StepInfo
-	if issues, ok := v.readJSON(p, &info); !ok {
+	if issues, ok := v.readJSON(infoPath, &info); !ok {
 		return issues
 	}
 	var issues []ValidationError
-	stepDir := steplibindex.StepDirFS(id)
 	for _, rel := range info.AssetURLs {
 		// asset_urls are step-dir-relative (e.g. "assets/icon.svg"); resolve each
 		// against the step's own dir, after rejecting anything that isn't a clean
 		// step-relative reference.
 		if problem := validateAssetURL(rel, stepDir); problem != "" {
-			issues = append(issues, violationf(p, "asset_urls entry %q %s; must be step-relative", rel, problem))
+			issues = append(issues, violationf(infoPath, "asset_urls entry %q %s; must be step-relative", rel, problem))
 			continue
 		}
 		assetPath := path.Join(stepDir, rel)
 		if _, err := fs.Stat(v.fs, assetPath); err != nil {
-			issues = append(issues, violationf(p, "asset_urls entry %q points to %q which does not exist", rel, assetPath))
+			issues = append(issues, violationf(infoPath, "asset_urls entry %q points to %q which does not exist", rel, assetPath))
 			continue
 		}
 		v.consume(assetPath)
