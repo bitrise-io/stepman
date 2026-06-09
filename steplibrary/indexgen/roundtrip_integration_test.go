@@ -1,3 +1,5 @@
+//go:build integration
+
 package indexgen
 
 import (
@@ -22,28 +24,17 @@ import (
 // produced it, just JSON-encoded.
 //
 // It runs against the real default steplib — every step, every version — so it
-// needs network access and is gated on RUN_STEPLIB_GEN (skipped in CI):
+// needs network and builds only under the "integration" build tag (excluded
+// from a normal `go test ./...`); STEPLIB_URI overrides the source. For each
+// step it parses the source step.yml through the same pipeline the generator
+// uses, parses the generated step.json, and asserts the two serialize to equal
+// JSON.
 //
-//	RUN_STEPLIB_GEN=1 go test -run TestRoundTrip -v ./steplibrary/indexgen/
-//
-// STEPLIB_URI overrides the source (default: bitrise-steplib). For every
-// step.yml in the steplib it:
-//
-//  1. Parses the source step.yml through the same pipeline the generator
-//     uses (yaml.Unmarshal + Normalize + FillMissingDefaults) → fromYAML.
-//  2. Parses the generated step.json into a models.StepModel → fromJSON.
-//  3. Marshals both back to JSON and asserts semantic equality (assert.JSONEq).
-//
-// Comparing via the JSON wire format rather than reflect.DeepEqual on the
-// Go structs is deliberate: an empty slice and a nil slice both serialize
-// to the same JSON under omitempty, so they're semantically equivalent for
-// every consumer of the wire format. The contract is "the bytes a consumer
-// receives carry the same step", not "the in-memory Go struct is
-// bit-identical."
+// The comparison is via the JSON wire format, not reflect.DeepEqual on the Go
+// structs, on purpose: a nil and an empty slice serialize identically under
+// omitempty, so they're equivalent to every consumer of the bytes. The contract
+// is "the bytes carry the same step", not "the in-memory struct is identical".
 func TestRoundTrip_stepYAML_to_stepJSON(t *testing.T) {
-	if os.Getenv("RUN_STEPLIB_GEN") == "" {
-		t.Skip("set RUN_STEPLIB_GEN=1 to round-trip every step in a real steplib")
-	}
 	uri := cmp.Or(os.Getenv("STEPLIB_URI"), "https://github.com/bitrise-io/bitrise-steplib.git")
 
 	// Generate the V2 tree (Generate clones the steplib into stepman's local
@@ -128,10 +119,9 @@ func generatedStepJSONPath(p, v2Dir string) (jsonPath string, ok bool) {
 }
 
 // parseStepYMLForRoundTrip mirrors the generator's canonical step.yml parse
-// pipeline (yaml.Unmarshal + Normalize + FillMissingDefaults). It is
-// duplicated here on purpose: the round-trip property we're asserting is
-// "the bytes the generator emits decode back to whatever its pipeline
-// produced", so we re-derive the expected model from first principles
+// pipeline. It is duplicated here on purpose: the round-trip property we're
+// asserting is "the bytes the generator emits decode back to whatever its
+// pipeline produced", so we re-derive the expected model from first principles
 // rather than calling the generator's internal helper.
 func parseStepYMLForRoundTrip(t *testing.T, inputFS fs.FS, ymlPath string) models.StepModel {
 	t.Helper()
