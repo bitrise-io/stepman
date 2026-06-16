@@ -13,94 +13,41 @@ import (
 )
 
 func (s *Steplib) getStepVersionInfo(ctx context.Context, stepID, version string) (models.StepInfoModel, ResolvedStepVersion, error) {
-	var err error
 	if stepID == "" {
-		err = errors.New("missing required input: step id")
+		return models.StepInfoModel{}, ResolvedStepVersion{}, errors.New("missing required input: step id")
 	}
 
-	var allSteps []string
-	if err == nil {
-		allSteps, err = s.api.GetAllStepIDs(ctx)
-		if err != nil {
-			err = fmt.Errorf("fetching avaialble step IDs: %w", err)
-		}
+	allSteps, err := s.api.GetAllStepIDs(ctx)
+	if err != nil {
+		return models.StepInfoModel{}, ResolvedStepVersion{}, fmt.Errorf("fetching available step IDs: %w", err)
 	}
-	if err == nil && !slices.Contains(allSteps, stepID) {
-		err = fmt.Errorf("%s steplib does not contain %s step", s.steplibURI, stepID)
+	if !slices.Contains(allSteps, stepID) {
+		return models.StepInfoModel{}, ResolvedStepVersion{}, fmt.Errorf("%s steplib does not contain %s step", s.steplibURI, stepID)
 	}
 
-	var versionConstraint models.VersionConstraint
-	if err == nil {
-		versionConstraint, err = models.ParseRequiredVersion(version)
-		if err != nil {
-			err = fmt.Errorf("invalid step version constraint: %w", err)
-		}
+	versionConstraint, err := models.ParseRequiredVersion(version)
+	if err != nil {
+		return models.StepInfoModel{}, ResolvedStepVersion{}, fmt.Errorf("invalid step version constraint: %w", err)
 	}
-	if err == nil && versionConstraint.VersionLockType == models.InvalidVersionConstraint {
-		err = fmt.Errorf("invalid step version constraint: %s", version)
+	if versionConstraint.VersionLockType == models.InvalidVersionConstraint {
+		return models.StepInfoModel{}, ResolvedStepVersion{}, fmt.Errorf("invalid step version constraint: %s", version)
 	}
 
-	var latestVersions steplibindex.LatestPointer
-	if err == nil {
-		latestVersions, err = s.api.GetLatestStepVersions(ctx, stepID)
-		if err != nil {
-			err = fmt.Errorf("fetching latest versions of `%s`: %w", stepID, err)
-		}
+	latestVersions, err := s.api.GetLatestStepVersions(ctx, stepID)
+	if err != nil {
+		return models.StepInfoModel{}, ResolvedStepVersion{}, fmt.Errorf("fetching latest versions of `%s`: %w", stepID, err)
 	}
 
-	var groupInfo steplibindex.StepInfo
-	if err == nil {
-		groupInfo, err = s.api.GetStepGroupInfo(ctx, stepID)
-		if err != nil {
-			err = fmt.Errorf("fetching group info of `%s`: %w", stepID, err)
-		}
+	groupInfo, err := s.api.GetStepGroupInfo(ctx, stepID)
+	if err != nil {
+		return models.StepInfoModel{}, ResolvedStepVersion{}, fmt.Errorf("fetching group info of `%s`: %w", stepID, err)
 	}
 
-	var resolvedVersion string
-	if err == nil {
-		switch versionConstraint.VersionLockType {
-		case models.Latest:
-			resolvedVersion = latestVersions.Latest
-		case models.Fixed:
-			resolvedVersion = versionConstraint.Version.String()
-			// Verify the pinned version actually exists, mirroring the other
-			// branches; otherwise a typo'd pin surfaces later as an opaque
-			// "decode step.json" 404 instead of a clear "no such version".
-			var allVersions []string
-			allVersions, err = s.api.GetAllStepVersions(ctx, stepID)
-			if err != nil {
-				err = fmt.Errorf("fetching all versions of `%s`: %w", stepID, err)
-			} else if !slices.Contains(allVersions, resolvedVersion) {
-				err = fmt.Errorf("%s steplib does not contain %s step %s version", s.steplibURI, stepID, resolvedVersion)
-			}
-		case models.MajorLocked:
-			majorKey := strconv.FormatUint(versionConstraint.Version.Major, 10)
-			v, ok := latestVersions.LatestByMajor[majorKey]
-			if !ok {
-				err = fmt.Errorf("%s steplib does not contain %s step with major version %s", s.steplibURI, stepID, majorKey)
-			} else {
-				resolvedVersion = v
-			}
-		case models.MinorLocked:
-			var allVersions []string
-			allVersions, err = s.api.GetAllStepVersions(ctx, stepID)
-			if err != nil {
-				err = fmt.Errorf("fetching all versions of `%s`: %w", stepID, err)
-			}
-			if err == nil {
-				resolvedVersion, err = resolveMinorLocked(allVersions, versionConstraint.Version)
-				if err != nil {
-					err = fmt.Errorf("%s steplib: %w", s.steplibURI, err)
-				}
-			}
-		default:
-			err = fmt.Errorf("unknown version constraint: %s", version)
-		}
-	}
-
+	resolvedVersion, err := s.resolveVersion(ctx, stepID, version, versionConstraint, latestVersions)
 	if err != nil {
 		return models.StepInfoModel{}, ResolvedStepVersion{}, err
 	}
+
 	//nolint:exhaustruct // Step and DefinitionPth aren't surfaced by the v2 API yet
 	return models.StepInfoModel{
 		Library:         s.steplibURI,
@@ -110,6 +57,47 @@ func (s *Steplib) getStepVersionInfo(ctx context.Context, stepID, version string
 		LatestVersion:   latestVersions.Latest,
 		GroupInfo:       toStepGroupInfoModel(groupInfo),
 	}, ResolvedStepVersion{ID: stepID, Version: resolvedVersion}, nil
+}
+
+// resolveVersion turns a parsed version constraint into a concrete version
+// string, fetching the step's version list when the constraint needs it.
+func (s *Steplib) resolveVersion(ctx context.Context, stepID, version string, constraint models.VersionConstraint, latestVersions steplibindex.LatestPointer) (string, error) {
+	switch constraint.VersionLockType {
+	case models.Latest:
+		return latestVersions.Latest, nil
+	case models.Fixed:
+		resolved := constraint.Version.String()
+		// Verify the pinned version actually exists; otherwise a typo'd pin
+		// surfaces later as an opaque "decode step.json" 404 instead of a clear
+		// "no such version".
+		allVersions, err := s.api.GetAllStepVersions(ctx, stepID)
+		if err != nil {
+			return "", fmt.Errorf("fetching all versions of `%s`: %w", stepID, err)
+		}
+		if !slices.Contains(allVersions, resolved) {
+			return "", fmt.Errorf("%s steplib does not contain %s step %s version", s.steplibURI, stepID, resolved)
+		}
+		return resolved, nil
+	case models.MajorLocked:
+		majorKey := strconv.FormatUint(constraint.Version.Major, 10)
+		v, ok := latestVersions.LatestByMajor[majorKey]
+		if !ok {
+			return "", fmt.Errorf("%s steplib does not contain %s step with major version %s", s.steplibURI, stepID, majorKey)
+		}
+		return v, nil
+	case models.MinorLocked:
+		allVersions, err := s.api.GetAllStepVersions(ctx, stepID)
+		if err != nil {
+			return "", fmt.Errorf("fetching all versions of `%s`: %w", stepID, err)
+		}
+		resolved, err := resolveMinorLocked(allVersions, constraint.Version)
+		if err != nil {
+			return "", fmt.Errorf("%s steplib: %w", s.steplibURI, err)
+		}
+		return resolved, nil
+	default:
+		return "", fmt.Errorf("unknown version constraint: %s", version)
+	}
 }
 
 // toStepGroupInfoModel flattens v2's nested `deprecation` object into v1's
@@ -139,14 +127,15 @@ func toStepGroupInfoModel(info steplibindex.StepInfo) models.StepGroupInfoModel 
 }
 
 // resolveMinorLocked picks the highest patch within `versions` matching the
-// constraint's Major+Minor. Unparseable entries are skipped.
+// constraint's Major+Minor. An unparseable entry is an error — versions.json is
+// expected to hold only valid semver.
 func resolveMinorLocked(versions []string, constraint models.Semver) (string, error) {
 	var best models.Semver
 	found := false
 	for _, raw := range versions {
 		sv, err := models.ParseSemver(raw)
 		if err != nil {
-			continue
+			return "", fmt.Errorf("parse version %q: %w", raw, err)
 		}
 		if sv.Major != constraint.Major || sv.Minor != constraint.Minor {
 			continue
