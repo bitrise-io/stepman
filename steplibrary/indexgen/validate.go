@@ -286,27 +286,22 @@ func validateAssetURL(rel, stepDir string) string {
 // from a previous generation (a removed step), or a stray file from a generator
 // bug. It reads the accumulated seen set, so it must run after all other checks.
 func (v *validator) staleFileViolations() []ValidationError {
-	roots := []string{
-		path.Join(steplibindex.VersionDir(), steplibindex.StepsRootFS),
-		path.Join(steplibindex.VersionDir(), steplibindex.IndexRootFS),
-	}
-	var issues []ValidationError
-	for _, root := range roots {
-		walkErr := fs.WalkDir(v.fs, root, func(p string, d fs.DirEntry, err error) error {
-			switch {
-			case err != nil:
-				// A missing or unreadable expected root is itself a violation.
-				issues = append(issues, violationf(p, "walk failed: %s", err))
-			case !d.IsDir() && !v.seen[p]:
-				issues = append(issues, violationf(p, "unexpected file under %s/", root))
-			}
-			return nil
-		})
-		if walkErr != nil {
-			// The callback handles each entry's error and always returns nil, so
-			// this only fires if that ever changes — don't let it be dropped.
-			issues = append(issues, violationf(root, "walk aborted: %s", walkErr))
+	root := steplibindex.VersionDir()
+	issues := []ValidationError{}
+	walkErr := fs.WalkDir(v.fs, root, func(p string, d fs.DirEntry, err error) error {
+		switch {
+		case err != nil:
+			// A missing or unreadable expected root is itself a violation.
+			issues = append(issues, violationf(p, "walk failed: %s", err))
+		case !d.IsDir() && !v.seen[p]:
+			issues = append(issues, violationf(p, "unexpected file under %s/", root))
 		}
+		return nil
+	})
+	if walkErr != nil {
+		// The callback handles each entry's error and always returns nil, so
+		// this only fires if that ever changes — don't let it be dropped.
+		issues = append(issues, violationf(root, "walk aborted: %s", walkErr))
 	}
 	return issues
 }
