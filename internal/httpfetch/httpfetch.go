@@ -78,16 +78,28 @@ func (c *client) Get(ctx context.Context, url string) (io.ReadCloser, error) {
 		return nil, fmt.Errorf("GET %s: %w", url, err)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		// Server error bodies (a 404 page, S3's XML, …) usually explain the
-		// failure, so include a bounded snippet in the error.
 		snippet, readErr := io.ReadAll(io.LimitReader(resp.Body, 1024))
 		return nil, errors.Join(
-			fmt.Errorf("GET %s: unexpected status %d: %s", url, resp.StatusCode, bytes.TrimSpace(snippet)),
+			&StatusError{URL: url, Code: resp.StatusCode, Body: string(bytes.TrimSpace(snippet))},
 			readErr,
 			resp.Body.Close(),
 		)
 	}
 	return resp.Body, nil
+}
+
+// StatusError is returned by Get when the server responds with a non-2xx
+// status, so callers can branch on the code (e.g. treat 404 as "not found")
+// via errors.As. Body holds a bounded snippet of the response body, which
+// usually explains the failure (a 404 page, S3's XML error, …).
+type StatusError struct {
+	URL  string
+	Code int
+	Body string
+}
+
+func (e *StatusError) Error() string {
+	return fmt.Sprintf("GET %s: unexpected status %d: %s", e.URL, e.Code, e.Body)
 }
 
 func (c *client) Download(ctx context.Context, destPath, url string) error {
