@@ -1,7 +1,6 @@
 package indexgen_test
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -16,13 +15,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// discardLogger is a stepman.Logger that drops all output.
-type discardLogger struct{}
+// testLogger routes stepman log output to t.Log, so it stays quiet on success
+// but surfaces in the failure output of a broken test.
+type testLogger struct{ t *testing.T }
 
-func (discardLogger) Debugf(string, ...any) {}
-func (discardLogger) Errorf(string, ...any) {}
-func (discardLogger) Warnf(string, ...any)  {}
-func (discardLogger) Infof(string, ...any)  {}
+func (l testLogger) Debugf(f string, a ...any) { l.t.Logf("DEBUG "+f, a...) }
+func (l testLogger) Errorf(f string, a ...any) { l.t.Logf("ERROR "+f, a...) }
+func (l testLogger) Warnf(f string, a ...any)  { l.t.Logf("WARN "+f, a...) }
+func (l testLogger) Infof(f string, a ...any)  { l.t.Logf("INFO "+f, a...) }
 
 // TestHTTPAPI_Integration generates a V2 inventory from the specfixtures
 // testdata into a temp dir, serves it over httptest, and exercises
@@ -39,7 +39,7 @@ func TestHTTPAPI_Integration(t *testing.T) {
 		specfixtures.SteplibClone(),
 		outDir,
 		indexgen.Options{GeneratedAt: time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC), SteplibCommitSHA: ""},
-		discardLogger{},
+		testLogger{t},
 	)
 	require.NoError(t, err, "generate V2 inventory")
 
@@ -49,7 +49,7 @@ func TestHTTPAPI_Integration(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	api := steplibrary.NewHTTPAPI(srv.URL, httpfetch.NewWithClient(srv.Client()))
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("GetAllStepIDs returns sample step IDs", func(t *testing.T) {
 		got, gotErr := api.GetAllStepIDs(ctx)

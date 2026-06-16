@@ -1,7 +1,6 @@
 package steplibrary
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -38,7 +37,7 @@ func TestHTTPAPI(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	api := NewHTTPAPI(srv.URL, httpfetch.NewWithClient(srv.Client()))
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("GetAllStepIDs", func(t *testing.T) {
 		got, gotErr := api.GetAllStepIDs(ctx)
@@ -75,10 +74,12 @@ func TestHTTPAPI(t *testing.T) {
 		assert.Equal(t, "Hello", *got.Title, "Title")
 	})
 
-	t.Run("404 surfaces unexpected status", func(t *testing.T) {
+	t.Run("404 surfaces as a typed StatusError", func(t *testing.T) {
 		_, gotErr := api.GetLatestStepVersions(ctx, "missing-step")
 		require.Error(t, gotErr, "GetLatestStepVersions for missing step")
-		assert.Contains(t, gotErr.Error(), "unexpected status 404", "error message")
+		var statusErr *httpfetch.StatusError
+		require.ErrorAs(t, gotErr, &statusErr)
+		assert.Equal(t, http.StatusNotFound, statusErr.Code, "status code")
 	})
 }
 
@@ -86,13 +87,13 @@ func TestHTTPAPI(t *testing.T) {
 // pattern in fetchJSON: when decoding succeeds but closing the body fails, the
 // close error must surface as the call's error.
 func TestHTTPAPI_fetchJSON_propagatesCloseError(t *testing.T) {
+	closeErr := errors.New("boom")
 	api := &HTTPAPI{
 		BaseURL: "http://example.test",
-		Fetcher: fakeGetFetcher{body: `{"step_ids":["a","b"]}`, closeErr: errors.New("boom")},
+		Fetcher: fakeGetFetcher{body: `{"step_ids":["a","b"]}`, closeErr: closeErr},
 	}
 
-	_, gotErr := api.GetAllStepIDs(context.Background())
+	_, gotErr := api.GetAllStepIDs(t.Context())
 	require.Error(t, gotErr, "GetAllStepIDs")
-	assert.Contains(t, gotErr.Error(), "close response body", "error wraps close failure")
-	assert.Contains(t, gotErr.Error(), "boom", "error preserves underlying cause")
+	require.ErrorIs(t, gotErr, closeErr, "close failure surfaces as the call error")
 }
