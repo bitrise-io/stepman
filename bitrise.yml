@@ -12,7 +12,7 @@ step_bundles:
     - script:
         title: Setup pinned Go version
         inputs:
-        # - content: asdf install
+        - content: asdf install
 
 workflows:
   test:
