@@ -233,44 +233,47 @@ func (v *validator) checkStepJSON(id, version, versionsPath string) []Validation
 // checkStepInfo validates the step's step-info.json (at infoPath) and that each
 // asset_urls entry is a step-relative path resolving to a real file under stepDir.
 func (v *validator) checkStepInfo(infoPath, stepDir string) []ValidationError {
-	if _, err := fs.Stat(v.fs, infoPath); err != nil {
-		// step-info.json is mandatory: the generator writes it for every step.
-		v.consume(infoPath)
-		return []ValidationError{violationf(infoPath, "missing or unreadable: %s", err)}
-	}
 	var info steplibindex.StepInfo
 	if issues, ok := v.readJSON(infoPath, &info); !ok {
 		return issues
 	}
 	var issues []ValidationError
 	for _, rel := range info.AssetURLs {
-		issues = append(issues, v.checkAssetURL(infoPath, stepDir, rel)...)
+		// asset_urls are step-dir-relative (e.g. "assets/icon.svg"); resolve each
+		// against the step's own dir, after rejecting anything that isn't a clean
+		// step-relative reference.
+		if problem := validateAssetURL(rel, stepDir); problem != "" {
+			issues = append(issues, violationf(infoPath, "asset_urls entry %q %s; must be step-relative", rel, problem))
+			continue
+		}
+		assetPath := path.Join(stepDir, rel)
+		if _, err := fs.Stat(v.fs, assetPath); err != nil {
+			issues = append(issues, violationf(infoPath, "asset_urls entry %q points to %q which does not exist", rel, assetPath))
+			continue
+		}
+		v.consume(assetPath)
 	}
 	return issues
 }
 
-// checkAssetURL validates one asset_urls entry (attributed to infoPath): it must
-// be a clean step-relative reference — no absolute URL or path, no parent-dir
-// traversal — that resolves to a real file under stepDir. On success it marks
-// the resolved asset consumed so the stale-file sweep won't flag it.
-func (v *validator) checkAssetURL(infoPath, stepDir, rel string) []ValidationError {
+// validateAssetURL reports why rel is not a valid step-relative asset reference,
+// or "" if it is fine. The single rule — relative, scheme-less, and resolving
+// within stepDir — rejects absolute URLs, absolute paths, and parent-directory
+// traversal alike, so a bad entry can't slip through one gap while another is
+// guarded.
+func validateAssetURL(rel, stepDir string) string {
 	switch {
 	case strings.Contains(rel, "://"):
-		return []ValidationError{violationf(infoPath, "asset_urls entry %q is an absolute URL; must be step-relative", rel)}
+		return "is an absolute URL"
 	case path.IsAbs(rel):
-		return []ValidationError{violationf(infoPath, "asset_urls entry %q is an absolute path; must be step-relative", rel)}
+		return "is an absolute path"
 	}
 	// path.Join cleans the result, collapsing any "../"; if it no longer sits
 	// under stepDir the entry escaped the step's own directory.
-	resolved := path.Join(stepDir, rel)
-	if resolved != stepDir && !strings.HasPrefix(resolved, stepDir+"/") {
-		return []ValidationError{violationf(infoPath, "asset_urls entry %q escapes the step directory; must be step-relative", rel)}
+	if resolved := path.Join(stepDir, rel); resolved != stepDir && !strings.HasPrefix(resolved, stepDir+"/") {
+		return "escapes the step directory"
 	}
-	if _, err := fs.Stat(v.fs, resolved); err != nil {
-		return []ValidationError{violationf(infoPath, "asset_urls entry %q points to %q which does not exist", rel, resolved)}
-	}
-	v.consume(resolved)
-	return nil
+	return ""
 }
 
 // staleFileViolations walks v2/steps and v2/index once each and returns a
