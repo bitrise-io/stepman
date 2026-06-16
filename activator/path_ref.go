@@ -6,6 +6,7 @@ import (
 
 	"github.com/bitrise-io/go-utils/command"
 	"github.com/bitrise-io/go-utils/pathutil"
+	"github.com/bitrise-io/stepman/models"
 	"github.com/bitrise-io/stepman/stepid"
 	"github.com/bitrise-io/stepman/stepman"
 )
@@ -50,9 +51,10 @@ func ActivatePathRefStep(
 	}
 
 	return ActivatedStep{
-		StepYMLPath:     activatedStepYMLPath,
+		StepInfo:         models.StepInfoModel{},
+		StepYMLPath:      activatedStepYMLPath,
 		DidStepLibUpdate: false,
-		ActivationType: ActivationTypePathRef,
-		ExecutablePath: "",
+		ActivationType:   ActivationTypePathRef,
+		ExecutablePath:   "",
 	}, nil
 }
