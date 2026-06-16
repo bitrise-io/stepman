@@ -144,7 +144,9 @@ func (c *client) fetchToTemp(ctx context.Context, dir, url string) (path string,
 			err = errors.Join(err, fmt.Errorf("close %s: %w", tmp.Name(), closeErr))
 		}
 		if err != nil {
-			err = errors.Join(err, os.Remove(tmp.Name()))
+			// Best-effort cleanup of the partial temp file; the original error is
+			// what matters, so a failed remove is intentionally ignored.
+			_ = os.Remove(tmp.Name())
 			path = ""
 			hash = ""
 		}
