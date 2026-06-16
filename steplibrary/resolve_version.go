@@ -68,7 +68,7 @@ func (s *Steplib) resolveVersion(ctx context.Context, stepID, version string, co
 	case models.Fixed:
 		resolved := constraint.Version.String()
 		// Verify the pinned version actually exists; otherwise a typo'd pin
-		// surfaces later as an opaque "decode step.json" 404 instead of a clear
+		// surfaces later as an opaque fetch/decode error instead of a clear
 		// "no such version".
 		allVersions, err := s.api.GetAllStepVersions(ctx, stepID)
 		if err != nil {
