@@ -244,41 +244,33 @@ func (v *validator) checkStepInfo(infoPath, stepDir string) []ValidationError {
 	}
 	var issues []ValidationError
 	for _, rel := range info.AssetURLs {
-		// asset_urls are step-dir-relative (e.g. "assets/icon.svg"); resolve each
-		// against the step's own dir, after rejecting anything that isn't a clean
-		// step-relative reference.
-		if problem := validateAssetURL(rel, stepDir); problem != "" {
-			issues = append(issues, violationf(infoPath, "asset_urls entry %q %s; must be step-relative", rel, problem))
-			continue
-		}
-		assetPath := path.Join(stepDir, rel)
-		if _, err := fs.Stat(v.fs, assetPath); err != nil {
-			issues = append(issues, violationf(infoPath, "asset_urls entry %q points to %q which does not exist", rel, assetPath))
-			continue
-		}
-		v.consume(assetPath)
+		issues = append(issues, v.checkAssetURL(infoPath, stepDir, rel)...)
 	}
 	return issues
 }
 
-// validateAssetURL reports why rel is not a valid step-relative asset reference,
-// or "" if it is fine. The single rule — relative, scheme-less, and resolving
-// within stepDir — rejects absolute URLs, absolute paths, and parent-directory
-// traversal alike, so a bad entry can't slip through one gap while another is
-// guarded.
-func validateAssetURL(rel, stepDir string) string {
+// checkAssetURL validates one asset_urls entry (attributed to infoPath): it must
+// be a clean step-relative reference — no absolute URL or path, no parent-dir
+// traversal — that resolves to a real file under stepDir. On success it marks
+// the resolved asset consumed so the stale-file sweep won't flag it.
+func (v *validator) checkAssetURL(infoPath, stepDir, rel string) []ValidationError {
 	switch {
 	case strings.Contains(rel, "://"):
-		return "is an absolute URL"
+		return []ValidationError{violationf(infoPath, "asset_urls entry %q is an absolute URL; must be step-relative", rel)}
 	case path.IsAbs(rel):
-		return "is an absolute path"
+		return []ValidationError{violationf(infoPath, "asset_urls entry %q is an absolute path; must be step-relative", rel)}
 	}
 	// path.Join cleans the result, collapsing any "../"; if it no longer sits
 	// under stepDir the entry escaped the step's own directory.
-	if resolved := path.Join(stepDir, rel); resolved != stepDir && !strings.HasPrefix(resolved, stepDir+"/") {
-		return "escapes the step directory"
+	resolved := path.Join(stepDir, rel)
+	if resolved != stepDir && !strings.HasPrefix(resolved, stepDir+"/") {
+		return []ValidationError{violationf(infoPath, "asset_urls entry %q escapes the step directory; must be step-relative", rel)}
 	}
-	return ""
+	if _, err := fs.Stat(v.fs, resolved); err != nil {
+		return []ValidationError{violationf(infoPath, "asset_urls entry %q points to %q which does not exist", rel, resolved)}
+	}
+	v.consume(resolved)
+	return nil
 }
 
 // staleFileViolations walks v2/steps and v2/index once each and returns a
@@ -286,27 +278,22 @@ func validateAssetURL(rel, stepDir string) string {
 // from a previous generation (a removed step), or a stray file from a generator
 // bug. It reads the accumulated seen set, so it must run after all other checks.
 func (v *validator) staleFileViolations() []ValidationError {
-	roots := []string{
-		path.Join(steplibindex.VersionDir(), steplibindex.StepsRootFS),
-		path.Join(steplibindex.VersionDir(), steplibindex.IndexRootFS),
-	}
-	var issues []ValidationError
-	for _, root := range roots {
-		walkErr := fs.WalkDir(v.fs, root, func(p string, d fs.DirEntry, err error) error {
-			switch {
-			case err != nil:
-				// A missing or unreadable expected root is itself a violation.
-				issues = append(issues, violationf(p, "walk failed: %s", err))
-			case !d.IsDir() && !v.seen[p]:
-				issues = append(issues, violationf(p, "unexpected file under %s/", root))
-			}
-			return nil
-		})
-		if walkErr != nil {
-			// The callback handles each entry's error and always returns nil, so
-			// this only fires if that ever changes — don't let it be dropped.
-			issues = append(issues, violationf(root, "walk aborted: %s", walkErr))
+	root := steplibindex.VersionDir()
+	issues := []ValidationError{}
+	walkErr := fs.WalkDir(v.fs, root, func(p string, d fs.DirEntry, err error) error {
+		switch {
+		case err != nil:
+			// A missing or unreadable expected root is itself a violation.
+			issues = append(issues, violationf(p, "walk failed: %s", err))
+		case !d.IsDir() && !v.seen[p]:
+			issues = append(issues, violationf(p, "unexpected file under %s/", root))
 		}
+		return nil
+	})
+	if walkErr != nil {
+		// The callback handles each entry's error and always returns nil, so
+		// this only fires if that ever changes — don't let it be dropped.
+		issues = append(issues, violationf(root, "walk aborted: %s", walkErr))
 	}
 	return issues
 }
