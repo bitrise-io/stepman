@@ -9,7 +9,7 @@ import (
 
 	"github.com/bitrise-io/go-utils/v2/fileutil"
 	"github.com/bitrise-io/stepman/models"
-	"github.com/bitrise-io/stepman/steplibrary/spec"
+	"github.com/bitrise-io/stepman/steplibrary/steplibindex"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -32,7 +32,7 @@ func TestSteplib_Activate_Precompiled(t *testing.T) {
 
 	api := fakeAPI{
 		ids: []string{"script"},
-		latestVersions: map[string]spec.LatestPointer{
+		latestVersions: map[string]steplibindex.LatestPointer{
 			"script": {StepID: "script", Latest: "3.0.0"},
 		},
 		stepModel: map[string]models.StepModel{"script": stepModel},
@@ -42,7 +42,7 @@ func TestSteplib_Activate_Precompiled(t *testing.T) {
 
 	outDir := t.TempDir()
 	s := &Steplib{
-		log:         discardLogger{},
+		log:         testLog{t},
 		steplibURI:  "https://github.com/bitrise-io/bitrise-steplib.git",
 		api:         api,
 		fileManager: fileutil.NewFileManager(),
@@ -100,7 +100,7 @@ func TestSteplib_Activate_PrecompiledHashMismatch_FallsBackToSource(t *testing.T
 
 	api := fakeAPI{
 		ids: []string{"script"},
-		latestVersions: map[string]spec.LatestPointer{
+		latestVersions: map[string]steplibindex.LatestPointer{
 			"script": {StepID: "script", Latest: "3.0.0"},
 		},
 		stepModel: map[string]models.StepModel{"script": stepModel},
@@ -108,7 +108,7 @@ func TestSteplib_Activate_PrecompiledHashMismatch_FallsBackToSource(t *testing.T
 
 	outDir := t.TempDir()
 	s := &Steplib{
-		log:         discardLogger{},
+		log:         testLog{t},
 		steplibURI:  "https://github.com/bitrise-io/bitrise-steplib.git",
 		api:         api,
 		fileManager: fileutil.NewFileManager(),

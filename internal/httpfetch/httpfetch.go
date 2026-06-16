@@ -5,6 +5,7 @@
 package httpfetch
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -36,10 +37,8 @@ type Client interface {
 	DownloadWithHash(ctx context.Context, destPath, url, expectedHash string) error
 }
 
-// Logger is the minimal logging interface required by Client: the retry
-// adapter only emits debug lines. Both stepman.Logger and
-// go-utils/v2/log.Logger satisfy it, so callers can pass the logger they
-// already hold without widening it to the full go-utils contract.
+// Logger is the minimal logging interface Client needs; the retry adapter only
+// emits debug lines.
 type Logger interface {
 	Debugf(format string, v ...any)
 }
@@ -79,50 +78,63 @@ func (c *client) Get(ctx context.Context, url string) (io.ReadCloser, error) {
 		return nil, fmt.Errorf("GET %s: %w", url, err)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		snippet, readErr := io.ReadAll(io.LimitReader(resp.Body, 1024))
 		return nil, errors.Join(
-			fmt.Errorf("GET %s: unexpected status %d", url, resp.StatusCode),
+			&StatusError{URL: url, Code: resp.StatusCode, Body: string(bytes.TrimSpace(snippet))},
+			readErr,
 			resp.Body.Close(),
 		)
 	}
 	return resp.Body, nil
 }
 
+// StatusError is returned by Get when the server responds with a non-2xx
+// status, so callers can branch on the code (e.g. treat 404 as "not found")
+// via errors.As. Body holds a bounded snippet of the response body, which
+// usually explains the failure (a 404 page, S3's XML error, …).
+type StatusError struct {
+	URL  string
+	Code int
+	Body string
+}
+
+func (e *StatusError) Error() string {
+	return fmt.Sprintf("GET %s: unexpected status %d: %s", e.URL, e.Code, e.Body)
+}
+
 func (c *client) Download(ctx context.Context, destPath, url string) error {
-	if err := os.MkdirAll(filepath.Dir(destPath), 0o755); err != nil {
-		return fmt.Errorf("create dest dir for %s: %w", destPath, err)
-	}
-
-	tmpPath, _, err := c.fetchToTemp(ctx, filepath.Dir(destPath), url)
-	if err != nil {
-		return err
-	}
-
-	if renameErr := os.Rename(tmpPath, destPath); renameErr != nil {
-		return errors.Join(fmt.Errorf("rename %s to %s: %w", tmpPath, destPath, renameErr), os.Remove(tmpPath))
-	}
-	return nil
+	return c.download(ctx, destPath, url, "")
 }
 
 func (c *client) DownloadWithHash(ctx context.Context, destPath, url, expectedHash string) error {
 	if expectedHash == "" {
 		return fmt.Errorf("hash is empty")
 	}
+	return c.download(ctx, destPath, url, expectedHash)
+}
+
+// download fetches url into a temp file alongside destPath and atomically
+// renames it into place. When expectedHash is non-empty the content is verified
+// against it ("sha256-<hex>") before the rename, so a mismatched or partial
+// file never lands at destPath.
+func (c *client) download(ctx context.Context, destPath, url, expectedHash string) error {
 	if err := os.MkdirAll(filepath.Dir(destPath), 0o755); err != nil {
 		return fmt.Errorf("create dest dir for %s: %w", destPath, err)
 	}
+
 	tmpPath, hash, err := c.fetchToTemp(ctx, filepath.Dir(destPath), url)
 	if err != nil {
 		return err
 	}
+	// Best-effort cleanup: on a verify/rename failure this removes the temp
+	// file; after a successful rename tmpPath is gone, so Remove fails harmlessly.
+	defer func() { _ = os.Remove(tmpPath) }()
 
-	if hash != expectedHash {
-		return errors.Join(
-			fmt.Errorf("hash mismatch (%s) expected %s, got %s", url, expectedHash, hash),
-			os.Remove(tmpPath),
-		)
+	if expectedHash != "" && hash != expectedHash {
+		return fmt.Errorf("hash mismatch (%s) expected %s, got %s", url, expectedHash, hash)
 	}
-	if renameErr := os.Rename(tmpPath, destPath); renameErr != nil {
-		return errors.Join(fmt.Errorf("rename %s to %s: %w", tmpPath, destPath, renameErr), os.Remove(tmpPath))
+	if err := os.Rename(tmpPath, destPath); err != nil {
+		return fmt.Errorf("rename %s to %s: %w", tmpPath, destPath, err)
 	}
 	return nil
 }
@@ -138,11 +150,15 @@ func (c *client) fetchToTemp(ctx context.Context, dir, url string) (path string,
 		return "", "", fmt.Errorf("create temp file in %s: %w", dir, err)
 	}
 	defer func() {
+		// A failed Close is intentionally a hard failure: it can mean the final
+		// write never flushed to disk, so the temp file may be incomplete.
 		if closeErr := tmp.Close(); closeErr != nil {
 			err = errors.Join(err, fmt.Errorf("close %s: %w", tmp.Name(), closeErr))
 		}
 		if err != nil {
-			err = errors.Join(err, os.Remove(tmp.Name()))
+			// Best-effort cleanup of the partial temp file; the original error is
+			// what matters, so a failed remove is intentionally ignored.
+			_ = os.Remove(tmp.Name())
 			path = ""
 			hash = ""
 		}

@@ -9,6 +9,7 @@ import (
 
 	"github.com/bitrise-io/go-utils/command"
 	"github.com/bitrise-io/go-utils/command/git"
+	"github.com/bitrise-io/stepman/models"
 	"github.com/bitrise-io/stepman/stepid"
 	"github.com/bitrise-io/stepman/stepman"
 )
@@ -50,9 +51,10 @@ even if the repository is open source!`)
 	}
 
 	return ActivatedStep{
-		StepYMLPath:     stepYMLPath,
+		StepInfo:         models.StepInfoModel{},
+		StepYMLPath:      stepYMLPath,
 		DidStepLibUpdate: false,
-		ActivationType: ActivationTypeGitRef,
-		ExecutablePath: "",
+		ActivationType:   ActivationTypeGitRef,
+		ExecutablePath:   "",
 	}, nil
 }

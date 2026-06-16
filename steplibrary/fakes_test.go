@@ -14,16 +14,8 @@ import (
 
 	"github.com/bitrise-io/go-utils/pointers"
 	"github.com/bitrise-io/stepman/models"
-	"github.com/bitrise-io/stepman/steplibrary/spec"
+	"github.com/bitrise-io/stepman/steplibrary/steplibindex"
 )
-
-// discardLogger is a stepman.Logger that drops all output.
-type discardLogger struct{}
-
-func (discardLogger) Debugf(string, ...any) {}
-func (discardLogger) Errorf(string, ...any) {}
-func (discardLogger) Warnf(string, ...any)  {}
-func (discardLogger) Infof(string, ...any)  {}
 
 // FakeAPI is an in-memory API implementation used as a base for test fakes
 // that embed it and selectively override methods.
@@ -33,8 +25,8 @@ func (m FakeAPI) GetAllStepIDs(_ context.Context) ([]string, error) {
 	return []string{"xcode-test", "script"}, nil
 }
 
-func (m FakeAPI) GetLatestStepVersions(_ context.Context, id string) (spec.LatestPointer, error) {
-	versions := map[string]spec.LatestPointer{
+func (m FakeAPI) GetLatestStepVersions(_ context.Context, id string) (steplibindex.LatestPointer, error) {
+	versions := map[string]steplibindex.LatestPointer{
 		"script": {
 			StepID: "script",
 			Latest: "3.0.0",
@@ -48,7 +40,7 @@ func (m FakeAPI) GetLatestStepVersions(_ context.Context, id string) (spec.Lates
 
 	v, ok := versions[id]
 	if !ok {
-		return spec.LatestPointer{}, errors.New("not found")
+		return steplibindex.LatestPointer{}, errors.New("not found")
 	}
 	return v, nil
 }
@@ -64,19 +56,17 @@ func (m FakeAPI) GetAllStepVersions(_ context.Context, id string) ([]string, err
 	return v, nil
 }
 
-func (m FakeAPI) GetStepGroupInfo(_ context.Context, id string) (spec.StepInfo, error) {
-	infos := map[string]spec.StepInfo{
+func (m FakeAPI) GetStepGroupInfo(_ context.Context, id string) (steplibindex.StepInfo, error) {
+	infos := map[string]steplibindex.StepInfo{
 		"script": {
 			Maintainer:  "bitrise",
 			Deprecation: nil,
-			AssetURLs: map[string]string{
-				"icon.svg": "assets/icon.svg",
-			},
+			AssetURLs:   []string{"assets/icon.svg"},
 		},
 	}
 	v, ok := infos[id]
 	if !ok {
-		return spec.StepInfo{}, errors.New("not found")
+		return steplibindex.StepInfo{}, errors.New("not found")
 	}
 	return v, nil
 }
@@ -98,7 +88,7 @@ type fakeAPI struct {
 	FakeAPI
 	ids               []string
 	listErr           error
-	latestVersions    map[string]spec.LatestPointer
+	latestVersions    map[string]steplibindex.LatestPointer
 	latestVersionsErr error
 	allVersions       map[string][]string
 	allVersionsErr    error
@@ -110,13 +100,13 @@ func (f fakeAPI) GetAllStepIDs(_ context.Context) ([]string, error) {
 	return f.ids, f.listErr
 }
 
-func (f fakeAPI) GetLatestStepVersions(_ context.Context, id string) (spec.LatestPointer, error) {
+func (f fakeAPI) GetLatestStepVersions(_ context.Context, id string) (steplibindex.LatestPointer, error) {
 	if f.latestVersionsErr != nil {
-		return spec.LatestPointer{}, f.latestVersionsErr
+		return steplibindex.LatestPointer{}, f.latestVersionsErr
 	}
 	v, ok := f.latestVersions[id]
 	if !ok {
-		return spec.LatestPointer{}, errors.New("not found")
+		return steplibindex.LatestPointer{}, errors.New("not found")
 	}
 	return v, nil
 }
@@ -132,9 +122,9 @@ func (f fakeAPI) GetAllStepVersions(_ context.Context, id string) ([]string, err
 	return v, nil
 }
 
-func (f fakeAPI) GetStepGroupInfo(ctx context.Context, id string) (spec.StepInfo, error) {
+func (f fakeAPI) GetStepGroupInfo(ctx context.Context, id string) (steplibindex.StepInfo, error) {
 	if f.groupInfoErr != nil {
-		return spec.StepInfo{}, f.groupInfoErr
+		return steplibindex.StepInfo{}, f.groupInfoErr
 	}
 	return f.FakeAPI.GetStepGroupInfo(ctx, id)
 }
@@ -210,6 +200,15 @@ type stubSource struct {
 func (s stubSource) stepSourceDir(context.Context, ResolvedStepVersion) (string, error) {
 	return s.dir, s.err
 }
+
+// testLog routes stepman log output to t.Log, so activation stays quiet on
+// success but surfaces (e.g. precompiled-fallback warnings) in failure output.
+type testLog struct{ t *testing.T }
+
+func (l testLog) Debugf(f string, a ...any) { l.t.Logf("DEBUG "+f, a...) }
+func (l testLog) Errorf(f string, a ...any) { l.t.Logf("ERROR "+f, a...) }
+func (l testLog) Warnf(f string, a ...any)  { l.t.Logf("WARN "+f, a...) }
+func (l testLog) Infof(f string, a ...any)  { l.t.Logf("INFO "+f, a...) }
 
 // errReadCloser wraps a reader and returns closeErr from Close.
 type errReadCloser struct {

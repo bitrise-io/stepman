@@ -1,4 +1,0 @@
-maintainer: community
-removal_date: "2026-12-31"
-deprecate_notes: |
-  Replaced by hello-step. Migrate by updating your bitrise.yml.

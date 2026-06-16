@@ -1,7 +1,6 @@
 package steplibrary
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -15,22 +14,22 @@ import (
 
 func TestHTTPAPI(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/spec/step_ids.json", func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"format_version":"2.0.0","step_ids":["hello-step","git-clone"]}`))
+	mux.HandleFunc("/v2/index/step_ids.json", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"step_ids":["hello-step","git-clone"]}`))
 	})
-	mux.HandleFunc("/spec/steps/hello-step/latest.json", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/v2/index/steps/hello-step/latest.json", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"step_id":"hello-step","latest":"2.0.0","latest_by_major":{"1":"1.1.0","2":"2.0.0"}}`))
 	})
-	mux.HandleFunc("/spec/steps/hello-step/versions.json", func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"step_id":"hello-step","latest":"2.0.0","versions":[{"version":"2.0.0"},{"version":"1.1.0"},{"version":"1.0.0"}]}`))
+	mux.HandleFunc("/v2/index/steps/hello-step/versions.json", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"step_id":"hello-step","versions":["2.0.0","1.1.0","1.0.0"]}`))
 	})
-	mux.HandleFunc("/steps/hello-step/step-info.json", func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"maintainer":"bitrise","deprecation":null,"asset_urls":{"icon.svg":"assets/icon.svg"}}`))
+	mux.HandleFunc("/v2/steps/hello-step/step-info.json", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"maintainer":"bitrise","deprecation":null,"asset_urls":["assets/icon.svg"]}`))
 	})
-	mux.HandleFunc("/steps/hello-step/2.0.0/step.json", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/v2/steps/hello-step/2.0.0/step.json", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"title":"Hello","summary":"says hi"}`))
 	})
-	mux.HandleFunc("/steps/hello-step/2.0.0/src.zip", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/v2/steps/hello-step/2.0.0/src.zip", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("PK\x03\x04seed-zip-bytes"))
 	})
 
@@ -38,7 +37,7 @@ func TestHTTPAPI(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	api := NewHTTPAPI(srv.URL, httpfetch.NewWithClient(srv.Client()))
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("GetAllStepIDs", func(t *testing.T) {
 		got, gotErr := api.GetAllStepIDs(ctx)
@@ -65,7 +64,7 @@ func TestHTTPAPI(t *testing.T) {
 		require.NoError(t, gotErr, "GetStepGroupInfo")
 		assert.Equal(t, "bitrise", got.Maintainer, "Maintainer")
 		assert.Nil(t, got.Deprecation, "Deprecation")
-		assert.Equal(t, "assets/icon.svg", got.AssetURLs["icon.svg"], "AssetURLs[icon.svg]")
+		assert.Equal(t, []string{"assets/icon.svg"}, got.AssetURLs, "AssetURLs")
 	})
 
 	t.Run("GetStepModel decodes step.json into models.StepModel", func(t *testing.T) {
@@ -75,10 +74,12 @@ func TestHTTPAPI(t *testing.T) {
 		assert.Equal(t, "Hello", *got.Title, "Title")
 	})
 
-	t.Run("404 surfaces unexpected status", func(t *testing.T) {
+	t.Run("404 surfaces as a typed StatusError", func(t *testing.T) {
 		_, gotErr := api.GetLatestStepVersions(ctx, "missing-step")
 		require.Error(t, gotErr, "GetLatestStepVersions for missing step")
-		assert.Contains(t, gotErr.Error(), "unexpected status 404", "error message")
+		var statusErr *httpfetch.StatusError
+		require.ErrorAs(t, gotErr, &statusErr)
+		assert.Equal(t, http.StatusNotFound, statusErr.Code, "status code")
 	})
 }
 
@@ -86,13 +87,13 @@ func TestHTTPAPI(t *testing.T) {
 // pattern in fetchJSON: when decoding succeeds but closing the body fails, the
 // close error must surface as the call's error.
 func TestHTTPAPI_fetchJSON_propagatesCloseError(t *testing.T) {
+	closeErr := errors.New("boom")
 	api := &HTTPAPI{
 		BaseURL: "http://example.test",
-		Fetcher: fakeGetFetcher{body: `{"step_ids":["a","b"]}`, closeErr: errors.New("boom")},
+		Fetcher: fakeGetFetcher{body: `{"step_ids":["a","b"]}`, closeErr: closeErr},
 	}
 
-	_, gotErr := api.GetAllStepIDs(context.Background())
+	_, gotErr := api.GetAllStepIDs(t.Context())
 	require.Error(t, gotErr, "GetAllStepIDs")
-	assert.Contains(t, gotErr.Error(), "close response body", "error wraps close failure")
-	assert.Contains(t, gotErr.Error(), "boom", "error preserves underlying cause")
+	require.ErrorIs(t, gotErr, closeErr, "close failure surfaces as the call error")
 }
