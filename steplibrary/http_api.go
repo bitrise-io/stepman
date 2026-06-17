@@ -71,7 +71,6 @@ func (h *HTTPAPI) GetStepGroupInfo(ctx context.Context, id string) (steplibindex
 // GetStepModel fetches the V2 step manifest (`steps/<id>/<v>/step.json`,
 // which serializes models.StepModel) and returns the decoded model.
 func (h *HTTPAPI) GetStepModel(ctx context.Context, step ResolvedStepVersion) (models.StepModel, error) {
-	//nolint:exhaustruct // server JSON dictates which fields are populated
 	var out models.StepModel
 	p, err := steplibindex.StepJSONPath(step.ID, step.Version)
 	if err != nil {
