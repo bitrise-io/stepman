@@ -130,22 +130,17 @@ func toStepGroupInfoModel(info steplibindex.StepInfo) models.StepGroupInfoModel 
 // constraint's Major+Minor. An unparseable entry is an error — versions.json is
 // expected to hold only valid semver.
 func resolveMinorLocked(versions []string, constraint models.Semver) (string, error) {
-	var best models.Semver
-	found := false
+	parsed := make([]models.Semver, 0, len(versions))
 	for _, raw := range versions {
 		sv, err := models.ParseSemver(raw)
 		if err != nil {
 			return "", fmt.Errorf("parse version %q: %w", raw, err)
 		}
-		if sv.Major != constraint.Major || sv.Minor != constraint.Minor {
-			continue
-		}
-		if !found || sv.Patch > best.Patch {
-			best = sv
-			found = true
-		}
+		parsed = append(parsed, sv)
 	}
-	if !found {
+
+	best, ok := models.HighestForMajorMinor(parsed, constraint)
+	if !ok {
 		return "", fmt.Errorf("no version matches %d.%d.x", constraint.Major, constraint.Minor)
 	}
 	return best.String(), nil
