@@ -9,7 +9,6 @@ import (
 
 	"github.com/bitrise-io/go-utils/command"
 	"github.com/bitrise-io/go-utils/command/git"
-	"github.com/bitrise-io/stepman/models"
 	"github.com/bitrise-io/stepman/stepid"
 	"github.com/bitrise-io/stepman/steplibrary"
 	"github.com/bitrise-io/stepman/stepman"
@@ -51,8 +50,13 @@ even if the repository is open source!`)
 		return steplibrary.ActivatedStep{}, err
 	}
 
+	stepInfo, err := stepman.QueryStepInfoFromGitStepDir(activatedStepDir, id.IDorURI, id.Version)
+	if err != nil {
+		return steplibrary.ActivatedStep{}, err
+	}
+
 	return steplibrary.ActivatedStep{
-		StepInfo:         models.StepInfoModel{},
+		StepInfo:         stepInfo,
 		StepYMLPath:      stepYMLPath,
 		DidStepLibUpdate: false,
 		ActivationType:   steplibrary.ActivationTypeGitRef,
