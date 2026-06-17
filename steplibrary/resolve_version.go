@@ -17,20 +17,20 @@ func (s *Steplib) getStepVersionInfo(ctx context.Context, stepID, version string
 		return models.StepInfoModel{}, ResolvedStepVersion{}, errors.New("missing required input: step id")
 	}
 
-	allSteps, err := s.api.GetAllStepIDs(ctx)
-	if err != nil {
-		return models.StepInfoModel{}, ResolvedStepVersion{}, fmt.Errorf("fetching available step IDs: %w", err)
-	}
-	if !slices.Contains(allSteps, stepID) {
-		return models.StepInfoModel{}, ResolvedStepVersion{}, fmt.Errorf("%s steplib does not contain %s step", s.steplibURI, stepID)
-	}
-
 	versionConstraint, err := models.ParseRequiredVersion(version)
 	if err != nil {
 		return models.StepInfoModel{}, ResolvedStepVersion{}, fmt.Errorf("invalid step version constraint: %w", err)
 	}
 	if versionConstraint.VersionLockType == models.InvalidVersionConstraint {
 		return models.StepInfoModel{}, ResolvedStepVersion{}, fmt.Errorf("invalid step version constraint: %s", version)
+	}
+
+	allSteps, err := s.api.GetAllStepIDs(ctx)
+	if err != nil {
+		return models.StepInfoModel{}, ResolvedStepVersion{}, fmt.Errorf("fetching available step IDs: %w", err)
+	}
+	if !slices.Contains(allSteps, stepID) {
+		return models.StepInfoModel{}, ResolvedStepVersion{}, fmt.Errorf("%s steplib does not contain %s step", s.steplibURI, stepID)
 	}
 
 	latestVersions, err := s.api.GetLatestStepVersions(ctx, stepID)
