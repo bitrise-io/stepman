@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/bitrise-io/go-utils/v2/fileutil"
-	"github.com/bitrise-io/stepman/activator/result"
 	"github.com/bitrise-io/stepman/internal/httpfetch"
 	"github.com/bitrise-io/stepman/stepman"
 	"gopkg.in/yaml.v2"
@@ -34,31 +33,31 @@ func New(log stepman.Logger, steplibURI, inventoryURL string, fileManager fileut
 	}
 }
 
-func (s *Steplib) Activate(ctx context.Context, stepID, version string, outputPaths ActivateOutputPaths) (result.ActivatedStep, error) {
+func (s *Steplib) Activate(ctx context.Context, stepID, version string, outputPaths ActivateOutputPaths) (ActivatedStep, error) {
 	stepInfo, resolved, err := s.getStepVersionInfo(ctx, stepID, version)
 	if err != nil {
-		return result.ActivatedStep{}, err
+		return ActivatedStep{}, err
 	}
 
 	stepModel, err := s.api.GetStepModel(ctx, resolved)
 	if err != nil {
-		return result.ActivatedStep{}, err
+		return ActivatedStep{}, err
 	}
 
 	stepYML, err := yaml.Marshal(stepModel)
 	if err != nil {
-		return result.ActivatedStep{}, fmt.Errorf("marshal step model to YAML: %w", err)
+		return ActivatedStep{}, fmt.Errorf("marshal step model to YAML: %w", err)
 	}
 
 	if err := s.fileManager.WriteBytes(outputPaths.YMLPath, stepYML); err != nil {
-		return result.ActivatedStep{}, err
+		return ActivatedStep{}, err
 	}
 
-	return result.ActivatedStep{
+	return ActivatedStep{
 		StepInfo:         stepInfo,
 		StepYMLPath:      outputPaths.YMLPath,
 		ExecutablePath:   "",
-		ActivationType:   result.ActivationTypeSteplibSource,
+		ActivationType:   ActivationTypeSteplibSource,
 		DidStepLibUpdate: false, // deprecated
 	}, nil
 }

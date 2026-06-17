@@ -1,4 +1,4 @@
-package result
+package steplibrary
 
 import "github.com/bitrise-io/stepman/models"
 
