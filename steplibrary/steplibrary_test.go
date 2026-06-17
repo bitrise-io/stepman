@@ -134,7 +134,7 @@ func TestSteplib_Activate(t *testing.T) {
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			s := &Steplib{
+			client := &Client{
 				log:         testLogger{t},
 				steplibURI:  "https://github.com/bitrise-io/bitrise-steplib.git",
 				api:         tc.api,
@@ -146,7 +146,7 @@ func TestSteplib_Activate(t *testing.T) {
 				YMLPath:  filepath.Join(outDir, "current_step.yml"),
 				CodePath: filepath.Join(outDir, "code"),
 			}
-			got, gotErr := s.Activate(context.Background(), tc.stepID, tc.version, outPaths)
+			got, gotErr := client.Activate(context.Background(), tc.stepID, tc.version, outPaths)
 			if tc.wantErr != "" {
 				require.Errorf(t, gotErr, "Activate(%q, %q)", tc.stepID, tc.version)
 				assert.Containsf(t, gotErr.Error(), tc.wantErr, "Activate(%q, %q) error message", tc.stepID, tc.version)
@@ -228,7 +228,7 @@ func TestSteplib_getStepVersionInfo(t *testing.T) {
 		"invalid version constraint":         {stepID: "script", version: "1.2.3.4", wantErr: true},
 	}
 
-	s := &Steplib{
+	client := &Client{
 		log:         nil,
 		steplibURI:  "https://steplib.example",
 		api:         FakeAPI{},
@@ -237,7 +237,7 @@ func TestSteplib_getStepVersionInfo(t *testing.T) {
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			stepInfo, resolved, gotErr := s.getStepVersionInfo(t.Context(), tc.stepID, tc.version)
+			stepInfo, resolved, gotErr := client.getStepVersionInfo(t.Context(), tc.stepID, tc.version)
 			if tc.wantErr {
 				require.Error(t, gotErr)
 				return

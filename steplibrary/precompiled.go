@@ -62,13 +62,13 @@ func precompiledURLs(e models.Executable) ([]string, error) {
 }
 
 // downloadFromURLs tries each url in order, verifying expectedHash on each attempt.
-func (s *Steplib) downloadFromURLs(ctx context.Context, destPath, expectedHash string, urls []string) error {
+func (c *Client) downloadFromURLs(ctx context.Context, destPath, expectedHash string, urls []string) error {
 	var errs []error
 	for _, url := range urls {
-		if err := s.fetcher.DownloadWithHash(ctx, destPath, url, expectedHash); err == nil {
+		if err := c.fetcher.DownloadWithHash(ctx, destPath, url, expectedHash); err == nil {
 			return nil
 		} else {
-			s.log.Warnf("Failed to download from %s: %s\n", url, err)
+			c.log.Warnf("Failed to download from %s: %s\n", url, err)
 			errs = append(errs, fmt.Errorf("%s: %w", url, err))
 		}
 	}
@@ -78,7 +78,7 @@ func (s *Steplib) downloadFromURLs(ctx context.Context, destPath, expectedHash s
 // downloadPrecompiled fetches `executable` for the current platform, verifies
 // its SHA256, makes the file executable, and places it at destDir/<stepID>.
 // Returns the final binary path.
-func (s *Steplib) downloadPrecompiled(ctx context.Context, stepID string, executable models.Executable, destDir string) (binPath string, err error) {
+func (c *Client) downloadPrecompiled(ctx context.Context, stepID string, executable models.Executable, destDir string) (binPath string, err error) {
 	if executable.Hash == "" {
 		return "", fmt.Errorf("hash is empty")
 	}
@@ -88,7 +88,7 @@ func (s *Steplib) downloadPrecompiled(ctx context.Context, stepID string, execut
 	}
 
 	binPath = filepath.Join(destDir, stepID)
-	if err = s.downloadFromURLs(ctx, binPath, executable.Hash, urls); err != nil {
+	if err = c.downloadFromURLs(ctx, binPath, executable.Hash, urls); err != nil {
 		return "", err
 	}
 	defer func() {

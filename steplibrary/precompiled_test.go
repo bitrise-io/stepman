@@ -41,7 +41,7 @@ func TestSteplib_Activate_Precompiled(t *testing.T) {
 	dl := &fakeFetcher{payload: payload}
 
 	outDir := t.TempDir()
-	s := &Steplib{
+	client := &Client{
 		log:         testLogger{t},
 		steplibURI:  "https://github.com/bitrise-io/bitrise-steplib.git",
 		api:         api,
@@ -49,7 +49,7 @@ func TestSteplib_Activate_Precompiled(t *testing.T) {
 		fetcher:     dl,
 	}
 
-	got, gotErr := s.Activate(context.Background(), "script", "", ActivateOutputPaths{
+	got, gotErr := client.Activate(context.Background(), "script", "", ActivateOutputPaths{
 		YMLPath:  filepath.Join(outDir, "current_step.yml"),
 		CodePath: filepath.Join(outDir, "code"),
 	})
@@ -107,7 +107,7 @@ func TestSteplib_Activate_PrecompiledHashMismatch_FallsBackToSource(t *testing.T
 	}
 
 	outDir := t.TempDir()
-	s := &Steplib{
+	client := &Client{
 		log:         testLogger{t},
 		steplibURI:  "https://github.com/bitrise-io/bitrise-steplib.git",
 		api:         api,
@@ -116,7 +116,7 @@ func TestSteplib_Activate_PrecompiledHashMismatch_FallsBackToSource(t *testing.T
 		source:      stubSource{dir: sourceDir},
 	}
 
-	got, gotErr := s.Activate(context.Background(), "script", "", ActivateOutputPaths{
+	got, gotErr := client.Activate(context.Background(), "script", "", ActivateOutputPaths{
 		YMLPath:  filepath.Join(outDir, "current_step.yml"),
 		CodePath: filepath.Join(outDir, "code"),
 	})
