@@ -27,22 +27,23 @@ func NewHTTPAPI(baseURL string, fetcher httpfetch.Client) *HTTPAPI {
 }
 
 func (h *HTTPAPI) GetAllStepIDs(ctx context.Context) ([]string, error) {
-	var payload steplibindex.StepIDs
-	if err := h.fetchJSON(ctx, steplibindex.StepIDsPath().URL(), &payload); err != nil {
+	var out steplibindex.StepIDs
+	if err := h.fetchJSON(ctx, steplibindex.StepIDsPath().URL(), &out); err != nil {
 		return nil, err
 	}
-	return payload.StepIDs, nil
+	return out.StepIDs, nil
 }
 
 func (h *HTTPAPI) GetLatestStepVersions(ctx context.Context, id string) (steplibindex.LatestPointer, error) {
-	//nolint:exhaustruct // server JSON dictates which fields are populated
-	var out steplibindex.LatestPointer
 	p, err := steplibindex.LatestPointerPath(id)
 	if err != nil {
-		return out, err
+		return steplibindex.LatestPointer{}, err
 	}
-	err = h.fetchJSON(ctx, p.URL(), &out)
-	return out, err
+	var out steplibindex.LatestPointer
+	if err := h.fetchJSON(ctx, p.URL(), &out); err != nil {
+		return steplibindex.LatestPointer{}, err
+	}
+	return out, nil
 }
 
 func (h *HTTPAPI) GetAllStepVersions(ctx context.Context, id string) ([]string, error) {
@@ -50,34 +51,37 @@ func (h *HTTPAPI) GetAllStepVersions(ctx context.Context, id string) ([]string, 
 	if err != nil {
 		return nil, err
 	}
-	var payload steplibindex.Versions
-	if err := h.fetchJSON(ctx, p.URL(), &payload); err != nil {
+	var out steplibindex.Versions
+	if err := h.fetchJSON(ctx, p.URL(), &out); err != nil {
 		return nil, err
 	}
-	return payload.Versions, nil
+	return out.Versions, nil
 }
 
 func (h *HTTPAPI) GetStepGroupInfo(ctx context.Context, id string) (steplibindex.StepInfo, error) {
-	//nolint:exhaustruct // Deprecation is optional, nil means active
-	out := steplibindex.StepInfo{}
 	p, err := steplibindex.StepInfoPath(id)
 	if err != nil {
-		return out, err
+		return steplibindex.StepInfo{}, err
 	}
-	err = h.fetchJSON(ctx, p.URL(), &out)
-	return out, err
+	var out steplibindex.StepInfo
+	if err := h.fetchJSON(ctx, p.URL(), &out); err != nil {
+		return steplibindex.StepInfo{}, err
+	}
+	return out, nil
 }
 
 // GetStepModel fetches the V2 step manifest (`steps/<id>/<v>/step.json`,
 // which serializes models.StepModel) and returns the decoded model.
 func (h *HTTPAPI) GetStepModel(ctx context.Context, step ResolvedStepVersion) (models.StepModel, error) {
-	var out models.StepModel
 	p, err := steplibindex.StepJSONPath(step.ID, step.Version)
 	if err != nil {
-		return out, err
+		return models.StepModel{}, err
 	}
-	err = h.fetchJSON(ctx, p.URL(), &out)
-	return out, err
+	var out models.StepModel
+	if err := h.fetchJSON(ctx, p.URL(), &out); err != nil {
+		return models.StepModel{}, err
+	}
+	return out, nil
 }
 
 func (h *HTTPAPI) fetchJSON(ctx context.Context, path string, dst any) (err error) {
