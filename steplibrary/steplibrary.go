@@ -36,12 +36,12 @@ func New(log stepman.Logger, steplibURI, inventoryURL string, fileManager fileut
 func (s *Steplib) Activate(ctx context.Context, stepID, version string, outputPaths ActivateOutputPaths) (ActivatedStep, error) {
 	stepInfo, resolved, err := s.getStepVersionInfo(ctx, stepID, version)
 	if err != nil {
-		return ActivatedStep{}, err
+		return ActivatedStep{}, fmt.Errorf("resolve step version: %w", err)
 	}
 
 	stepModel, err := s.api.GetStepModel(ctx, resolved)
 	if err != nil {
-		return ActivatedStep{}, err
+		return ActivatedStep{}, fmt.Errorf("fetch step definition: %w", err)
 	}
 
 	stepYML, err := yaml.Marshal(stepModel)
@@ -50,7 +50,7 @@ func (s *Steplib) Activate(ctx context.Context, stepID, version string, outputPa
 	}
 
 	if err := s.fileManager.WriteBytes(outputPaths.YMLPath, stepYML); err != nil {
-		return ActivatedStep{}, err
+		return ActivatedStep{}, fmt.Errorf("write step.yml: %w", err)
 	}
 
 	return ActivatedStep{
