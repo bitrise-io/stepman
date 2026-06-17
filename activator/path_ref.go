@@ -31,7 +31,7 @@ func ActivatePathRefStep(
 		return ActivatedStep{}, fmt.Errorf("the provided directory doesn't exist: %s", stepAbsLocalPth)
 	}
 
-	log.Debugf("stepAbsLocalPth:", stepAbsLocalPth, "|stepDir:", activatedStepDir)
+	log.Debugf("stepAbsLocalPth: %s, stepDir:%s", stepAbsLocalPth, activatedStepDir)
 
 	origStepYMLPth := filepath.Join(stepAbsLocalPth, "step.yml")
 	exist, err = pathutil.IsPathExists(origStepYMLPth)

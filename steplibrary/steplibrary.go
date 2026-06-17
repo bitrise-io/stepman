@@ -13,13 +13,10 @@ import (
 
 type Steplib struct {
 	log stepman.Logger
-	// steplibURI is the steplib *identity* — the URI the user references in
-	// bitrise.yml (e.g. the official git URL). It is reported as
-	// StepInfoModel.Library.
+	// steplibURI is set by the `default_step_lib_source` property in bitrise.yml
 	steplibURI  string
 	api         API
 	fileManager fileutil.FileManager
-	fetcher     httpfetch.Client
 }
 
 type ActivateOutputPaths struct {
@@ -34,7 +31,6 @@ func New(log stepman.Logger, steplibURI, inventoryURL string, fileManager fileut
 		steplibURI:  steplibURI,
 		api:         NewHTTPAPI(inventoryURL, httpfetch.NewClient(log)),
 		fileManager: fileManager,
-		fetcher:     httpfetch.NewClient(log),
 	}
 }
 
