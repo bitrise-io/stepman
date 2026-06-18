@@ -2,9 +2,15 @@ package steplibrary
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
+	"testing"
 
 	"github.com/bitrise-io/go-utils/pointers"
 	"github.com/bitrise-io/stepman/models"
@@ -96,6 +102,36 @@ func (f fakeAPI) GetStepModel(_ context.Context, step ResolvedStepVersion) (mode
 	return v, nil
 }
 
+// fakeFetcher is an httpfetch.Client that writes a fixed payload.
+type fakeFetcher struct {
+	payload []byte
+	gotURL  string
+	err     error
+}
+
+func (f *fakeFetcher) Get(_ context.Context, source string) (io.ReadCloser, error) {
+	return nil, errors.New("Get not used by Steplib precompiled flow")
+}
+
+func (f *fakeFetcher) Download(_ context.Context, _, _ string) error {
+	return errors.New("Download not used by Steplib precompiled flow")
+}
+
+func (f *fakeFetcher) DownloadWithHash(_ context.Context, destPath, url, expectedHash string) error {
+	f.gotURL = url
+	if f.err != nil {
+		return f.err
+	}
+	actual := sha256OfBytes(f.payload)
+	if actual != expectedHash {
+		return fmt.Errorf("hash mismatch: expected %s, got %s", expectedHash, actual)
+	}
+	if err := os.MkdirAll(filepath.Dir(destPath), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(destPath, f.payload, 0o644)
+}
+
 // fakeGetFetcher implements httpfetch.Client.Get, returning a fixed body whose
 // Close returns closeErr. Used to exercise fetchJSON's close-error path.
 type fakeGetFetcher struct {
@@ -122,3 +158,16 @@ type errReadCloser struct {
 }
 
 func (e errReadCloser) Close() error { return e.closeErr }
+
+func sha256OfBytes(b []byte) string {
+	h := sha256.Sum256(b)
+	return "sha256-" + hex.EncodeToString(h[:])
+}
+
+// testLogger routes stepman log output to t.Log.
+type testLogger struct{ t *testing.T }
+
+func (l testLogger) Debugf(f string, a ...any) { l.t.Logf("DEBUG "+f, a...) }
+func (l testLogger) Errorf(f string, a ...any) { l.t.Logf("ERROR "+f, a...) }
+func (l testLogger) Warnf(f string, a ...any)  { l.t.Logf("WARN "+f, a...) }
+func (l testLogger) Infof(f string, a ...any)  { l.t.Logf("INFO "+f, a...) }
