@@ -38,17 +38,18 @@ func currentPlatform() string {
 }
 
 // ResolveExecutable returns the step's precompiled binary for the current
-// platform, the platform key, and whether a usable binary was found.
-func ResolveExecutable(step models.StepModel) (executable models.Executable, platform string, ok bool) {
+// platform, or nil when no usable binary is available. The platform key is
+// always returned.
+func ResolveExecutable(step models.StepModel) (executable *models.Executable, platform string) {
 	platform = currentPlatform()
 	if step.Executables == nil {
-		return models.Executable{}, platform, false
+		return nil, platform
 	}
 	e, found := (*step.Executables)[platform]
 	if !found || e.StorageURI == "" || e.Hash == "" {
-		return models.Executable{}, platform, false
+		return nil, platform
 	}
-	return e, platform, true
+	return &e, platform
 }
 
 func precompiledURLs(e models.Executable) ([]string, error) {
