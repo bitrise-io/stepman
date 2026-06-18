@@ -67,9 +67,8 @@ func (c *Client) resolveVersion(ctx context.Context, stepID, version string, con
 		return latestVersions.Latest, nil
 	case models.Fixed:
 		resolved := constraint.Version.String()
-		// Verify the pinned version actually exists; otherwise a typo'd pin
-		// surfaces later as an opaque fetch/decode error instead of a clear
-		// "no such version".
+		// Verify the pin exists now, so a typo fails clearly instead of as an
+		// opaque fetch error later.
 		allVersions, err := c.api.GetAllStepVersions(ctx, stepID)
 		if err != nil {
 			return "", fmt.Errorf("fetching all versions of `%s`: %w", stepID, err)
@@ -100,12 +99,11 @@ func (c *Client) resolveVersion(ctx context.Context, stepID, version string, con
 	}
 }
 
-// toStepGroupInfoModel flattens v2's nested `deprecation` object into v1's
-// `RemovalDate` + `DeprecateNotes` fields so the rest of the codebase keeps
-// reading the same model shape.
+// toStepGroupInfoModel flattens v2's nested `deprecation` object into v1's flat
+// RemovalDate + DeprecateNotes fields.
 func toStepGroupInfoModel(info steplibindex.StepInfo) models.StepGroupInfoModel {
-	// v2's asset_urls is a []string of step-relative URLs; v1's model keys them
-	// by asset filename. Rebuild that map (e.g. "assets/icon.svg" -> {"icon.svg": ...}).
+	// v2 asset_urls is a []string of step-relative URLs; v1 keys them by filename
+	// (e.g. "assets/icon.svg" -> {"icon.svg": ...}).
 	var assetURLs map[string]string
 	if len(info.AssetURLs) > 0 {
 		assetURLs = make(map[string]string, len(info.AssetURLs))
