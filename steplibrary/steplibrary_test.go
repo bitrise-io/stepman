@@ -74,7 +74,7 @@ func TestSteplib_getStepVersionInfo(t *testing.T) {
 		"invalid version constraint":         {stepID: "script", version: "1.2.3.4", wantErr: true},
 	}
 
-	s := &Steplib{
+	client := &Client{
 		log:         nil,
 		steplibURI:  "https://steplib.example",
 		api:         FakeAPI{},
@@ -83,7 +83,7 @@ func TestSteplib_getStepVersionInfo(t *testing.T) {
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			stepInfo, resolved, gotErr := s.getStepVersionInfo(t.Context(), tc.stepID, tc.version)
+			stepInfo, resolved, gotErr := client.getStepVersionInfo(t.Context(), tc.stepID, tc.version)
 			if tc.wantErr {
 				require.Error(t, gotErr)
 				return
