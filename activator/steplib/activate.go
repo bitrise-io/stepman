@@ -34,14 +34,15 @@ func ActivateStep(stepLibURI, id, version, destination, destinationStepYML strin
 			log.Debugf("Downloading executable for %s", platform)
 			downloadStart := time.Now()
 			execPath, err := steplibrary.DownloadPrecompiled(context.Background(), httpfetch.NewClient(log), log, id, executable, destination)
-			if err == nil {
+			if err != nil {
+				log.Warnf("Failed to download step executable, fallback to step source activation: %s", err)
+			} else {
 				if err := copyStepYML(stepLibURI, id, version, destinationStepYML); err != nil {
 					return "", fmt.Errorf("copy step.yml: %s", err)
 				}
 				log.Debugf("Downloaded executable in %s", time.Since(downloadStart).Round(time.Millisecond))
 				return execPath, nil
 			}
-			log.Warnf("Failed to download step executable, fallback to step source activation: %s", err)
 		} else {
 			log.Infof("No prebuilt executable found for %s, fallback to step source activation", platform)
 		}

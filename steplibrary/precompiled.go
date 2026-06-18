@@ -121,12 +121,13 @@ func DownloadPrecompiled(ctx context.Context, fetcher httpfetch.Client, log step
 func downloadFromURLs(ctx context.Context, fetcher httpfetch.Client, log stepman.Logger, destPath, expectedHash string, urls []string) error {
 	var errs []error
 	for _, url := range urls {
-		if err := fetcher.DownloadWithHash(ctx, destPath, url, expectedHash); err == nil {
-			return nil
-		} else {
+		err := fetcher.DownloadWithHash(ctx, destPath, url, expectedHash)
+		if err != nil {
 			log.Warnf("Failed to download from %s: %s", url, err)
 			errs = append(errs, fmt.Errorf("%s: %w", url, err))
+			continue
 		}
+		return nil
 	}
 	return fmt.Errorf("failed to download executable: %w", errors.Join(errs...))
 }
