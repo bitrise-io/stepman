@@ -102,8 +102,7 @@ func (f fakeAPI) GetStepModel(_ context.Context, step ResolvedStepVersion) (mode
 	return v, nil
 }
 
-// fakeFetcher implements httpfetch.Client by writing a fixed byte payload on
-// DownloadWithHash. Get and Download are not used by the precompiled flow.
+// fakeFetcher is an httpfetch.Client that writes a fixed payload.
 type fakeFetcher struct {
 	payload []byte
 	gotURL  string
@@ -165,7 +164,7 @@ func sha256OfBytes(b []byte) string {
 	return "sha256-" + hex.EncodeToString(h[:])
 }
 
-// testLogger routes stepman log output to t.Log: quiet on success, surfaced on failure.
+// testLogger routes stepman log output to t.Log.
 type testLogger struct{ t *testing.T }
 
 func (l testLogger) Debugf(f string, a ...any) { l.t.Logf("DEBUG "+f, a...) }

@@ -14,37 +14,31 @@ import (
 	"github.com/bitrise-io/stepman/stepman"
 )
 
-// PrecompiledStepsExperimentEnv gates precompiled-binary activation; both the V1
-// activator and the V2 reader prefer a published binary only when it is enabled.
+// PrecompiledStepsExperimentEnv gates precompiled-binary activation.
 const PrecompiledStepsExperimentEnv = "BITRISE_EXPERIMENT_PRECOMPILED_STEPS"
 
-// PrecompiledStepsStorageURLsEnv overrides the ordered list of storage base URLs
-// at runtime (comma-separated).
+// PrecompiledStepsStorageURLsEnv overrides the default storage base URLs (comma-separated).
 const PrecompiledStepsStorageURLsEnv = "BITRISE_PRECOMPILED_STEPS_STORAGE_URLS"
 
-// PrecompiledStepsEnabled reports whether the precompiled-steps experiment is on.
+// PrecompiledStepsEnabled reports whether the precompiled-steps experiment is enabled.
 func PrecompiledStepsEnabled() bool {
 	v := os.Getenv(PrecompiledStepsExperimentEnv)
 	return v == "true" || v == "1"
 }
 
-// PrecompiledStepsDefaultStorageURLs is the ordered list of storage base URLs
-// used when PrecompiledStepsStorageURLsEnv is unset.
+// PrecompiledStepsDefaultStorageURLs lists the storage base URLs used when
+// PrecompiledStepsStorageURLsEnv is unset.
 var PrecompiledStepsDefaultStorageURLs = []string{
 	"https://storage.googleapis.com/bitrise-steplib-storage",
 	"https://storage-gateway.services.bitrise.io",
 }
 
-// currentPlatform returns the runtime platform key (e.g. "darwin-arm64") used
-// to look up an entry in models.StepModel.Executables.
 func currentPlatform() string {
 	return fmt.Sprintf("%s-%s", runtime.GOOS, runtime.GOARCH)
 }
 
-// ResolveExecutable picks the precompiled binary for the current OS+arch from
-// the step model. It always returns the current platform key (for logging),
-// and ok is false when no precompiled binary is available, the platform isn't
-// covered, or the entry is missing storage_uri/hash.
+// ResolveExecutable returns the step's precompiled binary for the current
+// platform, the platform key, and whether a usable binary was found.
 func ResolveExecutable(step models.StepModel) (executable models.Executable, platform string, ok bool) {
 	platform = currentPlatform()
 	if step.Executables == nil {
@@ -57,9 +51,6 @@ func ResolveExecutable(step models.StepModel) (executable models.Executable, pla
 	return e, platform, true
 }
 
-// precompiledURLs builds the ordered list of download URLs for an executable,
-// taking the storage bases from PrecompiledStepsStorageURLsEnv or the built-in
-// defaults.
 func precompiledURLs(e models.Executable) ([]string, error) {
 	bases := PrecompiledStepsDefaultStorageURLs
 	if override := os.Getenv(PrecompiledStepsStorageURLsEnv); override != "" {
@@ -68,8 +59,6 @@ func precompiledURLs(e models.Executable) ([]string, error) {
 	return buildPrecompiledURLs(bases, e)
 }
 
-// buildPrecompiledURLs joins each base with the executable's storage URI,
-// normalizing slashes and rejecting plain http.
 func buildPrecompiledURLs(bases []string, e models.Executable) ([]string, error) {
 	uri := strings.TrimLeft(e.StorageURI, "/")
 	var urls []string
@@ -90,10 +79,8 @@ func buildPrecompiledURLs(bases []string, e models.Executable) ([]string, error)
 	return urls, nil
 }
 
-// DownloadPrecompiled fetches `executable` for the current platform via fetcher,
-// verifies its SHA256, makes the file executable, and places it at
-// destDir/<stepID>. Returns the final binary path. Shared by the V2 reader and
-// the V1 activator.
+// DownloadPrecompiled downloads executable into destDir as <stepID> and returns
+// the resulting binary path.
 func DownloadPrecompiled(ctx context.Context, fetcher httpfetch.Client, log stepman.Logger, stepID string, executable models.Executable, destDir string) (binPath string, err error) {
 	if executable.Hash == "" {
 		return "", fmt.Errorf("hash is empty")
@@ -119,7 +106,6 @@ func DownloadPrecompiled(ctx context.Context, fetcher httpfetch.Client, log step
 	return binPath, nil
 }
 
-// downloadFromURLs tries each url in order, verifying expectedHash on each attempt.
 func downloadFromURLs(ctx context.Context, fetcher httpfetch.Client, log stepman.Logger, destPath, expectedHash string, urls []string) error {
 	var errs []error
 	for _, url := range urls {

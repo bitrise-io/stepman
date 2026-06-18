@@ -46,8 +46,7 @@ func (c *Client) Activate(ctx context.Context, stepID, version string, outputPat
 		return ActivatedStep{}, fmt.Errorf("fetch step definition: %w", err)
 	}
 
-	// Prefer the precompiled binary for the current platform when the experiment
-	// is enabled and the step publishes one; on any failure fall back to source.
+	// Prefer a precompiled binary for the current platform when one is available.
 	execPath := ""
 	if PrecompiledStepsEnabled() {
 		if executable, platform, ok := ResolveExecutable(stepModel); ok {

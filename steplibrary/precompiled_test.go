@@ -57,27 +57,21 @@ func TestSteplib_Activate_Precompiled(t *testing.T) {
 	assert.Equal(t, wantBin, got.ExecutablePath, "ExecutablePath")
 	assert.Equal(t, "steplib_executable", string(got.ActivationType), "ActivationType")
 
-	// Binary content matches the served payload.
 	body, gotErr := os.ReadFile(wantBin)
 	require.NoError(t, gotErr, "read executable")
 	assert.Equal(t, payload, body, "downloaded binary content")
 
-	// Binary is marked executable.
 	info, gotErr := os.Stat(wantBin)
 	require.NoError(t, gotErr, "stat executable")
 	assert.NotZero(t, info.Mode().Perm()&0o111, "executable bit not set (perm=%o)", info.Mode().Perm())
 
-	// step.yml is still written by the activation flow.
 	_, gotErr = os.Stat(filepath.Join(outDir, "current_step.yml"))
 	assert.NoError(t, gotErr, "step.yml not written")
 
-	// Downloader received the storage_uri-rooted URL.
 	assert.Truef(t, strings.HasSuffix(dl.gotURL, executables[currentPlatform()].StorageURI),
 		"downloader URL = %q, want suffix %q", dl.gotURL, executables[currentPlatform()].StorageURI)
 }
 
-// pointers returns a pointer to the given string. Avoids importing
-// go-utils/pointers just for a single helper.
 func strPtr(s string) *string { return &s }
 
 func TestBuildPrecompiledURLs(t *testing.T) {
