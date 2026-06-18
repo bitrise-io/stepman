@@ -1,6 +1,7 @@
 package steplib
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,17 +11,13 @@ import (
 
 	"github.com/bitrise-io/go-utils/command"
 	"github.com/bitrise-io/go-utils/pathutil"
+	"github.com/bitrise-io/stepman/internal/httpfetch"
 	"github.com/bitrise-io/stepman/models"
 	"github.com/bitrise-io/stepman/stepman"
+	"github.com/bitrise-io/stepman/steplibrary"
 )
 
 const precompiledStepsEnv = "BITRISE_EXPERIMENT_PRECOMPILED_STEPS"
-const precompiledStepsStorageURLsEnv = "BITRISE_PRECOMPILED_STEPS_STORAGE_URLS"
-
-var precompiledStepsDefaultStorageURLs = []string{
-	"https://storage.googleapis.com/bitrise-steplib-storage",
-	"https://storage-gateway.services.bitrise.io",
-}
 
 func ActivateStep(stepLibURI, id, version, destination, destinationStepYML string, log stepman.Logger, isOfflineMode bool) (string, error) {
 	stepCollection, err := stepman.ReadStepSpec(stepLibURI)
@@ -33,20 +30,23 @@ func ActivateStep(stepLibURI, id, version, destination, destinationStepYML strin
 		return "", fmt.Errorf("failed to find step: %s", err)
 	}
 
-	if (os.Getenv(precompiledStepsEnv) == "true" || os.Getenv(precompiledStepsEnv) == "1") && step.Executables != nil {
+	if os.Getenv(precompiledStepsEnv) == "true" || os.Getenv(precompiledStepsEnv) == "1" {
 		platform := fmt.Sprintf("%s-%s", runtime.GOOS, runtime.GOARCH)
-		executableForPlatform, ok := (*step.Executables)[platform]
-		if ok && executableForPlatform.Hash != "" && executableForPlatform.StorageURI != "" {
+		if executable, ok := steplibrary.ResolveExecutable(step); ok {
 			log.Debugf("Downloading executable for %s", platform)
 			downloadStart := time.Now()
-			execPath, err := activateStepExecutable(stepLibURI, id, version, executableForPlatform, destination, destinationStepYML)
+			execPath, err := steplibrary.DownloadPrecompiled(context.Background(), httpfetch.NewClient(log), log, id, executable, destination)
 			if err == nil {
+				if err := copyStepYML(stepLibURI, id, version, destinationStepYML); err != nil {
+					return "", fmt.Errorf("copy step.yml: %s", err)
+				}
 				log.Debugf("Downloaded executable in %s", time.Since(downloadStart).Round(time.Millisecond))
 				return execPath, nil
 			}
 			log.Warnf("Failed to download step executable, fallback to step source activation: %s", err)
+		} else {
+			log.Infof("No prebuilt executable found for %s, fallback to step source activation", platform)
 		}
-		log.Infof("No prebuilt executable found for %s, fallback to step source activation", platform)
 	}
 	err = activateStepSource(stepCollection, stepLibURI, id, version, step, destination, destinationStepYML, log, isOfflineMode)
 	return "", err
