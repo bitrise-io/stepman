@@ -76,6 +76,48 @@ func TestSteplib_Activate_Precompiled(t *testing.T) {
 		"downloader URL = %q, want suffix %q", dl.gotURL, executables[currentPlatform()].StorageURI)
 }
 
+func TestSteplib_Activate_PrecompiledHashMismatch_FallsBackToSource(t *testing.T) {
+	payload := []byte("bad-bytes")
+
+	executables := models.Executables{
+		currentPlatform(): models.Executable{
+			StorageURI: "steps/script/3.0.0/bin/script-" + currentPlatform(),
+			Hash:       "sha256-deadbeef", // intentional mismatch
+		},
+	}
+	//nolint:exhaustruct
+	stepModel := models.StepModel{
+		Title:       strPtr("Script"),
+		Executables: &executables,
+	}
+
+	// Seed a real source dir for the fallback path.
+	tmpDir := t.TempDir()
+	sourceDir := filepath.Join(tmpDir, "source-step")
+	writeSeedDir(t, sourceDir)
+
+	api := newFakeAPI()
+	api.stepModel = map[string]models.StepModel{"script": stepModel}
+
+	outDir := t.TempDir()
+	client := &Client{
+		log:         testLogger{t},
+		steplibURI:  "https://github.com/bitrise-io/bitrise-steplib.git",
+		api:         api,
+		fileManager: fileutil.NewFileManager(),
+		fetcher:     &fakeFetcher{payload: payload},
+		source:      stubSource{dir: sourceDir},
+	}
+
+	got, gotErr := client.Activate(context.Background(), "script", "", ActivateOutputPaths{
+		YMLPath:  filepath.Join(outDir, "current_step.yml"),
+		CodePath: filepath.Join(outDir, "code"),
+	})
+	require.NoError(t, gotErr, "Activate")
+	assert.Empty(t, got.ExecutablePath, "want empty ExecutablePath (precompiled failed → source path)")
+	assert.Equal(t, "steplib_source", string(got.ActivationType), "ActivationType")
+}
+
 // pointers returns a pointer to the given string. Avoids importing
 // go-utils/pointers just for a single helper.
 func strPtr(s string) *string { return &s }

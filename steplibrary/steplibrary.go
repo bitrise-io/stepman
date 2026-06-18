@@ -17,21 +17,24 @@ type Client struct {
 	api         API
 	fileManager fileutil.FileManager
 	fetcher     httpfetch.Client
+	source      sourceProvider
 }
 
 type ActivateOutputPaths struct {
 	YMLPath, CodePath string
 }
 
-// New builds a Client. steplibURI is the steplib identity; inventoryURL is the
-// base URL the V2 inventory JSON is fetched from.
-func New(log stepman.Logger, steplibURI, inventoryURL string, fileManager fileutil.FileManager) *Client {
+// New builds a Client. steplibURI is the steplib identity (used for the V1
+// cache and source fallback); inventoryURL is the base URL the V2 inventory
+// JSON is fetched from.
+func New(log stepman.Logger, steplibURI, inventoryURL string, isOfflineMode bool, fileManager fileutil.FileManager) *Client {
 	return &Client{
 		log:         log,
 		steplibURI:  steplibURI,
 		api:         NewHTTPAPI(inventoryURL, httpfetch.NewClient(log)),
 		fileManager: fileManager,
 		fetcher:     httpfetch.NewClient(log),
+		source:      v1Source{steplibURI: steplibURI, isOfflineMode: isOfflineMode, log: log},
 	}
 }
 
@@ -47,7 +50,8 @@ func (c *Client) Activate(ctx context.Context, stepID, version string, outputPat
 	}
 
 	// Prefer the precompiled binary for the current platform when the experiment
-	// is enabled and the step publishes one; on any failure fall back to source.
+	// is enabled and the step publishes one; fall back to source on any failure
+	// so a single broken executable can't block activation.
 	execPath := ""
 	if PrecompiledStepsEnabled() {
 		if executable, platform, ok := ResolveExecutable(stepModel); ok {
@@ -57,6 +61,16 @@ func (c *Client) Activate(ctx context.Context, stepID, version string, outputPat
 			} else {
 				execPath = path
 			}
+		}
+	}
+
+	if execPath == "" {
+		srcDir, err := c.source.stepSourceDir(ctx, resolved)
+		if err != nil {
+			return ActivatedStep{}, fmt.Errorf("resolve step source: %w", err)
+		}
+		if err := c.fileManager.CopyDir(srcDir, outputPaths.CodePath, &fileutil.CopyOptions{Overwrite: true}); err != nil {
+			return ActivatedStep{}, fmt.Errorf("copy step source %s to %s: %w", srcDir, outputPaths.CodePath, err)
 		}
 	}
 
