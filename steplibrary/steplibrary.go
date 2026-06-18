@@ -53,8 +53,8 @@ func (c *Client) Activate(ctx context.Context, stepID, version string, outputPat
 	// publishes one; fall back to source on any failure so a single broken
 	// executable can't block activation.
 	execPath := ""
-	if executable, ok := resolveExecutable(stepModel); ok {
-		path, perr := c.downloadPrecompiled(ctx, stepID, executable, outputPaths.CodePath)
+	if executable, ok := ResolveExecutable(stepModel); ok {
+		path, perr := DownloadPrecompiled(ctx, c.fetcher, c.log, stepID, executable, outputPaths.CodePath)
 		if perr != nil {
 			c.log.Warnf("Failed to download precompiled binary for %s, falling back to source: %s", currentPlatform(), perr)
 		} else {

@@ -1,107 +1,65 @@
 package steplibrary
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
+	"context"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
-	"github.com/bitrise-io/go-utils/log"
+	"github.com/bitrise-io/stepman/internal/httpfetch"
 	"github.com/bitrise-io/stepman/models"
-	"github.com/hashicorp/go-retryablehttp"
+	"github.com/bitrise-io/stepman/stepman"
 )
 
-func activateStepExecutable(
-	stepLibURI string,
-	stepID string,
-	version string,
-	executable models.Executable,
-	destinationDir string,
-	destinationStepYML string,
-) (string, error) {
-	body, err := downloadExecutable(executable)
-	if err != nil {
-		return "", err
-	}
-	defer func() {
-		if err := body.Close(); err != nil {
-			log.Warnf("Failed to close response body: %s\n", err)
-		}
-	}()
+// PrecompiledStepsStorageURLsEnv overrides the ordered list of storage base URLs
+// at runtime (comma-separated).
+const PrecompiledStepsStorageURLsEnv = "BITRISE_PRECOMPILED_STEPS_STORAGE_URLS"
 
-	err = os.MkdirAll(destinationDir, 0755)
-	if err != nil {
-		return "", fmt.Errorf("create directory %s: %w", destinationDir, err)
-	}
-
-	path := filepath.Join(destinationDir, stepID)
-	file, err := os.Create(path)
-	if err != nil {
-		return "", fmt.Errorf("create file %s: %w", path, err)
-	}
-	defer func() {
-		err := file.Close()
-		if err != nil {
-			log.Warnf("Failed to close file %s: %s\n", path, err)
-		}
-	}()
-
-	_, err = io.Copy(file, body)
-	if err != nil {
-		return "", fmt.Errorf("download to %s: %w", path, err)
-	}
-
-	err = validateHash(path, executable.Hash)
-	if err != nil {
-		return "", fmt.Errorf("validate hash: %s", err)
-	}
-
-	err = os.Chmod(path, 0755)
-	if err != nil {
-		return "", fmt.Errorf("set executable permission on file: %s", err)
-	}
-
-	if err := copyStepYML(stepLibURI, stepID, version, destinationStepYML); err != nil {
-		return "", fmt.Errorf("copy step.yml: %s", err)
-	}
-
-	return path, nil
+// PrecompiledStepsDefaultStorageURLs is the ordered list of storage base URLs
+// used when PrecompiledStepsStorageURLsEnv is unset.
+var PrecompiledStepsDefaultStorageURLs = []string{
+	"https://storage.googleapis.com/bitrise-steplib-storage",
+	"https://storage-gateway.services.bitrise.io",
 }
 
-func validateHash(filePath string, expectedHash string) error {
-	if expectedHash == "" {
-		return fmt.Errorf("hash is empty")
-	}
-
-	if !strings.HasPrefix(expectedHash, "sha256-") {
-		return fmt.Errorf("only SHA256 hashes supported at this time, make sure to prefix the hash with `sha256-`. Found hash value: %s", expectedHash)
-	}
-
-	expectedHash = strings.TrimPrefix(expectedHash, "sha256-")
-
-	reader, err := os.Open(filePath)
-	if err != nil {
-		return err
-	}
-
-	h := sha256.New()
-	_, err = io.Copy(h, reader)
-	if err != nil {
-		return fmt.Errorf("calculate hash: %w", err)
-	}
-	actualHash := hex.EncodeToString(h.Sum(nil))
-	if actualHash != expectedHash {
-		return fmt.Errorf("hash mismatch: expected sha256-%s, got sha256-%s", expectedHash, actualHash)
-	}
-	return nil
+// currentPlatform returns the runtime platform key (e.g. "darwin-arm64") used
+// to look up an entry in models.StepModel.Executables.
+func currentPlatform() string {
+	return fmt.Sprintf("%s-%s", runtime.GOOS, runtime.GOARCH)
 }
 
-func buildDownloadURLs(bases []string, executable models.Executable) ([]string, error) {
-	uri := strings.TrimLeft(executable.StorageURI, "/")
+// ResolveExecutable picks the precompiled binary for the current OS+arch from
+// the step model. Returns false when no precompiled binary is available, the
+// platform isn't covered, or the entry is missing storage_uri/hash.
+func ResolveExecutable(step models.StepModel) (models.Executable, bool) {
+	if step.Executables == nil {
+		return models.Executable{}, false
+	}
+	e, ok := (*step.Executables)[currentPlatform()]
+	if !ok || e.StorageURI == "" || e.Hash == "" {
+		return models.Executable{}, false
+	}
+	return e, true
+}
+
+// precompiledURLs builds the ordered list of download URLs for an executable,
+// taking the storage bases from PrecompiledStepsStorageURLsEnv or the built-in
+// defaults.
+func precompiledURLs(e models.Executable) ([]string, error) {
+	bases := PrecompiledStepsDefaultStorageURLs
+	if override := os.Getenv(PrecompiledStepsStorageURLsEnv); override != "" {
+		bases = strings.Split(override, ",")
+	}
+	return buildPrecompiledURLs(bases, e)
+}
+
+// buildPrecompiledURLs joins each base with the executable's storage URI,
+// normalizing slashes and rejecting plain http.
+func buildPrecompiledURLs(bases []string, e models.Executable) ([]string, error) {
+	uri := strings.TrimLeft(e.StorageURI, "/")
 	var urls []string
 	for _, base := range bases {
 		base = strings.TrimRight(strings.TrimSpace(base), "/")
@@ -114,44 +72,51 @@ func buildDownloadURLs(bases []string, executable models.Executable) ([]string, 
 		}
 		urls = append(urls, url)
 	}
-
 	if len(urls) == 0 {
 		return nil, fmt.Errorf("no storage URLs configured")
 	}
 	return urls, nil
 }
 
-func downloadExecutable(executable models.Executable) (io.ReadCloser, error) {
-	bases := PrecompiledStepsDefaultStorageURLs
-	if override := os.Getenv(PrecompiledStepsStorageURLsEnv); override != "" {
-		bases = strings.Split(override, ",")
+// DownloadPrecompiled fetches `executable` for the current platform via fetcher,
+// verifies its SHA256, makes the file executable, and places it at
+// destDir/<stepID>. Returns the final binary path. Shared by the V2 reader and
+// the V1 activator.
+func DownloadPrecompiled(ctx context.Context, fetcher httpfetch.Client, log stepman.Logger, stepID string, executable models.Executable, destDir string) (binPath string, err error) {
+	if executable.Hash == "" {
+		return "", fmt.Errorf("hash is empty")
+	}
+	urls, err := precompiledURLs(executable)
+	if err != nil {
+		return "", err
 	}
 
-	urls, err := buildDownloadURLs(bases, executable)
-	if err != nil {
-		return nil, err
+	binPath = filepath.Join(destDir, stepID)
+	if err = downloadFromURLs(ctx, fetcher, log, binPath, executable.Hash, urls); err != nil {
+		return "", err
 	}
-	return downloadFromURLs(urls)
+	defer func() {
+		if err != nil {
+			err = errors.Join(err, os.Remove(binPath))
+		}
+	}()
+
+	if err = os.Chmod(binPath, 0o755); err != nil {
+		return "", fmt.Errorf("chmod %s: %w", binPath, err)
+	}
+	return binPath, nil
 }
 
-func downloadFromURLs(urls []string) (io.ReadCloser, error) {
+// downloadFromURLs tries each url in order, verifying expectedHash on each attempt.
+func downloadFromURLs(ctx context.Context, fetcher httpfetch.Client, log stepman.Logger, destPath, expectedHash string, urls []string) error {
 	var errs []error
 	for _, url := range urls {
-		resp, err := retryablehttp.Get(url)
-		if err == nil && resp.StatusCode < 400 {
-			return resp.Body, nil
-		}
-
-		if err != nil {
-			log.Warnf("Failed to download step from %s: %s\n", url, err)
-			errs = append(errs, fmt.Errorf("%s: %w", url, err))
+		if err := fetcher.DownloadWithHash(ctx, destPath, url, expectedHash); err == nil {
+			return nil
 		} else {
-			if closeErr := resp.Body.Close(); closeErr != nil {
-				log.Warnf("Failed to close response body: %s\n", closeErr)
-			}
-			log.Warnf("Storage returned status %d for %s\n", resp.StatusCode, url)
-			errs = append(errs, fmt.Errorf("%s: status %d", url, resp.StatusCode))
+			log.Warnf("Failed to download from %s: %s", url, err)
+			errs = append(errs, fmt.Errorf("%s: %w", url, err))
 		}
 	}
-	return nil, fmt.Errorf("failed to download executable: %w", errors.Join(errs...))
+	return fmt.Errorf("failed to download executable: %w", errors.Join(errs...))
 }

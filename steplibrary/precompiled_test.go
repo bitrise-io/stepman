@@ -128,3 +128,56 @@ func TestSteplib_Activate_PrecompiledHashMismatch_FallsBackToSource(t *testing.T
 // pointers returns a pointer to the given string. Avoids importing
 // go-utils/pointers just for a single helper.
 func strPtr(s string) *string { return &s }
+
+func TestBuildPrecompiledURLs(t *testing.T) {
+	tests := []struct {
+		name        string
+		bases       []string
+		executable  models.Executable
+		want        []string
+		wantErrText string
+	}{
+		{
+			name:       "default list: GCS first, gateway second",
+			bases:      PrecompiledStepsDefaultStorageURLs,
+			executable: models.Executable{StorageURI: "steps/step1.tar.gz"},
+			want: []string{
+				"https://storage.googleapis.com/bitrise-steplib-storage/steps/step1.tar.gz",
+				"https://storage-gateway.services.bitrise.io/steps/step1.tar.gz",
+			},
+		},
+		{
+			name:       "normalization: trailing slashes, leading StorageURI slash, spaces, empties",
+			bases:      []string{"", " https://a.example.com/// ", "", " https://b.example.com///"},
+			executable: models.Executable{StorageURI: "/steps/step3.tar.gz"},
+			want: []string{
+				"https://a.example.com/steps/step3.tar.gz",
+				"https://b.example.com/steps/step3.tar.gz",
+			},
+		},
+		{
+			name:        "http URL is rejected",
+			bases:       []string{"http://a.example.com"},
+			executable:  models.Executable{StorageURI: "steps/step5.tar.gz"},
+			wantErrText: "http URL is unsupported, please use https: http://a.example.com/steps/step5.tar.gz",
+		},
+		{
+			name:        "all-empty list yields a configuration error",
+			bases:       []string{"", "", ""},
+			executable:  models.Executable{StorageURI: "steps/step6.tar.gz"},
+			wantErrText: "no storage URLs configured",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := buildPrecompiledURLs(tt.bases, tt.executable)
+			if tt.wantErrText != "" {
+				require.EqualError(t, err, tt.wantErrText)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
