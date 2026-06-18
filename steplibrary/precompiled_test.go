@@ -1,0 +1,130 @@
+package steplibrary
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/bitrise-io/go-utils/v2/fileutil"
+	"github.com/bitrise-io/stepman/models"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestSteplib_Activate_Precompiled(t *testing.T) {
+	payload := []byte("#!/bin/sh\necho hello\n")
+	hash := sha256OfBytes(payload)
+
+	executables := models.Executables{
+		currentPlatform(): models.Executable{
+			StorageURI: "steps/script/3.0.0/bin/script-" + currentPlatform(),
+			Hash:       hash,
+		},
+	}
+	//nolint:exhaustruct // only Executables and Title matter for this test
+	stepModel := models.StepModel{
+		Title:       strPtr("Script"),
+		Executables: &executables,
+	}
+
+	api := newFakeAPI()
+	api.stepModel = map[string]models.StepModel{"script": stepModel}
+
+	dl := &fakeFetcher{payload: payload}
+
+	outDir := t.TempDir()
+	client := &Client{
+		log:         testLogger{t},
+		steplibURI:  "https://github.com/bitrise-io/bitrise-steplib.git",
+		api:         api,
+		fileManager: fileutil.NewFileManager(),
+		fetcher:     dl,
+	}
+
+	got, gotErr := client.Activate(context.Background(), "script", "", ActivateOutputPaths{
+		YMLPath:  filepath.Join(outDir, "current_step.yml"),
+		CodePath: filepath.Join(outDir, "code"),
+	})
+	require.NoError(t, gotErr, "Activate")
+
+	wantBin := filepath.Join(outDir, "code", "script")
+	assert.Equal(t, wantBin, got.ExecutablePath, "ExecutablePath")
+	assert.Equal(t, "steplib_executable", string(got.ActivationType), "ActivationType")
+
+	// Binary content matches the served payload.
+	body, gotErr := os.ReadFile(wantBin)
+	require.NoError(t, gotErr, "read executable")
+	assert.Equal(t, payload, body, "downloaded binary content")
+
+	// Binary is marked executable.
+	info, gotErr := os.Stat(wantBin)
+	require.NoError(t, gotErr, "stat executable")
+	assert.NotZero(t, info.Mode().Perm()&0o111, "executable bit not set (perm=%o)", info.Mode().Perm())
+
+	// step.yml is still written by the activation flow.
+	_, gotErr = os.Stat(filepath.Join(outDir, "current_step.yml"))
+	assert.NoError(t, gotErr, "step.yml not written")
+
+	// Downloader received the storage_uri-rooted URL.
+	assert.Truef(t, strings.HasSuffix(dl.gotURL, executables[currentPlatform()].StorageURI),
+		"downloader URL = %q, want suffix %q", dl.gotURL, executables[currentPlatform()].StorageURI)
+}
+
+// pointers returns a pointer to the given string. Avoids importing
+// go-utils/pointers just for a single helper.
+func strPtr(s string) *string { return &s }
+
+func TestBuildPrecompiledURLs(t *testing.T) {
+	tests := []struct {
+		name        string
+		bases       []string
+		executable  models.Executable
+		want        []string
+		wantErrText string
+	}{
+		{
+			name:       "default list: GCS first, gateway second",
+			bases:      PrecompiledStepsDefaultStorageURLs,
+			executable: models.Executable{StorageURI: "steps/step1.tar.gz"},
+			want: []string{
+				"https://storage.googleapis.com/bitrise-steplib-storage/steps/step1.tar.gz",
+				"https://storage-gateway.services.bitrise.io/steps/step1.tar.gz",
+			},
+		},
+		{
+			name:       "normalization: trailing slashes, leading StorageURI slash, spaces, empties",
+			bases:      []string{"", " https://a.example.com/// ", "", " https://b.example.com///"},
+			executable: models.Executable{StorageURI: "/steps/step3.tar.gz"},
+			want: []string{
+				"https://a.example.com/steps/step3.tar.gz",
+				"https://b.example.com/steps/step3.tar.gz",
+			},
+		},
+		{
+			name:        "http URL is rejected",
+			bases:       []string{"http://a.example.com"},
+			executable:  models.Executable{StorageURI: "steps/step5.tar.gz"},
+			wantErrText: "http URL is unsupported, please use https: http://a.example.com/steps/step5.tar.gz",
+		},
+		{
+			name:        "all-empty list yields a configuration error",
+			bases:       []string{"", "", ""},
+			executable:  models.Executable{StorageURI: "steps/step6.tar.gz"},
+			wantErrText: "no storage URLs configured",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := buildPrecompiledURLs(tt.bases, tt.executable)
+			if tt.wantErrText != "" {
+				require.EqualError(t, err, tt.wantErrText)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
