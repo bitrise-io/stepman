@@ -42,17 +42,19 @@ func currentPlatform() string {
 }
 
 // ResolveExecutable picks the precompiled binary for the current OS+arch from
-// the step model. Returns false when no precompiled binary is available, the
-// platform isn't covered, or the entry is missing storage_uri/hash.
-func ResolveExecutable(step models.StepModel) (models.Executable, bool) {
+// the step model. It always returns the current platform key (for logging),
+// and ok is false when no precompiled binary is available, the platform isn't
+// covered, or the entry is missing storage_uri/hash.
+func ResolveExecutable(step models.StepModel) (executable models.Executable, platform string, ok bool) {
+	platform = currentPlatform()
 	if step.Executables == nil {
-		return models.Executable{}, false
+		return models.Executable{}, platform, false
 	}
-	e, ok := (*step.Executables)[currentPlatform()]
-	if !ok || e.StorageURI == "" || e.Hash == "" {
-		return models.Executable{}, false
+	e, found := (*step.Executables)[platform]
+	if !found || e.StorageURI == "" || e.Hash == "" {
+		return models.Executable{}, platform, false
 	}
-	return e, true
+	return e, platform, true
 }
 
 // precompiledURLs builds the ordered list of download URLs for an executable,

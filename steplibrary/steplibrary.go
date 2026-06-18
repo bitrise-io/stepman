@@ -50,10 +50,10 @@ func (c *Client) Activate(ctx context.Context, stepID, version string, outputPat
 	// is enabled and the step publishes one; on any failure fall back to source.
 	execPath := ""
 	if PrecompiledStepsEnabled() {
-		if executable, ok := ResolveExecutable(stepModel); ok {
+		if executable, platform, ok := ResolveExecutable(stepModel); ok {
 			path, perr := DownloadPrecompiled(ctx, c.fetcher, c.log, stepID, executable, outputPaths.CodePath)
 			if perr != nil {
-				c.log.Warnf("Failed to download precompiled binary for %s, falling back to source: %s", currentPlatform(), perr)
+				c.log.Warnf("Failed to download precompiled binary for %s, falling back to source: %s", platform, perr)
 			} else {
 				execPath = path
 			}

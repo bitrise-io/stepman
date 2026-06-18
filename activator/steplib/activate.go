@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"time"
 
@@ -29,8 +28,7 @@ func ActivateStep(stepLibURI, id, version, destination, destinationStepYML strin
 	}
 
 	if steplibrary.PrecompiledStepsEnabled() {
-		platform := fmt.Sprintf("%s-%s", runtime.GOOS, runtime.GOARCH)
-		if executable, ok := steplibrary.ResolveExecutable(step); ok {
+		if executable, platform, ok := steplibrary.ResolveExecutable(step); ok {
 			log.Debugf("Downloading executable for %s", platform)
 			downloadStart := time.Now()
 			execPath, err := steplibrary.DownloadPrecompiled(context.Background(), httpfetch.NewClient(log), log, id, executable, destination)
