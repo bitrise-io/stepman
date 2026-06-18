@@ -1,6 +1,7 @@
 package steplib
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -13,33 +14,17 @@ import (
 func activateStepSource(
 	stepLib models.StepCollectionModel,
 	stepLibURI, id, version string,
-	step models.StepModel,
 	destination string,
 	stepYMLDestination string,
 	log stepman.Logger,
 	isOfflineMode bool,
 ) error {
-	route, found := stepman.ReadRoute(stepLibURI)
-	if !found {
-		return fmt.Errorf("no route found for %s steplib", stepLibURI)
+	stepCacheDir, err := stepman.GetStepSourceDir(stepLibURI, id, version, log, isOfflineMode)
+	if errors.Is(err, stepman.ErrStepSourceNotCached) {
+		return fmt.Errorf("download step: %s", collectOfflineAvailableStepVersions(stepLib, stepLibURI, id, log))
 	}
-
-	stepCacheDir := stepman.GetStepCacheDirPath(route, id, version)
-	stepCacheDirExists, err := pathutil.IsPathExists(stepCacheDir)
 	if err != nil {
-		return fmt.Errorf("failed to check if %s path exist: %s", stepCacheDir, err)
-	}
-
-	if !stepCacheDirExists {
-		if isOfflineMode {
-			errMsg := collectOfflineAvailableStepVersions(stepLib, stepLibURI, id, log)
-			return fmt.Errorf("download step: %s", errMsg)
-		}
-
-		err := stepman.DownloadStep(stepLibURI, stepLib, id, version, step.Source.Commit, log)
-		if err != nil {
-			return fmt.Errorf("download failed: %s", err)
-		}
+		return err
 	}
 
 	if err := copyStep(stepCacheDir, destination); err != nil {

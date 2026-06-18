@@ -48,7 +48,7 @@ func ActivateStep(stepLibURI, id, version, destination, destinationStepYML strin
 			log.Infof("No prebuilt executable found for %s, fallback to step source activation", platform)
 		}
 	}
-	err = activateStepSource(stepCollection, stepLibURI, id, version, step, destination, destinationStepYML, log, isOfflineMode)
+	err = activateStepSource(stepCollection, stepLibURI, id, version, destination, destinationStepYML, log, isOfflineMode)
 	return "", err
 }
 
