@@ -17,83 +17,44 @@ import (
 	"github.com/bitrise-io/stepman/steplibrary/steplibindex"
 )
 
-// FakeAPI is an in-memory API implementation used as a base for test fakes
-// that embed it and selectively override methods.
-type FakeAPI struct{}
-
-func (m FakeAPI) GetAllStepIDs(_ context.Context) ([]string, error) {
-	return []string{"xcode-test", "script"}, nil
-}
-
-func (m FakeAPI) GetLatestStepVersions(_ context.Context, id string) (steplibindex.LatestPointer, error) {
-	versions := map[string]steplibindex.LatestPointer{
-		"script": {
-			StepID: "script",
-			Latest: "3.0.0",
-			LatestByMajor: map[string]string{
-				"1": "1.2.0",
-				"2": "2.4.1",
-				"3": "3.0.0",
-			},
-		},
-	}
-
-	v, ok := versions[id]
-	if !ok {
-		return steplibindex.LatestPointer{}, errors.New("not found")
-	}
-	return v, nil
-}
-
-func (m FakeAPI) GetAllStepVersions(_ context.Context, id string) ([]string, error) {
-	versions := map[string][]string{
-		"script": {"1.0.0", "1.1.5", "1.2.0", "2.0.0", "2.4.0", "2.4.1", "3.0.0"},
-	}
-	v, ok := versions[id]
-	if !ok {
-		return nil, errors.New("not found")
-	}
-	return v, nil
-}
-
-func (m FakeAPI) GetStepGroupInfo(_ context.Context, id string) (steplibindex.StepInfo, error) {
-	infos := map[string]steplibindex.StepInfo{
-		"script": {
-			Maintainer:  "bitrise",
-			Deprecation: nil,
-			AssetURLs:   []string{"assets/icon.svg"},
-		},
-	}
-	v, ok := infos[id]
-	if !ok {
-		return steplibindex.StepInfo{}, errors.New("not found")
-	}
-	return v, nil
-}
-
-func (m FakeAPI) GetStepModel(_ context.Context, step ResolvedStepVersion) (models.StepModel, error) {
-	if step.ID != "script" {
-		return models.StepModel{}, errors.New("not found")
-	}
-	//nolint:exhaustruct // mock returns a minimal StepModel; downstream consumers don't need the full shape here
-	return models.StepModel{
-		Title:   pointers.NewStringPtr("Script"),
-		Summary: pointers.NewStringPtr("Runs a shell script."),
-	}, nil
-}
-
-// fakeAPI embeds FakeAPI and overrides methods with table-driven fixtures and
-// injectable errors for the Activate/resolve tests.
+// fakeAPI is an in-memory API implementation driven entirely by its map
+// fixtures and injectable errors. Construct the standard "script" fixtures with
+// newFakeAPI; override individual fields for table-driven and error cases.
 type fakeAPI struct {
-	FakeAPI
 	ids               []string
 	listErr           error
 	latestVersions    map[string]steplibindex.LatestPointer
 	latestVersionsErr error
 	allVersions       map[string][]string
 	allVersionsErr    error
+	groupInfo         map[string]steplibindex.StepInfo
 	groupInfoErr      error
 	stepModel         map[string]models.StepModel
+}
+
+// newFakeAPI returns a fakeAPI pre-populated with the standard "script" step
+// fixtures (versions 1.0.0–3.0.0, latest 3.0.0, bitrise maintainer, a minimal
+// step model).
+func newFakeAPI() fakeAPI {
+	return fakeAPI{
+		ids: []string{"xcode-test", "script"},
+		latestVersions: map[string]steplibindex.LatestPointer{
+			"script": {
+				StepID:        "script",
+				Latest:        "3.0.0",
+				LatestByMajor: map[string]string{"1": "1.2.0", "2": "2.4.1", "3": "3.0.0"},
+			},
+		},
+		allVersions: map[string][]string{
+			"script": {"1.0.0", "1.1.5", "1.2.0", "2.0.0", "2.4.0", "2.4.1", "3.0.0"},
+		},
+		groupInfo: map[string]steplibindex.StepInfo{
+			"script": {Maintainer: "bitrise", Deprecation: nil, AssetURLs: []string{"assets/icon.svg"}},
+		},
+		stepModel: map[string]models.StepModel{
+			"script": {Title: pointers.NewStringPtr("Script"), Summary: pointers.NewStringPtr("Runs a shell script.")},
+		},
+	}
 }
 
 func (f fakeAPI) GetAllStepIDs(_ context.Context) ([]string, error) {
@@ -122,22 +83,23 @@ func (f fakeAPI) GetAllStepVersions(_ context.Context, id string) ([]string, err
 	return v, nil
 }
 
-func (f fakeAPI) GetStepGroupInfo(ctx context.Context, id string) (steplibindex.StepInfo, error) {
+func (f fakeAPI) GetStepGroupInfo(_ context.Context, id string) (steplibindex.StepInfo, error) {
 	if f.groupInfoErr != nil {
 		return steplibindex.StepInfo{}, f.groupInfoErr
 	}
-	return f.FakeAPI.GetStepGroupInfo(ctx, id)
+	v, ok := f.groupInfo[id]
+	if !ok {
+		return steplibindex.StepInfo{}, errors.New("not found")
+	}
+	return v, nil
 }
 
-func (f fakeAPI) GetStepModel(ctx context.Context, step ResolvedStepVersion) (models.StepModel, error) {
-	if f.stepModel != nil {
-		v, ok := f.stepModel[step.ID]
-		if !ok {
-			return models.StepModel{}, errors.New("not found")
-		}
-		return v, nil
+func (f fakeAPI) GetStepModel(_ context.Context, step ResolvedStepVersion) (models.StepModel, error) {
+	v, ok := f.stepModel[step.ID]
+	if !ok {
+		return models.StepModel{}, errors.New("not found")
 	}
-	return f.FakeAPI.GetStepModel(ctx, step)
+	return v, nil
 }
 
 // fakeFetcher implements httpfetch.Client by writing a fixed byte payload on

@@ -18,23 +18,7 @@ func TestSteplib_Activate(t *testing.T) {
 	sourceDir := filepath.Join(tmpDir, "source-step")
 	writeSeedDir(t, sourceDir)
 
-	givenScriptOnly := fakeAPI{
-		ids: []string{"script"},
-		latestVersions: map[string]steplibindex.LatestPointer{
-			"script": {
-				StepID: "script",
-				Latest: "3.0.0",
-				LatestByMajor: map[string]string{
-					"1": "1.2.0",
-					"2": "2.4.1",
-					"3": "3.0.0",
-				},
-			},
-		},
-		allVersions: map[string][]string{
-			"script": {"1.0.0", "1.1.5", "1.2.0", "2.0.0", "2.4.0", "2.4.1", "3.0.0"},
-		},
-	}
+	givenScriptOnly := newFakeAPI()
 
 	cases := map[string]struct {
 		api         API
@@ -208,7 +192,7 @@ func TestToStepGroupInfoModel(t *testing.T) {
 }
 
 func TestSteplib_getStepVersionInfo(t *testing.T) {
-	// FakeAPI's "script" step exposes versions 1.0.0, 1.1.5, 1.2.0, 2.0.0,
+	// newFakeAPI's "script" step exposes versions 1.0.0, 1.1.5, 1.2.0, 2.0.0,
 	// 2.4.0, 2.4.1, 3.0.0 with latest 3.0.0 and latest-by-major 1→1.2.0,
 	// 2→2.4.1, 3→3.0.0.
 	cases := map[string]struct {
@@ -231,7 +215,7 @@ func TestSteplib_getStepVersionInfo(t *testing.T) {
 	client := &Client{
 		log:         nil,
 		steplibURI:  "https://steplib.example",
-		api:         FakeAPI{},
+		api:         newFakeAPI(),
 		fileManager: nil,
 	}
 

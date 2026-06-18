@@ -9,7 +9,6 @@ import (
 
 	"github.com/bitrise-io/go-utils/v2/fileutil"
 	"github.com/bitrise-io/stepman/models"
-	"github.com/bitrise-io/stepman/steplibrary/steplibindex"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -30,13 +29,8 @@ func TestSteplib_Activate_Precompiled(t *testing.T) {
 		Executables: &executables,
 	}
 
-	api := fakeAPI{
-		ids: []string{"script"},
-		latestVersions: map[string]steplibindex.LatestPointer{
-			"script": {StepID: "script", Latest: "3.0.0"},
-		},
-		stepModel: map[string]models.StepModel{"script": stepModel},
-	}
+	api := newFakeAPI()
+	api.stepModel = map[string]models.StepModel{"script": stepModel}
 
 	dl := &fakeFetcher{payload: payload}
 
@@ -98,13 +92,8 @@ func TestSteplib_Activate_PrecompiledHashMismatch_FallsBackToSource(t *testing.T
 	sourceDir := filepath.Join(tmpDir, "source-step")
 	writeSeedDir(t, sourceDir)
 
-	api := fakeAPI{
-		ids: []string{"script"},
-		latestVersions: map[string]steplibindex.LatestPointer{
-			"script": {StepID: "script", Latest: "3.0.0"},
-		},
-		stepModel: map[string]models.StepModel{"script": stepModel},
-	}
+	api := newFakeAPI()
+	api.stepModel = map[string]models.StepModel{"script": stepModel}
 
 	outDir := t.TempDir()
 	client := &Client{
