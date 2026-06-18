@@ -112,7 +112,7 @@ func DownloadPrecompiled(ctx context.Context, fetcher httpfetch.Client, log step
 	}()
 
 	if err = os.Chmod(binPath, 0o700); err != nil {
-		return "", fmt.Errorf("chmod %s: %w", binPath, err)
+		return "", fmt.Errorf("set executable permission on file: %w", err)
 	}
 	return binPath, nil
 }

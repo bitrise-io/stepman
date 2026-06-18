@@ -2,12 +2,15 @@ package steplibrary
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/bitrise-io/go-utils/v2/fileutil"
+	"github.com/bitrise-io/stepman/internal/httpfetch"
 	"github.com/bitrise-io/stepman/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -128,4 +131,96 @@ func TestBuildPrecompiledURLs(t *testing.T) {
 			require.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestDownloadFromURLs(t *testing.T) {
+	body := []byte("compiled-binary")
+	hash := sha256OfBytes(body)
+	fetcher := httpfetch.NewWithClient(http.DefaultClient)
+
+	serveBytes := func() *httptest.Server {
+		return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write(body)
+		}))
+	}
+	serveStatus := func(code int) *httptest.Server {
+		return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(code)
+		}))
+	}
+
+	t.Run("primary succeeds, secondary is not called", func(t *testing.T) {
+		primary := serveBytes()
+		defer primary.Close()
+		secondaryHits := 0
+		secondary := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+			secondaryHits++
+		}))
+		defer secondary.Close()
+
+		dest := filepath.Join(t.TempDir(), "bin")
+		err := downloadFromURLs(context.Background(), fetcher, testLogger{t}, dest, hash, []string{primary.URL, secondary.URL})
+		require.NoError(t, err)
+		assert.Zero(t, secondaryHits, "secondary should not be hit when primary succeeds")
+
+		got, err := os.ReadFile(dest)
+		require.NoError(t, err)
+		assert.Equal(t, body, got, "downloaded content")
+	})
+
+	t.Run("primary 404 falls back to secondary", func(t *testing.T) {
+		primary := serveStatus(http.StatusNotFound)
+		defer primary.Close()
+		secondary := serveBytes()
+		defer secondary.Close()
+
+		dest := filepath.Join(t.TempDir(), "bin")
+		err := downloadFromURLs(context.Background(), fetcher, testLogger{t}, dest, hash, []string{primary.URL, secondary.URL})
+		require.NoError(t, err)
+
+		got, err := os.ReadFile(dest)
+		require.NoError(t, err)
+		assert.Equal(t, body, got, "downloaded content from secondary")
+	})
+
+	t.Run("primary hash mismatch falls back to secondary", func(t *testing.T) {
+		primary := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write([]byte("corrupted"))
+		}))
+		defer primary.Close()
+		secondary := serveBytes()
+		defer secondary.Close()
+
+		dest := filepath.Join(t.TempDir(), "bin")
+		err := downloadFromURLs(context.Background(), fetcher, testLogger{t}, dest, hash, []string{primary.URL, secondary.URL})
+		require.NoError(t, err)
+
+		got, err := os.ReadFile(dest)
+		require.NoError(t, err)
+		assert.Equal(t, body, got, "fell back to secondary's valid content")
+	})
+
+	t.Run("all URLs fail and the error lists each one", func(t *testing.T) {
+		primary := serveStatus(http.StatusNotFound)
+		defer primary.Close()
+		secondary := serveStatus(http.StatusForbidden)
+		defer secondary.Close()
+
+		dest := filepath.Join(t.TempDir(), "bin")
+		err := downloadFromURLs(context.Background(), fetcher, testLogger{t}, dest, hash, []string{primary.URL, secondary.URL})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to download executable")
+		assert.Contains(t, err.Error(), primary.URL)
+		assert.Contains(t, err.Error(), secondary.URL)
+	})
+
+	t.Run("hash mismatch is an error", func(t *testing.T) {
+		srv := serveBytes()
+		defer srv.Close()
+
+		dest := filepath.Join(t.TempDir(), "bin")
+		err := downloadFromURLs(context.Background(), fetcher, testLogger{t}, dest, "sha256-deadbeef", []string{srv.URL})
+		require.Error(t, err)
+		assert.NoFileExists(t, dest, "no file should land on hash mismatch")
+	})
 }
