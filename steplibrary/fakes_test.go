@@ -152,6 +152,17 @@ func (f fakeGetFetcher) DownloadWithHash(_ context.Context, _, _, _ string) erro
 	return errors.New("DownloadWithHash not used")
 }
 
+// stubSource is a sourceProvider that returns a fixed dir/err, standing in for
+// the V1-cache-backed v1Source in activation tests.
+type stubSource struct {
+	dir string
+	err error
+}
+
+func (s stubSource) stepSourceDir(context.Context, ResolvedStepVersion) (string, error) {
+	return s.dir, s.err
+}
+
 // errReadCloser wraps a reader and returns closeErr from Close.
 type errReadCloser struct {
 	io.Reader
@@ -163,6 +174,18 @@ func (e errReadCloser) Close() error { return e.closeErr }
 func sha256OfBytes(b []byte) string {
 	h := sha256.Sum256(b)
 	return "sha256-" + hex.EncodeToString(h[:])
+}
+
+// writeSeedDir creates a directory containing a single step source file, used
+// as a stand-in for the V1 cache dir that getStepSourceDir returns.
+func writeSeedDir(t *testing.T, dir string) {
+	t.Helper()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("create seed dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "step.txt"), []byte("seed\n"), 0o644); err != nil {
+		t.Fatalf("write seed file: %v", err)
+	}
 }
 
 // testLogger routes stepman log output to t.Log: quiet on success, surfaced on failure.
