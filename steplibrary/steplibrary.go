@@ -46,15 +46,17 @@ func (c *Client) Activate(ctx context.Context, stepID, version string, outputPat
 		return ActivatedStep{}, fmt.Errorf("fetch step definition: %w", err)
 	}
 
-	// Prefer the precompiled binary for the current platform when the step
-	// publishes one; on any failure fall back to source activation.
+	// Prefer the precompiled binary for the current platform when the experiment
+	// is enabled and the step publishes one; on any failure fall back to source.
 	execPath := ""
-	if executable, ok := ResolveExecutable(stepModel); ok {
-		path, perr := DownloadPrecompiled(ctx, c.fetcher, c.log, stepID, executable, outputPaths.CodePath)
-		if perr != nil {
-			c.log.Warnf("Failed to download precompiled binary for %s, falling back to source: %s", currentPlatform(), perr)
-		} else {
-			execPath = path
+	if PrecompiledStepsEnabled() {
+		if executable, ok := ResolveExecutable(stepModel); ok {
+			path, perr := DownloadPrecompiled(ctx, c.fetcher, c.log, stepID, executable, outputPaths.CodePath)
+			if perr != nil {
+				c.log.Warnf("Failed to download precompiled binary for %s, falling back to source: %s", currentPlatform(), perr)
+			} else {
+				execPath = path
+			}
 		}
 	}
 

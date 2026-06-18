@@ -17,8 +17,6 @@ import (
 	"github.com/bitrise-io/stepman/steplibrary"
 )
 
-const precompiledStepsEnv = "BITRISE_EXPERIMENT_PRECOMPILED_STEPS"
-
 func ActivateStep(stepLibURI, id, version, destination, destinationStepYML string, log stepman.Logger, isOfflineMode bool) (string, error) {
 	stepCollection, err := stepman.ReadStepSpec(stepLibURI)
 	if err != nil {
@@ -30,7 +28,7 @@ func ActivateStep(stepLibURI, id, version, destination, destinationStepYML strin
 		return "", fmt.Errorf("failed to find step: %s", err)
 	}
 
-	if os.Getenv(precompiledStepsEnv) == "true" || os.Getenv(precompiledStepsEnv) == "1" {
+	if steplibrary.PrecompiledStepsEnabled() {
 		platform := fmt.Sprintf("%s-%s", runtime.GOOS, runtime.GOARCH)
 		if executable, ok := steplibrary.ResolveExecutable(step); ok {
 			log.Debugf("Downloading executable for %s", platform)

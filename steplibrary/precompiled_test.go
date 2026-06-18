@@ -14,6 +14,7 @@ import (
 )
 
 func TestSteplib_Activate_Precompiled(t *testing.T) {
+	t.Setenv(PrecompiledStepsExperimentEnv, "true")
 	payload := []byte("#!/bin/sh\necho hello\n")
 	hash := sha256OfBytes(payload)
 

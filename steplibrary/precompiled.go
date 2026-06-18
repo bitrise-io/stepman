@@ -14,9 +14,19 @@ import (
 	"github.com/bitrise-io/stepman/stepman"
 )
 
+// PrecompiledStepsExperimentEnv gates precompiled-binary activation; both the V1
+// activator and the V2 reader prefer a published binary only when it is enabled.
+const PrecompiledStepsExperimentEnv = "BITRISE_EXPERIMENT_PRECOMPILED_STEPS"
+
 // PrecompiledStepsStorageURLsEnv overrides the ordered list of storage base URLs
 // at runtime (comma-separated).
 const PrecompiledStepsStorageURLsEnv = "BITRISE_PRECOMPILED_STEPS_STORAGE_URLS"
+
+// PrecompiledStepsEnabled reports whether the precompiled-steps experiment is on.
+func PrecompiledStepsEnabled() bool {
+	v := os.Getenv(PrecompiledStepsExperimentEnv)
+	return v == "true" || v == "1"
+}
 
 // PrecompiledStepsDefaultStorageURLs is the ordered list of storage base URLs
 // used when PrecompiledStepsStorageURLsEnv is unset.
@@ -101,7 +111,7 @@ func DownloadPrecompiled(ctx context.Context, fetcher httpfetch.Client, log step
 		}
 	}()
 
-	if err = os.Chmod(binPath, 0o755); err != nil {
+	if err = os.Chmod(binPath, 0o700); err != nil {
 		return "", fmt.Errorf("chmod %s: %w", binPath, err)
 	}
 	return binPath, nil
