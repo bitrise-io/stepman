@@ -1,4 +1,4 @@
-package steplib
+package steplibrary
 
 import (
 	"crypto/sha256"
