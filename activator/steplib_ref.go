@@ -2,13 +2,22 @@ package activator
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/bitrise-io/go-utils/pointers"
 	"github.com/bitrise-io/stepman/activator/steplib"
 	"github.com/bitrise-io/stepman/models"
 	"github.com/bitrise-io/stepman/stepid"
 	"github.com/bitrise-io/stepman/stepman"
+)
+
+const (
+	bitriseV1SteplibURL = "https://github.com/bitrise-io/bitrise-steplib.git"
+	// bitriseSteplibAPIURL is V2 Steplib API
+	bitriseSteplibAPIURL        = "https://steplib.bitrise.io"
+	shouldMigrateV1SteplibToAPI = "BITRISE_EXPERIMENT_STEPLIB_MIGRATE_V1_TO_API"
 )
 
 func ActivateSteplibRefStep(
@@ -55,6 +64,22 @@ func ActivateSteplibRefStep(
 	stepInfoPtr.GroupInfo = stepInfo.GroupInfo
 
 	return activationResult, nil
+}
+
+// determineSteplibEndpoint decides if Steplib API is in use
+func determineSteplibEndpoint(steplibURI string) (endpoint string, useV2 bool) {
+	switch {
+	case steplibURI == bitriseV1SteplibURL: // Bitrise steplib
+		shouldMigrate := os.Getenv(shouldMigrateV1SteplibToAPI) == "true" || os.Getenv(shouldMigrateV1SteplibToAPI) == "1"
+		if shouldMigrate {
+			return bitriseSteplibAPIURL, true
+		}
+		return steplibURI, false
+	case strings.HasSuffix(steplibURI, ".git"): // 3rd party V1 steplib
+		return steplibURI, false
+	default: // we have an API (V2) URI specified, we should keep it
+		return steplibURI, true
+	}
 }
 
 func prepareStepLibForActivation(
