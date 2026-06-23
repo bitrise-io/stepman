@@ -43,6 +43,7 @@ func (c *Client) Activate(ctx context.Context, stepID, version string, outputPat
 	if err != nil {
 		return ActivateResult{}, fmt.Errorf("fetch step definition: %w", err)
 	}
+	stepInfo.Step = stepModel
 
 	stepYML, err := yaml.Marshal(stepModel)
 	if err != nil {

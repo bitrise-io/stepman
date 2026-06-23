@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/bitrise-io/go-utils/pathutil"
+	"github.com/bitrise-io/stepman/activator/steplib"
 	"github.com/bitrise-io/stepman/models"
 	"github.com/bitrise-io/stepman/stepid"
 	"github.com/stretchr/testify/assert"
@@ -219,52 +220,74 @@ func BenchmarkActivateSteplibRefStep(b *testing.B) {
 
 func Test_determineSteplibEndpoint(t *testing.T) {
 	cases := map[string]struct {
-		flagValue  string
-		steplibURI string
-		wantURL    string
-		wantUseV2  bool
+		flagValue   string
+		precompiled string
+		steplibURI  string
+		wantURL     string
+		wantUseV2   bool
 	}{
 		"flag off keeps the legacy path": {
-			flagValue:  "",
-			steplibURI: bitriseV1SteplibURL,
-			wantURL:    bitriseV1SteplibURL,
-			wantUseV2:  false,
+			flagValue:   "",
+			precompiled: "true",
+			steplibURI:  bitriseV1SteplibURL,
+			wantURL:     bitriseV1SteplibURL,
+			wantUseV2:   false,
 		},
 		"flag=true rewrites the official V1 URL to V2": {
-			flagValue:  "true",
-			steplibURI: bitriseV1SteplibURL,
-			wantURL:    bitriseSteplibAPIURL,
-			wantUseV2:  true,
+			flagValue:   "true",
+			precompiled: "true",
+			steplibURI:  bitriseV1SteplibURL,
+			wantURL:     bitriseSteplibAPIURL,
+			wantUseV2:   true,
 		},
 		"flag=1 rewrites the official V1 URL to V2": {
-			flagValue:  "1",
-			steplibURI: bitriseV1SteplibURL,
-			wantURL:    bitriseSteplibAPIURL,
-			wantUseV2:  true,
+			flagValue:   "1",
+			precompiled: "true",
+			steplibURI:  bitriseV1SteplibURL,
+			wantURL:     bitriseSteplibAPIURL,
+			wantUseV2:   true,
 		},
 		"non-.git URL is used directly as a V2 base": {
-			flagValue:  "true",
-			steplibURI: "https://my-cdn.example/steplib/",
-			wantURL:    "https://my-cdn.example/steplib/",
-			wantUseV2:  true,
+			flagValue:   "true",
+			precompiled: "true",
+			steplibURI:  "https://my-cdn.example/steplib/",
+			wantURL:     "https://my-cdn.example/steplib/",
+			wantUseV2:   true,
 		},
 		"alt-steplib .git URL keeps the legacy path": {
-			flagValue:  "true",
-			steplibURI: "https://github.com/acme/custom-steplib.git",
-			wantURL:    "https://github.com/acme/custom-steplib.git",
-			wantUseV2:  false,
+			flagValue:   "true",
+			precompiled: "true",
+			steplibURI:  "https://github.com/acme/custom-steplib.git",
+			wantURL:     "https://github.com/acme/custom-steplib.git",
+			wantUseV2:   false,
 		},
 		"unexpected flag value keeps the legacy path": {
-			flagValue:  "yes",
-			steplibURI: bitriseV1SteplibURL,
-			wantURL:    bitriseV1SteplibURL,
-			wantUseV2:  false,
+			flagValue:   "yes",
+			precompiled: "true",
+			steplibURI:  bitriseV1SteplibURL,
+			wantURL:     bitriseV1SteplibURL,
+			wantUseV2:   false,
+		},
+		"migrate flag on but precompiled off keeps the legacy path": {
+			flagValue:   "true",
+			precompiled: "",
+			steplibURI:  bitriseV1SteplibURL,
+			wantURL:     bitriseV1SteplibURL,
+			wantUseV2:   false,
+		},
+		"explicit V2 URL but precompiled off keeps the legacy path": {
+			flagValue:   "true",
+			precompiled: "",
+			steplibURI:  "https://my-cdn.example/steplib/",
+			wantURL:     "https://my-cdn.example/steplib/",
+			wantUseV2:   false,
 		},
 	}
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			t.Setenv(shouldMigrateV1SteplibToAPI, tc.flagValue)
+			t.Setenv(steplib.PrecompiledStepsEnv, tc.precompiled)
 			gotURL, gotUseV2 := determineSteplibEndpoint(tc.steplibURI)
 			assert.Equal(t, tc.wantUseV2, gotUseV2)
 			assert.Equal(t, tc.wantURL, gotURL)
