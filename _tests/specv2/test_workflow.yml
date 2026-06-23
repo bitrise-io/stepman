@@ -1,5 +1,6 @@
 format_version: "13"
-default_step_lib_source: http://localhost:8888
+default_step_lib_source: https://storage.googleapis.com/steplib-storage-dev
+# default_step_lib_source: https://github.com/bitrise-io/bitrise-steplib.git
 project_type: other
 
 workflows:
@@ -8,10 +9,11 @@ workflows:
     description: |-
       Single-step workflow used by bitrise_specv2.yml to drive the steplib v2
       activation path end-to-end. The bitrise CLI resolves git-clone against
-      the local HTTP server running on port 8888 (serving /tmp/v2-out), so
-      this exercises HTTPAPI + precompiled-binary download + SHA256 verify.
+      the hosted V2 inventory at storage.googleapis.com/steplib-storage-dev,
+      with the precompiled binary downloaded from steplib.bitrise.io, so this
+      exercises HTTPAPI + precompiled-binary download + SHA256 verify.
     steps:
-    - git-clone@8.5.0:
+    - git-clone@8.4:
         run_if: "true"
         inputs:
         - repository_url: https://github.com/bitrise-io/stepman

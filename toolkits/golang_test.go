@@ -221,7 +221,7 @@ func Benchmark_goBuildStep(b *testing.B) {
 		require.NoError(b, err)
 	}()
 
-	_, err = steplib.ActivateStep("https://github.com/bitrise-io/bitrise-steplib", "xcode-test", "5.1.1", stepDir, "", logger, false)
+	_, err = steplib.ActivateStep("https://github.com/bitrise-io/bitrise-steplib", nil, "xcode-test", "5.1.1", stepDir, "", logger, false)
 	require.NoError(b, err)
 
 	packageName := "github.com/bitrise-steplib/steps-xcode-test"

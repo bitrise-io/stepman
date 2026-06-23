@@ -2,13 +2,24 @@ package activator
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/bitrise-io/go-utils/pointers"
+	"github.com/bitrise-io/go-utils/v2/fileutil"
 	"github.com/bitrise-io/stepman/activator/steplib"
 	"github.com/bitrise-io/stepman/models"
 	"github.com/bitrise-io/stepman/stepid"
+	"github.com/bitrise-io/stepman/steplibrary"
 	"github.com/bitrise-io/stepman/stepman"
+)
+
+const (
+	bitriseV1SteplibURL = "https://github.com/bitrise-io/bitrise-steplib.git"
+	// bitriseSteplibAPIURL is V2 Steplib API
+	bitriseSteplibAPIURL        = "https://steplib.bitrise.io"
+	shouldMigrateV1SteplibToAPI = "BITRISE_EXPERIMENT_STEPLIB_MIGRATE_V1_TO_API"
 )
 
 func ActivateSteplibRefStep(
@@ -27,21 +38,37 @@ func ActivateSteplibRefStep(
 		DidStepLibUpdate: false,
 	}
 
-	stepInfo, didUpdate, err := prepareStepLibForActivation(log, id, didStepLibUpdateInWorkflow, isOfflineMode)
-	activationResult.DidStepLibUpdate = didUpdate
-	if err != nil {
-		return activationResult, err
-	}
+	steplibURI := id.SteplibSource
+	inventoryAPIClient := inventoryAPIClientFactory(steplibURI, log)
 
-	execPath, err := steplib.ActivateStep(id.SteplibSource, id.IDorURI, stepInfo.Version, activatedStepDir, stepYMLPath, log, isOfflineMode)
-	activationResult.ExecutablePath = execPath
-	if execPath != "" {
-		activationResult.ActivationType = ActivationTypeSteplibExecutable
+	stepInfo := models.StepInfoModel{}
+	if inventoryAPIClient == nil {
+		err := error(nil)
+		stepInfo, activationResult.DidStepLibUpdate, err = prepareStepLibForActivation(log, id, didStepLibUpdateInWorkflow, isOfflineMode)
+		if err != nil {
+			return activationResult, err
+		}
+
+		execPath, err := steplib.ActivateStep(id.SteplibSource, id.IDorURI, stepInfo.Version, activatedStepDir, stepYMLPath, log, isOfflineMode)
+
+		activationResult.ExecutablePath = execPath
+		if execPath != "" {
+			activationResult.ActivationType = ActivationTypeSteplibExecutable
+		} else {
+			activationResult.ActivationType = ActivationTypeSteplibSource
+		}
+		if err != nil {
+			return activationResult, err
+		}
 	} else {
-		activationResult.ActivationType = ActivationTypeSteplibSource
-	}
-	if err != nil {
-		return activationResult, err
+		activatedStep, err := steplib.ActivateStepWithAPI(id.SteplibSource, *inventoryAPIClient, id.IDorURI, id.Version, activatedStepDir, stepYMLPath, log, isOfflineMode)
+		if err != nil {
+			// todo: fallback
+			return activationResult, err
+		}
+		stepInfo = activatedStep.StepInfo
+		activationResult.ActivationType = ActivationTypeSteplibExecutable
+		activationResult.ExecutablePath = activatedStep.ExecutablePath
 	}
 
 	// TODO: this is sketchy, we should clean this up, but this pointer originates in the CLI codebase
@@ -55,6 +82,42 @@ func ActivateSteplibRefStep(
 	stepInfoPtr.GroupInfo = stepInfo.GroupInfo
 
 	return activationResult, nil
+}
+
+// inventoryAPIClientFactory builds a Steplib API client when the V2 read path
+// should be used, or returns nil to keep the legacy (V1) activation path.
+func inventoryAPIClientFactory(steplibURI string, logger stepman.Logger) (client *steplibrary.Client) {
+	inventoryURL, useAPI := determineSteplibEndpoint(steplibURI)
+	if !useAPI {
+		return nil
+	}
+	return steplibrary.New(logger, "", inventoryURL, fileutil.NewFileManager())
+}
+
+// determineSteplibEndpoint decides if the Steplib API (V2) is in use and which
+// URL the inventory should be fetched from.
+func determineSteplibEndpoint(steplibURI string) (endpoint string, useV2 bool) {
+	switch {
+	case steplibURI == bitriseV1SteplibURL: // Bitrise steplib
+		shouldMigrate := os.Getenv(shouldMigrateV1SteplibToAPI) == "true" || os.Getenv(shouldMigrateV1SteplibToAPI) == "1"
+		if shouldMigrate {
+			endpoint, useV2 = bitriseSteplibAPIURL, true
+		} else {
+			endpoint, useV2 = steplibURI, false
+		}
+	case strings.HasSuffix(steplibURI, ".git"): // 3rd party V1 steplib
+		endpoint, useV2 = steplibURI, false
+	default: // we have an explicit API (V2) URL
+		endpoint, useV2 = steplibURI, true
+	}
+
+	// The V2 read path only writes the step.yml; the runnable step comes from
+	// the precompiled-binary download, so V2 is only usable when that path is
+	// enabled. Fall back to V1 otherwise.
+	if useV2 && !steplib.PrecompiledStepsEnabled() {
+		return steplibURI, false
+	}
+	return endpoint, useV2
 }
 
 func prepareStepLibForActivation(

@@ -1,6 +1,7 @@
 package steplib
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,10 +12,19 @@ import (
 	"github.com/bitrise-io/go-utils/command"
 	"github.com/bitrise-io/go-utils/pathutil"
 	"github.com/bitrise-io/stepman/models"
+	"github.com/bitrise-io/stepman/steplibrary"
 	"github.com/bitrise-io/stepman/stepman"
 )
 
-const precompiledStepsEnv = "BITRISE_EXPERIMENT_PRECOMPILED_STEPS"
+// PrecompiledStepsEnv enables the precompiled-binary download path.
+const PrecompiledStepsEnv = "BITRISE_EXPERIMENT_PRECOMPILED_STEPS"
+
+// PrecompiledStepsEnabled reports whether the precompiled-binary download path
+// is enabled.
+func PrecompiledStepsEnabled() bool {
+	return os.Getenv(PrecompiledStepsEnv) == "true" || os.Getenv(PrecompiledStepsEnv) == "1"
+}
+
 const precompiledStepsStorageURLsEnv = "BITRISE_PRECOMPILED_STEPS_STORAGE_URLS"
 
 var precompiledStepsDefaultStorageURLs = []string{
@@ -22,7 +32,13 @@ var precompiledStepsDefaultStorageURLs = []string{
 	"https://storage.googleapis.com/bitrise-steplib-storage",
 }
 
-func ActivateStep(stepLibURI, id, version, destination, destinationStepYML string, log stepman.Logger, isOfflineMode bool) (string, error) {
+type APIActivatedStep struct {
+	StepInfo       models.StepInfoModel
+	StepYMLPath    string
+	ExecutablePath string
+}
+
+func ActivateStep(stepLibURI string, id, version, destination, destinationStepYML string, log stepman.Logger, isOfflineMode bool) (string, error) {
 	stepCollection, err := stepman.ReadStepSpec(stepLibURI)
 	if err != nil {
 		return "", fmt.Errorf("failed to read %s steplib: %s", stepLibURI, err)
@@ -33,23 +49,61 @@ func ActivateStep(stepLibURI, id, version, destination, destinationStepYML strin
 		return "", fmt.Errorf("failed to find step: %s", err)
 	}
 
-	if (os.Getenv(precompiledStepsEnv) == "true" || os.Getenv(precompiledStepsEnv) == "1") && step.Executables != nil {
+	execPath := downloadPrecompiledExecutable(step, log, id, version, destination)
+	if execPath != "" {
+		if err := copyStepYML(stepLibURI, id, version, destinationStepYML); err != nil {
+			return "", fmt.Errorf("copy step.yml: %s", err)
+		}
+
+		return execPath, nil
+	}
+
+	err = activateStepSource(stepCollection, stepLibURI, id, version, step, destination, destinationStepYML, log, isOfflineMode)
+	if err != nil {
+		return "", err
+	}
+
+	return "", nil
+}
+
+func downloadPrecompiledExecutable(step models.StepModel, log stepman.Logger, id string, version string, destination string) string {
+	if PrecompiledStepsEnabled() && step.Executables != nil {
 		platform := fmt.Sprintf("%s-%s", runtime.GOOS, runtime.GOARCH)
 		executableForPlatform, ok := (*step.Executables)[platform]
 		if ok && executableForPlatform.Hash != "" && executableForPlatform.StorageURI != "" {
 			log.Debugf("Downloading executable for %s", platform)
 			downloadStart := time.Now()
-			execPath, err := activateStepExecutable(stepLibURI, id, version, executableForPlatform, destination, destinationStepYML)
+			execPath, err := activateStepExecutable(id, version, executableForPlatform, destination)
 			if err == nil {
 				log.Debugf("Downloaded executable in %s", time.Since(downloadStart).Round(time.Millisecond))
-				return execPath, nil
+				return execPath
 			}
 			log.Warnf("Failed to download step executable, fallback to step source activation: %s", err)
 		}
 		log.Infof("No prebuilt executable found for %s, fallback to step source activation", platform)
 	}
-	err = activateStepSource(stepCollection, stepLibURI, id, version, step, destination, destinationStepYML, log, isOfflineMode)
-	return "", err
+	return ""
+}
+
+func ActivateStepWithAPI(stepLibURI string, apiClient steplibrary.Client, id, version, destination, destinationStepYML string, log stepman.Logger, isOfflineMode bool) (APIActivatedStep, error) {
+	inventoryResult, err := apiClient.Activate(context.Background(), id, version, steplibrary.ActivateOutputPaths{
+		YMLPath: destinationStepYML,
+	})
+	if err != nil {
+		return APIActivatedStep{}, fmt.Errorf("Step inventory API: %w", err)
+	}
+
+	step := inventoryResult.StepInfo.Step
+	execPath := downloadPrecompiledExecutable(step, log, id, version, destination)
+	if execPath != "" {
+		return APIActivatedStep{
+			StepInfo:       inventoryResult.StepInfo,
+			StepYMLPath:    destinationStepYML,
+			ExecutablePath: execPath,
+		}, nil
+	}
+
+	return APIActivatedStep{}, fmt.Errorf("no prebuilt executable found via API")
 }
 
 func queryStepMetadata(stepLib models.StepCollectionModel, stepLibURI string, id, version string) (models.StepModel, string, error) {
