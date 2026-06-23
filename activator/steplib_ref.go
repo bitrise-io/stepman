@@ -48,17 +48,27 @@ func ActivateSteplibRefStep(
 		if err != nil {
 			return activationResult, err
 		}
-	}
 
-	execPath, err := steplib.ActivateStep(id.SteplibSource, inventoryAPIClient, id.IDorURI, stepInfo.Version, activatedStepDir, stepYMLPath, log, isOfflineMode)
-	activationResult.ExecutablePath = execPath
-	if execPath != "" {
-		activationResult.ActivationType = ActivationTypeSteplibExecutable
+		execPath, err := steplib.ActivateStep(id.SteplibSource, id.IDorURI, stepInfo.Version, activatedStepDir, stepYMLPath, log, isOfflineMode)
+
+		activationResult.ExecutablePath = execPath
+		if execPath != "" {
+			activationResult.ActivationType = ActivationTypeSteplibExecutable
+		} else {
+			activationResult.ActivationType = ActivationTypeSteplibSource
+		}
+		if err != nil {
+			return activationResult, err
+		}
 	} else {
-		activationResult.ActivationType = ActivationTypeSteplibSource
-	}
-	if err != nil {
-		return activationResult, err
+		activatedStep, err := steplib.ActivateStepWithAPI(id.SteplibSource, *inventoryAPIClient, id.IDorURI, id.Version, activatedStepDir, stepYMLPath, log, isOfflineMode)
+		if err != nil {
+			// todo: fallback
+			return activationResult, err
+		}
+		stepInfo = activatedStep.StepInfo
+		activationResult.ActivationType = ActivationTypeSteplibExecutable
+		activationResult.ExecutablePath = activatedStep.ExecutablePath
 	}
 
 	// TODO: this is sketchy, we should clean this up, but this pointer originates in the CLI codebase

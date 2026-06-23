@@ -34,6 +34,7 @@ func New(log stepman.Logger, steplibURI, inventoryURL string, fileManager fileut
 }
 
 func (c *Client) Activate(ctx context.Context, stepID, version string, outputPaths ActivateOutputPaths) (ActivateResult, error) {
+	c.log.Infof("[Steplib API] version: %s", version)
 	stepInfo, resolved, err := c.getStepVersionInfo(ctx, stepID, version)
 	if err != nil {
 		return ActivateResult{}, fmt.Errorf("resolve step version: %w", err)

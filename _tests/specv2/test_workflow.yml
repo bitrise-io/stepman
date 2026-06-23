@@ -1,5 +1,6 @@
 format_version: "13"
-default_step_lib_source: https://storage.googleapis.com/steplib-storage-dev
+# default_step_lib_source: https://storage.googleapis.com/steplib-storage-dev
+default_step_lib_source: https://github.com/bitrise-io/bitrise-steplib.git
 project_type: other
 
 workflows:
@@ -12,7 +13,7 @@ workflows:
       with the precompiled binary downloaded from steplib.bitrise.io, so this
       exercises HTTPAPI + precompiled-binary download + SHA256 verify.
     steps:
-    - git-clone@8.5.0:
+    - git-clone@8.4.*:
         run_if: "true"
         inputs:
         - repository_url: https://github.com/bitrise-io/stepman
