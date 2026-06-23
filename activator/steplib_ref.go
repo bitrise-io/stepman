@@ -107,7 +107,7 @@ func determineSteplibEndpoint(steplibURI string) (endpoint string, useV2 bool) {
 		}
 	case strings.HasSuffix(steplibURI, ".git"): // 3rd party V1 steplib
 		endpoint, useV2 = steplibURI, false
-	default: // we have an API (V2) URI specified, we should keep it
+	default: // we have an explicit API (V2) URL
 		endpoint, useV2 = steplibURI, true
 	}
 

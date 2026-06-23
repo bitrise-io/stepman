@@ -49,20 +49,13 @@ func ActivateStep(stepLibURI string, id, version, destination, destinationStepYM
 		return "", fmt.Errorf("failed to find step: %s", err)
 	}
 
-	if PrecompiledStepsEnabled() && step.Executables != nil {
-		platform := fmt.Sprintf("%s-%s", runtime.GOOS, runtime.GOARCH)
-		executableForPlatform, ok := (*step.Executables)[platform]
-		if ok && executableForPlatform.Hash != "" && executableForPlatform.StorageURI != "" {
-			log.Debugf("Downloading executable for %s", platform)
-			downloadStart := time.Now()
-			execPath, err := activateStepExecutable(stepLibURI, id, version, executableForPlatform, destination, destinationStepYML, true)
-			if err == nil {
-				log.Debugf("Downloaded executable in %s", time.Since(downloadStart).Round(time.Millisecond))
-				return execPath, nil
-			}
-			log.Warnf("Failed to download step executable, fallback to step source activation: %s", err)
+	execPath := downloadPrecompiledExecutable(step, log, id, version, destination)
+	if execPath != "" {
+		if err := copyStepYML(stepLibURI, id, version, destinationStepYML); err != nil {
+			return "", fmt.Errorf("copy step.yml: %s", err)
 		}
-		log.Infof("No prebuilt executable found for %s, fallback to step source activation", platform)
+
+		return execPath, nil
 	}
 
 	err = activateStepSource(stepCollection, stepLibURI, id, version, step, destination, destinationStepYML, log, isOfflineMode)
@@ -71,6 +64,25 @@ func ActivateStep(stepLibURI string, id, version, destination, destinationStepYM
 	}
 
 	return "", nil
+}
+
+func downloadPrecompiledExecutable(step models.StepModel, log stepman.Logger, id string, version string, destination string) string {
+	if PrecompiledStepsEnabled() && step.Executables != nil {
+		platform := fmt.Sprintf("%s-%s", runtime.GOOS, runtime.GOARCH)
+		executableForPlatform, ok := (*step.Executables)[platform]
+		if ok && executableForPlatform.Hash != "" && executableForPlatform.StorageURI != "" {
+			log.Debugf("Downloading executable for %s", platform)
+			downloadStart := time.Now()
+			execPath, err := activateStepExecutable(id, version, executableForPlatform, destination)
+			if err == nil {
+				log.Debugf("Downloaded executable in %s", time.Since(downloadStart).Round(time.Millisecond))
+				return execPath
+			}
+			log.Warnf("Failed to download step executable, fallback to step source activation: %s", err)
+		}
+		log.Infof("No prebuilt executable found for %s, fallback to step source activation", platform)
+	}
+	return ""
 }
 
 func ActivateStepWithAPI(stepLibURI string, apiClient steplibrary.Client, id, version, destination, destinationStepYML string, log stepman.Logger, isOfflineMode bool) (APIActivatedStep, error) {
@@ -82,24 +94,13 @@ func ActivateStepWithAPI(stepLibURI string, apiClient steplibrary.Client, id, ve
 	}
 
 	step := inventoryResult.StepInfo.Step
-	if PrecompiledStepsEnabled() && step.Executables != nil {
-		platform := fmt.Sprintf("%s-%s", runtime.GOOS, runtime.GOARCH)
-		executableForPlatform, ok := (*step.Executables)[platform]
-		if ok && executableForPlatform.Hash != "" && executableForPlatform.StorageURI != "" {
-			log.Debugf("Downloading executable for %s", platform)
-			downloadStart := time.Now()
-			execPath, err := activateStepExecutable(stepLibURI, id, inventoryResult.StepInfo.Version, executableForPlatform, destination, destinationStepYML, false)
-			if err == nil {
-				log.Debugf("Downloaded executable in %s", time.Since(downloadStart).Round(time.Millisecond))
-				return APIActivatedStep{
-					StepInfo:       inventoryResult.StepInfo,
-					StepYMLPath:    destinationStepYML,
-					ExecutablePath: execPath,
-				}, nil
-			}
-			log.Warnf("Failed to download step executable, fallback to step source activation: %s", err)
-		}
-		log.Infof("No prebuilt executable found for %s, fallback to step source activation", platform)
+	execPath := downloadPrecompiledExecutable(step, log, id, version, destination)
+	if execPath != "" {
+		return APIActivatedStep{
+			StepInfo:       inventoryResult.StepInfo,
+			StepYMLPath:    destinationStepYML,
+			ExecutablePath: execPath,
+		}, nil
 	}
 
 	return APIActivatedStep{}, fmt.Errorf("no prebuilt executable found via API")

@@ -16,13 +16,10 @@ import (
 )
 
 func activateStepExecutable(
-	stepLibURI string,
 	stepID string,
 	version string,
 	executable models.Executable,
 	destinationDir string,
-	destinationStepYML string,
-	copyStepYMLFromCache bool,
 ) (string, error) {
 	body, err := downloadExecutable(executable)
 	if err != nil {
@@ -64,15 +61,6 @@ func activateStepExecutable(
 	err = os.Chmod(path, 0755)
 	if err != nil {
 		return "", fmt.Errorf("set executable permission on file: %s", err)
-	}
-
-	// On the V1 path step.yml lives in the local steplib cache and must be
-	// copied to the destination. On the V2 (API) path the inventory client has
-	// already written it, so there is nothing to copy.
-	if copyStepYMLFromCache {
-		if err := copyStepYML(stepLibURI, stepID, version, destinationStepYML); err != nil {
-			return "", fmt.Errorf("copy step.yml: %s", err)
-		}
 	}
 
 	return path, nil
