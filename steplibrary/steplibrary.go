@@ -32,6 +32,8 @@ func New(log stepman.Logger, steplibURI, inventoryURL string, fileManager fileut
 	}
 }
 
+// TODO: return type probably should not be called ActivateResult if this doesn't do a full activation
+// TODO: is outputPaths still needed? If this function only fetches metadata, why does it write a step.yml to disk?
 func (c *Client) FetchStepMetadata(ctx context.Context, stepID, version string, outputPaths ActivateOutputPaths) (ActivateResult, error) {
 	stepInfo, resolved, err := c.getStepVersionInfo(ctx, stepID, version)
 	if err != nil {
