@@ -8,7 +8,6 @@ import (
 	"github.com/bitrise-io/stepman/activator/steplib"
 	"github.com/bitrise-io/stepman/models"
 	"github.com/bitrise-io/stepman/stepid"
-	"github.com/bitrise-io/stepman/steplibrary"
 	"github.com/bitrise-io/stepman/stepman"
 )
 
@@ -19,17 +18,17 @@ func ActivateSteplibRefStep(
 	workDir string,
 	didStepLibUpdateInWorkflow bool,
 	isOfflineMode bool,
-	stepInfoPtr *models.StepInfoModel,
-) (steplibrary.ActivatedStep, error) {
+) (ActivatedStep, error) {
 	stepYMLPath := filepath.Join(workDir, "current_step.yml")
 	//nolint:exhaustruct // missing fields are added down below based on activation result
-	activationResult := steplibrary.ActivatedStep{
+	activationResult := ActivatedStep{
 		StepYMLPath:      stepYMLPath,
 		DidStepLibUpdate: false,
 	}
 
 	stepInfo, didUpdate, err := prepareStepLibForActivation(log, id, didStepLibUpdateInWorkflow, isOfflineMode)
 	activationResult.DidStepLibUpdate = didUpdate
+	activationResult.StepInfo = stepInfo
 	if err != nil {
 		return activationResult, err
 	}
@@ -37,23 +36,13 @@ func ActivateSteplibRefStep(
 	execPath, err := steplib.ActivateStep(id.SteplibSource, id.IDorURI, stepInfo.Version, activatedStepDir, stepYMLPath, log, isOfflineMode)
 	activationResult.ExecutablePath = execPath
 	if execPath != "" {
-		activationResult.ActivationType = steplibrary.ActivationTypeSteplibExecutable
+		activationResult.ActivationType = ActivationTypeSteplibExecutable
 	} else {
-		activationResult.ActivationType = steplibrary.ActivationTypeSteplibSource
+		activationResult.ActivationType = ActivationTypeSteplibSource
 	}
 	if err != nil {
 		return activationResult, err
 	}
-
-	// TODO: this is sketchy, we should clean this up, but this pointer originates in the CLI codebase
-	stepInfoPtr.ID = stepInfo.ID
-	if stepInfoPtr.Step.Title == nil || *stepInfoPtr.Step.Title == "" {
-		stepInfoPtr.Step.Title = pointers.NewStringPtr(stepInfo.ID)
-	}
-	stepInfoPtr.Version = stepInfo.Version
-	stepInfoPtr.LatestVersion = stepInfo.LatestVersion
-	stepInfoPtr.OriginalVersion = stepInfo.OriginalVersion
-	stepInfoPtr.GroupInfo = stepInfo.GroupInfo
 
 	return activationResult, nil
 }
