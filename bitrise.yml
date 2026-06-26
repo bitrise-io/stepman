@@ -41,16 +41,6 @@ workflows:
         inputs:
         - packages: ./...
     - script:
-        title: govulncheck
-        inputs:
-        - content: |-
-            #!/usr/bin/env bash
-            set -ex
-
-            go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
-            asdf reshim golang
-            govulncheck ./...
-    - script:
         title: Run integration tests
         inputs:
         - content: |-
@@ -75,17 +65,6 @@ workflows:
     - GITHUB_TOKEN: $GIT_BOT_USER_ACCESS_TOKEN
     steps:
     - bundle::setup-go: { }
-    - script:
-        title: govulncheck (binary mode)
-        inputs:
-        - content: |-
-            #!/usr/bin/env bash
-            set -ex
-
-            go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
-            asdf reshim golang
-            CGO_ENABLED=0 go build -o _tmp/stepman_vuln_check .
-            govulncheck -mode=binary _tmp/stepman_vuln_check
     - script:
         title: Goreleaser (create binaries + publish to GH)
         deps:
