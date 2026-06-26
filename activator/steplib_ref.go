@@ -33,13 +33,9 @@ func ActivateSteplibRefStep(
 		return activationResult, err
 	}
 
-	execPath, err := steplib.ActivateStep(id.SteplibSource, id.IDorURI, stepInfo.Version, activatedStepDir, stepYMLPath, log, isOfflineMode)
-	activationResult.ExecutablePath = execPath
-	if execPath != "" {
-		activationResult.ActivationType = steplib.ActivationTypeSteplibExecutable
-	} else {
-		activationResult.ActivationType = steplib.ActivationTypeSteplibSource
-	}
+	activatedStep, err := steplib.ActivateStep(id.SteplibSource, id.IDorURI, stepInfo.Version, activatedStepDir, stepYMLPath, log, isOfflineMode)
+	activationResult.ExecutablePath = activatedStep.ExecutablePath
+	activationResult.ActivationType = activatedStep.ActivationType
 	if err != nil {
 		return activationResult, err
 	}

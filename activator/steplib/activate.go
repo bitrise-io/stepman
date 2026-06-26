@@ -22,28 +22,33 @@ var precompiledStepsDefaultStorageURLs = []string{
 	"https://storage.googleapis.com/bitrise-steplib-storage",
 }
 
-func ActivateStep(stepLibURI, id, version, destination, destinationStepYML string, log stepman.Logger, isOfflineMode bool) (string, error) {
+func ActivateStep(stepLibURI, id, version, destination, destinationStepYML string, log stepman.Logger, isOfflineMode bool) (ActivatedStep, error) {
 	stepCollection, err := stepman.ReadStepSpec(stepLibURI)
 	if err != nil {
-		return "", fmt.Errorf("failed to read %s steplib: %s", stepLibURI, err)
+		return ActivatedStep{}, fmt.Errorf("failed to read %s steplib: %s", stepLibURI, err)
 	}
 
 	step, version, err := queryStepMetadata(stepCollection, stepLibURI, id, version)
 	if err != nil {
-		return "", fmt.Errorf("failed to find step: %s", err)
+		return ActivatedStep{}, fmt.Errorf("failed to find step: %s", err)
 	}
 
 	execPath, err := downloadPrecompiled(log, step, id, destination)
 	if execPath != "" {
 		if err := copyStepYML(stepLibURI, id, version, destinationStepYML); err != nil {
-			return "", fmt.Errorf("copy step.yml: %s", err)
+			return ActivatedStep{}, fmt.Errorf("copy step.yml: %s", err)
 		}
 
-		return execPath, err
+		return ActivatedStep{
+			ExecutablePath: execPath,
+			ActivationType: ActivationTypeSteplibExecutable,
+		}, err
 	}
 
 	err = activateStepSource(stepCollection, stepLibURI, id, version, step, destination, destinationStepYML, log, isOfflineMode)
-	return "", err
+	return ActivatedStep{
+		ActivationType: ActivationTypeSteplibSource,
+	}, err
 }
 
 func downloadPrecompiled(log stepman.Logger, step models.StepModel, id string, destination string) (string, error) {
