@@ -1,4 +1,4 @@
-package activator
+package steplib
 
 import "github.com/bitrise-io/stepman/models"
 

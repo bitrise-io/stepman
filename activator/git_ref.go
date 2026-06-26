@@ -9,6 +9,7 @@ import (
 
 	"github.com/bitrise-io/go-utils/command"
 	"github.com/bitrise-io/go-utils/command/git"
+	"github.com/bitrise-io/stepman/activator/steplib"
 	"github.com/bitrise-io/stepman/stepid"
 	"github.com/bitrise-io/stepman/stepman"
 )
@@ -18,10 +19,10 @@ func ActivateGitRefStep(
 	id stepid.CanonicalID,
 	activatedStepDir string,
 	workDir string,
-) (ActivatedStep, error) {
+) (steplib.ActivatedStep, error) {
 	repo, err := git.New(activatedStepDir)
 	if err != nil {
-		return ActivatedStep{},err
+		return steplib.ActivatedStep{},err
 	}
 
 	var cloneCmd *command.Model
@@ -39,26 +40,26 @@ even if the repository is open source!`)
 		}
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
-			return ActivatedStep{},fmt.Errorf("command failed with exit status %d (%s): %w", exitErr.ExitCode(), cloneCmd.PrintableCommandArgs(), errors.New(out))
+			return steplib.ActivatedStep{},fmt.Errorf("command failed with exit status %d (%s): %w", exitErr.ExitCode(), cloneCmd.PrintableCommandArgs(), errors.New(out))
 		}
-		return ActivatedStep{},err
+		return steplib.ActivatedStep{},err
 	}
 
 	stepYMLPath := filepath.Join(workDir, "current_step.yml")
 	if err := command.CopyFile(filepath.Join(activatedStepDir, "step.yml"), stepYMLPath); err != nil {
-		return ActivatedStep{},err
+		return steplib.ActivatedStep{},err
 	}
 
 	stepInfo, err := stepman.QueryStepInfoFromGitStepDir(activatedStepDir, id.IDorURI, id.Version)
 	if err != nil {
-		return ActivatedStep{},err
+		return steplib.ActivatedStep{},err
 	}
 
-	return ActivatedStep{
+	return steplib.ActivatedStep{
 		StepInfo:         stepInfo,
 		StepYMLPath:      stepYMLPath,
 		DidStepLibUpdate: false,
-		ActivationType:   ActivationTypeGitRef,
+		ActivationType:   steplib.ActivationTypeGitRef,
 		ExecutablePath:   "",
 	}, nil
 }

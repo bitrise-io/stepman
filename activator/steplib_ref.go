@@ -18,10 +18,10 @@ func ActivateSteplibRefStep(
 	workDir string,
 	didStepLibUpdateInWorkflow bool,
 	isOfflineMode bool,
-) (ActivatedStep, error) {
+) (steplib.ActivatedStep, error) {
 	stepYMLPath := filepath.Join(workDir, "current_step.yml")
 	//nolint:exhaustruct // missing fields are added down below based on activation result
-	activationResult := ActivatedStep{
+	activationResult := steplib.ActivatedStep{
 		StepYMLPath:      stepYMLPath,
 		DidStepLibUpdate: false,
 	}
@@ -36,9 +36,9 @@ func ActivateSteplibRefStep(
 	execPath, err := steplib.ActivateStep(id.SteplibSource, id.IDorURI, stepInfo.Version, activatedStepDir, stepYMLPath, log, isOfflineMode)
 	activationResult.ExecutablePath = execPath
 	if execPath != "" {
-		activationResult.ActivationType = ActivationTypeSteplibExecutable
+		activationResult.ActivationType = steplib.ActivationTypeSteplibExecutable
 	} else {
-		activationResult.ActivationType = ActivationTypeSteplibSource
+		activationResult.ActivationType = steplib.ActivationTypeSteplibSource
 	}
 	if err != nil {
 		return activationResult, err

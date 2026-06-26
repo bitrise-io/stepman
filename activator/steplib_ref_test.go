@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/bitrise-io/go-utils/pathutil"
+	"github.com/bitrise-io/stepman/activator/steplib"
 	"github.com/bitrise-io/stepman/stepid"
 	"github.com/stretchr/testify/require"
 )
@@ -204,7 +205,7 @@ func BenchmarkActivateSteplibRefStep(b *testing.B) {
 				}
 
 				require.Equal(b, tmpDir+"/current_step.yml", got.StepYMLPath)
-				require.Equal(b, ActivationTypeSteplibSource, got.ActivationType)
+				require.Equal(b, steplib.ActivationTypeSteplibSource, got.ActivationType)
 				require.Equal(b, !tt.didStepLibUpdateInWorkflow, got.DidStepLibUpdate)
 				require.Equal(b, tt.id.IDorURI, got.StepInfo.ID)
 			}

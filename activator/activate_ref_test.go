@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/bitrise-io/go-utils/pathutil"
+	"github.com/bitrise-io/stepman/activator/steplib"
 	"github.com/bitrise-io/stepman/stepid"
 	"github.com/stretchr/testify/require"
 )
@@ -43,7 +44,7 @@ func TestActivatePathRefStep(t *testing.T) {
 	absStepSrcDir, err := pathutil.AbsPath(stepSrcDir)
 	require.NoError(t, err)
 
-	require.Equal(t, ActivationTypePathRef, got.ActivationType)
+	require.Equal(t, steplib.ActivationTypePathRef, got.ActivationType)
 	require.Equal(t, filepath.Join(workDir, "current_step.yml"), got.StepYMLPath)
 	require.Equal(t, "path", got.StepInfo.Library)
 	require.Equal(t, absStepSrcDir, got.StepInfo.ID)
@@ -64,7 +65,7 @@ func TestActivateGitRefStep(t *testing.T) {
 	got, err := ActivateGitRefStep(TestLogger[*testing.T]{t}, id, activatedStepDir, workDir)
 	require.NoError(t, err)
 
-	require.Equal(t, ActivationTypeGitRef, got.ActivationType)
+	require.Equal(t, steplib.ActivationTypeGitRef, got.ActivationType)
 	require.Equal(t, filepath.Join(workDir, "current_step.yml"), got.StepYMLPath)
 	require.Equal(t, "git", got.StepInfo.Library)
 	require.Equal(t, srcRepoDir, got.StepInfo.ID)
