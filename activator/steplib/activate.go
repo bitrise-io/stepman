@@ -39,6 +39,7 @@ func ActivateStep(stepLibURI, id, version, destination, destinationStepYML strin
 			return ActivatedStep{}, fmt.Errorf("copy step.yml: %s", err)
 		}
 
+		//nolint:exhaustruct // only the executable and activation type fields are set here, the rest are filled in by the caller
 		return ActivatedStep{
 			ExecutablePath: execPath,
 			ActivationType: ActivationTypeSteplibExecutable,
@@ -46,6 +47,7 @@ func ActivateStep(stepLibURI, id, version, destination, destinationStepYML strin
 	}
 
 	err = activateStepSource(stepCollection, stepLibURI, id, version, step, destination, destinationStepYML, log, isOfflineMode)
+	//nolint:exhaustruct // only the activation type field is set here, the rest are filled in by the caller
 	return ActivatedStep{
 		ActivationType: ActivationTypeSteplibSource,
 	}, err
