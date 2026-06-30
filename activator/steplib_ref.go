@@ -79,7 +79,7 @@ func inventoryAPIClientFactory(steplibURI string, logger stepman.Logger) (client
 		APIURL = bitriseSteplibAPIURL
 	}
 	if shouldMigrate && steplibURI == bitriseV1SteplibURL {
-		return steplibrary.New(logger, "", APIURL, fileutil.NewFileManager())
+		return steplibrary.New(logger, APIURL, fileutil.NewFileManager())
 	}
 	return nil
 }

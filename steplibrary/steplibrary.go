@@ -22,9 +22,9 @@ type ActivateOutputPaths struct {
 	YMLPath, CodePath string
 }
 
-// New builds a Client. steplibURI is the steplib identity; inventoryURL is
-// the base URL the V2 inventory JSON is fetched from.
-func New(log stepman.Logger, steplibURI, inventoryURL string, fileManager fileutil.FileManager) *Client {
+// New builds a Client. inventoryURL is the base URL the V2 inventory JSON is
+// fetched from.
+func New(log stepman.Logger, inventoryURL string, fileManager fileutil.FileManager) *Client {
 	return &Client{
 		log:          log,
 		inventoryURL: inventoryURL,

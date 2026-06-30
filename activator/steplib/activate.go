@@ -36,7 +36,7 @@ func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string,
 	var version string
 	var resolveErr error
 	if libraryAPI != nil {
-		stepInfo, resolveErr = resolveStepModel(*libraryAPI, id, log, destinationStepYML)
+		stepInfo, resolveErr = resolveStepModel(*libraryAPI, id, destinationStepYML)
 		stepModel = stepInfo.Step
 		version = stepInfo.Version
 	} else {
@@ -102,7 +102,7 @@ func downloadPrecompiled(log stepman.Logger, step models.StepModel, id stepid.Ca
 	return "", nil
 }
 
-func resolveStepModel(client steplibrary.Client, id stepid.CanonicalID, log stepman.Logger, outputYMLPath string) (models.StepInfoModel, error) {
+func resolveStepModel(client steplibrary.Client, id stepid.CanonicalID, outputYMLPath string) (models.StepInfoModel, error) {
 	ctx := context.Background()
 	activateResult, err := client.FetchStepMetadata(ctx, id, outputYMLPath)
 	if err != nil {
