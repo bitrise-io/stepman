@@ -46,14 +46,18 @@ func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string,
 		return ResolvedStep{}, resolveErr
 	}
 
+	// Place the step.yml at destinationStepYML once, up front: on the legacy
+	// path copy it from the local steplib cache; on the API path
+	// FetchStepMetadata has already written it there. Doing this before the
+	// precompiled/source split keeps it to a single callsite.
+	if libraryAPI == nil {
+		if err := copyStepYML(id.SteplibSource, id.IDorURI, version, destinationStepYML); err != nil {
+			return ResolvedStep{}, fmt.Errorf("copy step.yml: %s", err)
+		}
+	}
+
 	execPath, err := downloadPrecompiled(log, stepModel, id, destination)
 	if execPath != "" {
-		if libraryAPI == nil {
-			if err := copyStepYML(id.SteplibSource, id.IDorURI, version, destinationStepYML); err != nil {
-				return ResolvedStep{}, fmt.Errorf("copy step.yml: %s", err)
-			}
-		}
-
 		return ResolvedStep{
 			ExecPath: execPath,
 			StepInfo: stepInfo,
@@ -71,15 +75,6 @@ func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string,
 	}
 	if err := activateStepSource(stepCollection, id.SteplibSource, id.IDorURI, version, stepModel, destination, log, isOfflineMode); err != nil {
 		return ResolvedStep{}, err
-	}
-
-	// The step.yml must be placed at destinationStepYML. On the legacy path it
-	// comes from the local steplib cache; on the API path FetchStepMetadata has
-	// already written it there, so copying again would fail ("already exist").
-	if libraryAPI == nil {
-		if err := copyStepYML(id.SteplibSource, id.IDorURI, version, destinationStepYML); err != nil {
-			return ResolvedStep{}, fmt.Errorf("copy step.yml: %s", err)
-		}
 	}
 
 	return ResolvedStep{StepInfo: stepInfo}, nil
