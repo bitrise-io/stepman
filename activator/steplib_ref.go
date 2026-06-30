@@ -26,7 +26,7 @@ func ActivateSteplibRefStep(
 		DidStepLibUpdate: false,
 	}
 
-	if (!STEPLIB_API_ENABLED) {
+	if !STEPLIB_API_ENABLED {
 		// Old stepman preparation codepath
 		stepInfo, didUpdate, err := prepareStepLibForActivation(log, id, didStepLibUpdateInWorkflow, isOfflineMode)
 		activationResult.StepInfo = stepInfo
@@ -37,9 +37,12 @@ func ActivateSteplibRefStep(
 	}
 
 	// We pass the entire stepid.CanonicalID into ActivateStep() and let it parse and handle it according to the 2 codepaths (v2 vs. old stepman activation)
-	execPath, err := steplib.ActivateStep(id, activatedStepDir, stepYMLPath, log, isOfflineMode)
-	activationResult.ExecutablePath = execPath
-	if execPath != "" {
+	resolvedStep, err := steplib.ActivateStep(id, activatedStepDir, stepYMLPath, log, isOfflineMode)
+	if STEPLIB_API_ENABLED {
+		activationResult.StepInfo = resolvedStep.StepInfo
+	}
+	activationResult.ExecutablePath = resolvedStep.ExecPath
+	if resolvedStep.ExecPath != "" {
 		activationResult.ActivationType = ActivationTypeSteplibExecutable
 	} else {
 		activationResult.ActivationType = ActivationTypeSteplibSource

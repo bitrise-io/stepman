@@ -26,26 +26,33 @@ var precompiledStepsDefaultStorageURLs = []string{
 	"https://storage.googleapis.com/bitrise-steplib-storage",
 }
 
-func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string, log stepman.Logger, isOfflineMode bool) (string, error) {
+type ResolvedStep struct {
+	ExecPath string
+	StepInfo models.StepInfoModel
+}
+
+func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string, log stepman.Logger, isOfflineMode bool) (ResolvedStep, error) {
 	var stepModel models.StepModel
 	var version string
 	var resolveErr error
-	if (STEPLIB_API_ENABLED) {
-		stepModel, version, resolveErr = resolveStepModel(id, log)
+	if STEPLIB_API_ENABLED {
+		stepModel, version, resolveErr = resolveStepModel(id, log, destinationStepYML)
 	} else {
 		stepModel, version, resolveErr = resolveStepModelLegacy(id)
 	}
 	if resolveErr != nil {
-		return "", resolveErr
+		return ResolvedStep{}, resolveErr
 	}
 
 	execPath, err := downloadPrecompiled(log, stepModel, id, destination)
 	if execPath != "" {
-		if err := copyStepYML(id.SteplibSource, id.IDorURI, version, destinationStepYML); err != nil {
-			return "", fmt.Errorf("copy step.yml: %s", err)
+		if !STEPLIB_API_ENABLED {
+			if err := copyStepYML(id.SteplibSource, id.IDorURI, version, destinationStepYML); err != nil {
+				return ResolvedStep{}, fmt.Errorf("copy step.yml: %s", err)
+			}
 		}
 
-		return execPath, err
+		return ResolvedStep{ExecPath: execPath}, err
 	}
 
 	// Fallback path to step source activation
@@ -55,10 +62,10 @@ func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string,
 	// This breaks when the new steplib API is NOT ENABLED and should be fixed in a follow-up PR. See steplib_ref.go.
 	stepCollection, err := stepman.ReadStepSpec(id.SteplibSource)
 	if err != nil {
-		return "", fmt.Errorf("failed to read %s steplib: %s", id.SteplibSource, err)
+		return ResolvedStep{}, fmt.Errorf("failed to read %s steplib: %s", id.SteplibSource, err)
 	}
 	err = activateStepSource(stepCollection, id.SteplibSource, id.IDorURI, version, stepModel, destination, destinationStepYML, log, isOfflineMode)
-	return "", err
+	return ResolvedStep{}, err
 }
 
 func downloadPrecompiled(log stepman.Logger, step models.StepModel, id stepid.CanonicalID, destination string) (string, error) {
@@ -94,12 +101,12 @@ func resolveStepModelLegacy(id stepid.CanonicalID) (models.StepModel, string, er
 	return step, version, nil
 }
 
-func resolveStepModel(id stepid.CanonicalID, log stepman.Logger) (models.StepModel, string, error) {
+func resolveStepModel(id stepid.CanonicalID, log stepman.Logger, outputYMLPath string) (models.StepModel, string, error) {
 	inventoryURL := "TODO"
 	lib := steplibrary.New(log, id.SteplibSource, inventoryURL, fileutil.NewFileManager())
 	ctx := context.Background()
 
-	activateResult, err := lib.FetchStepMetadata(ctx, id.IDorURI, id.Version)
+	activateResult, err := lib.FetchStepMetadata(ctx, id, outputYMLPath)
 	if err != nil {
 		return models.StepModel{}, "", fmt.Errorf("fetch step metadata: %s", err)
 	}
