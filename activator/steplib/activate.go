@@ -30,7 +30,7 @@ type ResolvedStep struct {
 	StepInfo models.StepInfoModel
 }
 
-func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string, log stepman.Logger, isOfflineMode bool, libraryAPI *steplibrary.Client) (ResolvedStep, error) {
+func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string, log stepman.Logger, isOfflineMode bool, libraryAPI *steplibrary.Client, legacyStepVersion string) (ResolvedStep, error) {
 	var stepModel models.StepModel
 	var stepInfo models.StepInfoModel
 	var version string
@@ -40,7 +40,9 @@ func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string,
 		stepModel = stepInfo.Step
 		version = stepInfo.Version
 	} else {
-		stepModel, version, resolveErr = resolveStepModelLegacy(id)
+		// Legacy path: look the step up in the local steplib using the
+		// already-resolved concrete version, not the raw constraint.
+		stepModel, version, resolveErr = resolveStepModelLegacy(id, legacyStepVersion)
 	}
 	if resolveErr != nil {
 		return ResolvedStep{}, resolveErr
@@ -100,19 +102,6 @@ func downloadPrecompiled(log stepman.Logger, step models.StepModel, id stepid.Ca
 	return "", nil
 }
 
-func resolveStepModelLegacy(id stepid.CanonicalID) (models.StepModel, string, error) {
-	stepCollection, err := stepman.ReadStepSpec(id.SteplibSource)
-	if err != nil {
-		return models.StepModel{}, "", fmt.Errorf("failed to read %s steplib: %s", id.SteplibSource, err)
-	}
-
-	step, version, err := queryStepMetadata(stepCollection, id.SteplibSource, id.IDorURI, id.Version)
-	if err != nil {
-		return models.StepModel{}, "", fmt.Errorf("failed to find step: %s", err)
-	}
-	return step, version, nil
-}
-
 func resolveStepModel(client steplibrary.Client, id stepid.CanonicalID, log stepman.Logger, outputYMLPath string) (models.StepInfoModel, error) {
 	ctx := context.Background()
 	activateResult, err := client.FetchStepMetadata(ctx, id, outputYMLPath)
@@ -121,6 +110,21 @@ func resolveStepModel(client steplibrary.Client, id stepid.CanonicalID, log step
 	}
 
 	return activateResult.StepInfo, nil
+}
+
+// resolveStepModelLegacy looks the step up in the local steplib spec. version is
+// the resolved concrete version, not the raw constraint.
+func resolveStepModelLegacy(id stepid.CanonicalID, version string) (models.StepModel, string, error) {
+	stepCollection, err := stepman.ReadStepSpec(id.SteplibSource)
+	if err != nil {
+		return models.StepModel{}, "", fmt.Errorf("failed to read %s steplib: %s", id.SteplibSource, err)
+	}
+
+	step, resolvedVersion, err := queryStepMetadata(stepCollection, id.SteplibSource, id.IDorURI, version)
+	if err != nil {
+		return models.StepModel{}, "", fmt.Errorf("failed to find step: %s", err)
+	}
+	return step, resolvedVersion, nil
 }
 
 func queryStepMetadata(stepLib models.StepCollectionModel, stepLibURI string, id, version string) (models.StepModel, string, error) {
