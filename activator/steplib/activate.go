@@ -38,6 +38,7 @@ func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string,
 	if libraryAPI != nil {
 		stepInfo, resolveErr = resolveStepModel(*libraryAPI, id, log, destinationStepYML)
 		stepModel = stepInfo.Step
+		version = stepInfo.Version
 	} else {
 		stepModel, version, resolveErr = resolveStepModelLegacy(id)
 	}
@@ -68,8 +69,20 @@ func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string,
 	if err != nil {
 		return ResolvedStep{}, fmt.Errorf("failed to read %s steplib: %s", id.SteplibSource, err)
 	}
-	err = activateStepSource(stepCollection, id.SteplibSource, id.IDorURI, version, stepModel, destination, destinationStepYML, log, isOfflineMode)
-	return ResolvedStep{}, err
+	if err := activateStepSource(stepCollection, id.SteplibSource, id.IDorURI, version, stepModel, destination, log, isOfflineMode); err != nil {
+		return ResolvedStep{}, err
+	}
+
+	// The step.yml must be placed at destinationStepYML. On the legacy path it
+	// comes from the local steplib cache; on the API path FetchStepMetadata has
+	// already written it there, so copying again would fail ("already exist").
+	if libraryAPI == nil {
+		if err := copyStepYML(id.SteplibSource, id.IDorURI, version, destinationStepYML); err != nil {
+			return ResolvedStep{}, fmt.Errorf("copy step.yml: %s", err)
+		}
+	}
+
+	return ResolvedStep{StepInfo: stepInfo}, nil
 }
 
 func downloadPrecompiled(log stepman.Logger, step models.StepModel, id stepid.CanonicalID, destination string) (string, error) {
