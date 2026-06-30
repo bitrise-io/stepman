@@ -31,11 +31,11 @@ type ResolvedStep struct {
 	StepInfo models.StepInfoModel
 }
 
-func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string, log stepman.Logger, isOfflineMode bool) (ResolvedStep, error) {
+func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string, log stepman.Logger, isOfflineMode bool, libraryAPI *steplibrary.Client) (ResolvedStep, error) {
 	var stepModel models.StepModel
 	var version string
 	var resolveErr error
-	if STEPLIB_API_ENABLED {
+	if libraryAPI != nil {
 		stepModel, version, resolveErr = resolveStepModel(id, log, destinationStepYML)
 	} else {
 		stepModel, version, resolveErr = resolveStepModelLegacy(id)
@@ -46,7 +46,7 @@ func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string,
 
 	execPath, err := downloadPrecompiled(log, stepModel, id, destination)
 	if execPath != "" {
-		if !STEPLIB_API_ENABLED {
+		if libraryAPI == nil {
 			if err := copyStepYML(id.SteplibSource, id.IDorURI, version, destinationStepYML); err != nil {
 				return ResolvedStep{}, fmt.Errorf("copy step.yml: %s", err)
 			}
