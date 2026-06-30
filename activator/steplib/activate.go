@@ -11,7 +11,6 @@ import (
 
 	"github.com/bitrise-io/go-utils/command"
 	"github.com/bitrise-io/go-utils/pathutil"
-	"github.com/bitrise-io/go-utils/v2/fileutil"
 	"github.com/bitrise-io/stepman/models"
 	"github.com/bitrise-io/stepman/stepid"
 	"github.com/bitrise-io/stepman/steplibrary"
@@ -33,10 +32,12 @@ type ResolvedStep struct {
 
 func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string, log stepman.Logger, isOfflineMode bool, libraryAPI *steplibrary.Client) (ResolvedStep, error) {
 	var stepModel models.StepModel
+	var stepInfo models.StepInfoModel
 	var version string
 	var resolveErr error
 	if libraryAPI != nil {
-		stepModel, version, resolveErr = resolveStepModel(id, log, destinationStepYML)
+		stepInfo, resolveErr = resolveStepModel(*libraryAPI, id, log, destinationStepYML)
+		stepModel = stepInfo.Step
 	} else {
 		stepModel, version, resolveErr = resolveStepModelLegacy(id)
 	}
@@ -52,7 +53,10 @@ func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string,
 			}
 		}
 
-		return ResolvedStep{ExecPath: execPath}, err
+		return ResolvedStep{
+			ExecPath: execPath,
+			StepInfo: stepInfo,
+		}, err
 	}
 
 	// Fallback path to step source activation
@@ -101,23 +105,14 @@ func resolveStepModelLegacy(id stepid.CanonicalID) (models.StepModel, string, er
 	return step, version, nil
 }
 
-func resolveStepModel(id stepid.CanonicalID, log stepman.Logger, outputYMLPath string) (models.StepModel, string, error) {
-	inventoryURL := "TODO"
-	lib := steplibrary.New(log, id.SteplibSource, inventoryURL, fileutil.NewFileManager())
+func resolveStepModel(client steplibrary.Client, id stepid.CanonicalID, log stepman.Logger, outputYMLPath string) (models.StepInfoModel, error) {
 	ctx := context.Background()
-
-	activateResult, err := lib.FetchStepMetadata(ctx, id, outputYMLPath)
+	activateResult, err := client.FetchStepMetadata(ctx, id, outputYMLPath)
 	if err != nil {
-		return models.StepModel{}, "", fmt.Errorf("fetch step metadata: %s", err)
+		return models.StepInfoModel{}, fmt.Errorf("fetch step metadata: %s", err)
 	}
 
-	stepModel := models.StepModel{
-		Title:       activateResult.StepInfo.Step.Title,
-		Description: activateResult.StepInfo.Step.Description,
-		Source:      activateResult.StepInfo.Step.Source,
-		Executables: activateResult.StepInfo.Step.Executables,
-	}
-	return stepModel, activateResult.StepInfo.Version, nil
+	return activateResult.StepInfo, nil
 }
 
 func queryStepMetadata(stepLib models.StepCollectionModel, stepLibURI string, id, version string) (models.StepModel, string, error) {
