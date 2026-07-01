@@ -79,7 +79,7 @@ func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string,
 		return ResolvedStep{}, err
 	}
 
-	return ResolvedStep{StepInfo: stepInfo}, nil
+	return ResolvedStep{ExecPath: "", StepInfo: stepInfo}, nil
 }
 
 func downloadPrecompiled(log stepman.Logger, step models.StepModel, id stepid.CanonicalID, destination string) (string, error) {
