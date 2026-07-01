@@ -1,6 +1,7 @@
 package steplib
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,6 +12,8 @@ import (
 	"github.com/bitrise-io/go-utils/command"
 	"github.com/bitrise-io/go-utils/pathutil"
 	"github.com/bitrise-io/stepman/models"
+	"github.com/bitrise-io/stepman/stepid"
+	"github.com/bitrise-io/stepman/steplibrary"
 	"github.com/bitrise-io/stepman/stepman"
 )
 
@@ -22,38 +25,71 @@ var precompiledStepsDefaultStorageURLs = []string{
 	"https://storage.googleapis.com/bitrise-steplib-storage",
 }
 
-func ActivateStep(stepLibURI, id, version, destination, destinationStepYML string, log stepman.Logger, isOfflineMode bool) (string, error) {
-	stepCollection, err := stepman.ReadStepSpec(stepLibURI)
-	if err != nil {
-		return "", fmt.Errorf("failed to read %s steplib: %s", stepLibURI, err)
-	}
-
-	step, version, err := queryStepMetadata(stepCollection, stepLibURI, id, version)
-	if err != nil {
-		return "", fmt.Errorf("failed to find step: %s", err)
-	}
-
-	execPath, err := downloadPrecompiled(log, step, id, destination)
-	if execPath != "" {
-		if err := copyStepYML(stepLibURI, id, version, destinationStepYML); err != nil {
-			return "", fmt.Errorf("copy step.yml: %s", err)
-		}
-
-		return execPath, err
-	}
-
-	err = activateStepSource(stepCollection, stepLibURI, id, version, step, destination, destinationStepYML, log, isOfflineMode)
-	return "", err
+type ResolvedStep struct {
+	ExecPath string
+	StepInfo models.StepInfoModel
 }
 
-func downloadPrecompiled(log stepman.Logger, step models.StepModel, id string, destination string) (string, error) {
+func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string, log stepman.Logger, isOfflineMode bool, libraryAPI *steplibrary.Client, legacyStepVersion string) (ResolvedStep, error) {
+	var stepModel models.StepModel
+	var stepInfo models.StepInfoModel
+	var version string
+	var resolveErr error
+	if libraryAPI != nil {
+		stepInfo, resolveErr = resolveStepModel(*libraryAPI, id, destinationStepYML)
+		stepModel = stepInfo.Step
+		version = stepInfo.Version
+	} else {
+		// Legacy path: look the step up in the local steplib using the
+		// already-resolved concrete version, not the raw constraint.
+		stepModel, version, resolveErr = resolveStepModelLegacy(id, legacyStepVersion)
+	}
+	if resolveErr != nil {
+		return ResolvedStep{}, resolveErr
+	}
+
+	// Place the step.yml at destinationStepYML once, up front: on the legacy
+	// path copy it from the local steplib cache; on the API path
+	// FetchStepMetadata has already written it there. Doing this before the
+	// precompiled/source split keeps it to a single callsite.
+	if libraryAPI == nil {
+		if err := copyStepYML(id.SteplibSource, id.IDorURI, version, destinationStepYML); err != nil {
+			return ResolvedStep{}, fmt.Errorf("copy step.yml: %s", err)
+		}
+	}
+
+	execPath, err := downloadPrecompiled(log, stepModel, id, destination)
+	if execPath != "" {
+		return ResolvedStep{
+			ExecPath: execPath,
+			StepInfo: stepInfo,
+		}, err
+	}
+
+	// Fallback path to step source activation
+	// TODO: this is tied to the old stepman codepath because source activation needs a `stepCollection` object.
+	// Might be a good cleanup in a follow-up PR, maybe source activation can be made independent of `stepCollection`
+	// TODO: this assumes that the step library spec is already up-to-date.
+	// This breaks when the new steplib API is NOT ENABLED and should be fixed in a follow-up PR. See steplib_ref.go.
+	stepCollection, err := stepman.ReadStepSpec(id.SteplibSource)
+	if err != nil {
+		return ResolvedStep{}, fmt.Errorf("failed to read %s steplib: %s", id.SteplibSource, err)
+	}
+	if err := activateStepSource(stepCollection, id.SteplibSource, id.IDorURI, version, stepModel, destination, log, isOfflineMode); err != nil {
+		return ResolvedStep{}, err
+	}
+
+	return ResolvedStep{ExecPath: "", StepInfo: stepInfo}, nil
+}
+
+func downloadPrecompiled(log stepman.Logger, step models.StepModel, id stepid.CanonicalID, destination string) (string, error) {
 	if (os.Getenv(precompiledStepsEnv) == "true" || os.Getenv(precompiledStepsEnv) == "1") && step.Executables != nil {
 		platform := fmt.Sprintf("%s-%s", runtime.GOOS, runtime.GOARCH)
 		executableForPlatform, ok := (*step.Executables)[platform]
 		if ok && executableForPlatform.Hash != "" && executableForPlatform.StorageURI != "" {
 			log.Debugf("Downloading executable for %s", platform)
 			downloadStart := time.Now()
-			execPath, err := activateStepExecutable(id, executableForPlatform, destination)
+			execPath, err := activateStepExecutable(id.IDorURI, executableForPlatform, destination)
 			if err == nil {
 				log.Debugf("Downloaded executable in %s", time.Since(downloadStart).Round(time.Millisecond))
 
@@ -64,6 +100,31 @@ func downloadPrecompiled(log stepman.Logger, step models.StepModel, id string, d
 		log.Infof("No prebuilt executable found for %s, fallback to step source activation", platform)
 	}
 	return "", nil
+}
+
+func resolveStepModel(client steplibrary.Client, id stepid.CanonicalID, outputYMLPath string) (models.StepInfoModel, error) {
+	ctx := context.Background()
+	activateResult, err := client.FetchStepMetadata(ctx, id, outputYMLPath)
+	if err != nil {
+		return models.StepInfoModel{}, fmt.Errorf("fetch step metadata: %s", err)
+	}
+
+	return activateResult.StepInfo, nil
+}
+
+// resolveStepModelLegacy looks the step up in the local steplib spec. version is
+// the resolved concrete version, not the raw constraint.
+func resolveStepModelLegacy(id stepid.CanonicalID, version string) (models.StepModel, string, error) {
+	stepCollection, err := stepman.ReadStepSpec(id.SteplibSource)
+	if err != nil {
+		return models.StepModel{}, "", fmt.Errorf("failed to read %s steplib: %s", id.SteplibSource, err)
+	}
+
+	step, resolvedVersion, err := queryStepMetadata(stepCollection, id.SteplibSource, id.IDorURI, version)
+	if err != nil {
+		return models.StepModel{}, "", fmt.Errorf("failed to find step: %s", err)
+	}
+	return step, resolvedVersion, nil
 }
 
 func queryStepMetadata(stepLib models.StepCollectionModel, stepLibURI string, id, version string) (models.StepModel, string, error) {
