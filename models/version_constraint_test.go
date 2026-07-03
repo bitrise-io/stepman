@@ -250,6 +250,48 @@ func Test_latestMatchingStepVersion(t *testing.T) {
 			},
 			want1: true,
 		},
+		{
+			name: "Lock Minor version - only a patch-0 version exists (must still match)",
+			requiredVersion: VersionConstraint{
+				VersionLockType: MinorLocked,
+				Version: Semver{
+					Major: 1,
+					Minor: 2,
+				},
+			},
+			stepVersions: stepGroup,
+			want: StepVersionModel{
+				Step:                   step,
+				Version:                "1.2.0",
+				LatestAvailableVersion: "2.0.0",
+			},
+			want1: true,
+		},
+		{
+			name: "Lock Minor version - no matching version",
+			requiredVersion: VersionConstraint{
+				VersionLockType: MinorLocked,
+				Version: Semver{
+					Major: 1,
+					Minor: 9,
+				},
+			},
+			stepVersions: stepGroup,
+			want:         StepVersionModel{},
+			want1:        false,
+		},
+		{
+			name: "Lock Major version - no matching version",
+			requiredVersion: VersionConstraint{
+				VersionLockType: MajorLocked,
+				Version: Semver{
+					Major: 9,
+				},
+			},
+			stepVersions: stepGroup,
+			want:         StepVersionModel{},
+			want1:        false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
