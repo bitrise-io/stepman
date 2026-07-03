@@ -194,7 +194,7 @@ func latestMatchingStepVersion(constraint VersionConstraint, stepVersions StepGr
 				Patch: 0,
 			}
 			latestStep := StepModel{}
-			found := false
+			versionFound := false
 
 			for fullVersion, step := range stepVersions.Versions {
 				stepVersion, err := ParseSemver(fullVersion)
@@ -206,14 +206,14 @@ func latestMatchingStepVersion(constraint VersionConstraint, stepVersions StepGr
 					continue
 				}
 
-				if !found || stepVersion.Patch > latestVersion.Patch {
+				if !versionFound || stepVersion.Patch > latestVersion.Patch {
 					latestVersion = stepVersion
 					latestStep = step
-					found = true
+					versionFound = true
 				}
 			}
 
-			if !found {
+			if !versionFound {
 				return StepVersionModel{}, false
 			}
 
@@ -231,7 +231,7 @@ func latestMatchingStepVersion(constraint VersionConstraint, stepVersions StepGr
 				Patch: 0,
 			}
 			latestStep := StepModel{}
-			found := false
+			versionFound := false
 
 			for fullVersion, step := range stepVersions.Versions {
 				stepVersion, err := ParseSemver(fullVersion)
@@ -242,16 +242,16 @@ func latestMatchingStepVersion(constraint VersionConstraint, stepVersions StepGr
 					continue
 				}
 
-				if !found ||
+				if !versionFound ||
 					stepVersion.Minor > latestStepVersion.Minor ||
 					(stepVersion.Minor == latestStepVersion.Minor && stepVersion.Patch > latestStepVersion.Patch) {
 					latestStepVersion = stepVersion
 					latestStep = step
-					found = true
+					versionFound = true
 				}
 			}
 
-			if !found {
+			if !versionFound {
 				return StepVersionModel{}, false
 			}
 
