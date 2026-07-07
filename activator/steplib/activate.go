@@ -30,21 +30,24 @@ type ResolvedStep struct {
 	StepInfo models.StepInfoModel
 }
 
-func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string, log stepman.Logger, isOfflineMode bool, libraryAPI *steplibrary.Client, legacyStepInfo models.StepInfoModel) (ResolvedStep, error) {
+func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string, log stepman.Logger, isOfflineMode bool, libraryAPI *steplibrary.Client) (ResolvedStep, error) {
+	var stepModel models.StepModel
 	var stepInfo models.StepInfoModel
+	var version string
+	var resolveErr error
 	if libraryAPI != nil {
-		var resolveErr error
 		stepInfo, resolveErr = resolveStepModel(*libraryAPI, id, destinationStepYML)
-		if resolveErr != nil {
-			return ResolvedStep{}, resolveErr
-		}
+		stepModel = stepInfo.Step
+		version = stepInfo.Version
 	} else {
-		// Legacy path: use the step info already resolved by
-		// prepareStepLibForActivation instead of resolving a second time.
-		stepInfo = legacyStepInfo
+		// Legacy path: resolve the step from the local steplib spec. This repeats
+		// the resolution already done by prepareStepLibForActivation, but keeps
+		// the legacy path self-contained instead of threading resolved info in.
+		stepModel, version, resolveErr = resolveStepModelLegacy(id)
 	}
-	stepModel := stepInfo.Step
-	version := stepInfo.Version
+	if resolveErr != nil {
+		return ResolvedStep{}, resolveErr
+	}
 
 	// Place the step.yml at destinationStepYML once, up front: on the legacy
 	// path copy it from the local steplib cache; on the API path
@@ -108,6 +111,42 @@ func resolveStepModel(client steplibrary.Client, id stepid.CanonicalID, outputYM
 	}
 
 	return activateResult.StepInfo, nil
+}
+
+// resolveStepModelLegacy looks the step up in the local steplib spec, resolving
+// the version constraint in id.Version against the cached versions.
+func resolveStepModelLegacy(id stepid.CanonicalID) (models.StepModel, string, error) {
+	stepCollection, err := stepman.ReadStepSpec(id.SteplibSource)
+	if err != nil {
+		return models.StepModel{}, "", fmt.Errorf("failed to read %s steplib: %s", id.SteplibSource, err)
+	}
+
+	step, resolvedVersion, err := queryStepMetadata(stepCollection, id.SteplibSource, id.IDorURI, id.Version)
+	if err != nil {
+		return models.StepModel{}, "", fmt.Errorf("failed to find step: %s", err)
+	}
+	return step, resolvedVersion, nil
+}
+
+func queryStepMetadata(stepLib models.StepCollectionModel, stepLibURI string, id, version string) (models.StepModel, string, error) {
+	step, stepFound, versionFound := stepLib.GetStep(id, version)
+
+	if !stepFound {
+		return models.StepModel{}, "", fmt.Errorf("%s steplib does not contain %s step", stepLibURI, id)
+	}
+	if !versionFound {
+		return models.StepModel{}, "", fmt.Errorf("%s steplib does not contain %s step %s version", stepLibURI, id, version)
+	}
+
+	if version == "" {
+		latest, err := stepLib.GetLatestStepVersion(id)
+		if err != nil {
+			return models.StepModel{}, "", fmt.Errorf("failed to find latest version of %s step", id)
+		}
+		version = latest
+	}
+
+	return step, version, nil
 }
 
 func copyStepYML(libraryURL, id, version, dest string) error {

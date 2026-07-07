@@ -39,7 +39,6 @@ func ActivateSteplibRefStep(
 	}
 	libraryAPI := inventoryAPIClientFactory(id.SteplibSource, log)
 
-	var legacyStepInfo models.StepInfoModel
 	if libraryAPI == nil {
 		// Old stepman preparation codepath
 		stepInfo, didUpdate, err := prepareStepLibForActivation(log, id, didStepLibUpdateInWorkflow, isOfflineMode)
@@ -48,12 +47,10 @@ func ActivateSteplibRefStep(
 		if err != nil {
 			return activationResult, err
 		}
-		legacyStepInfo = stepInfo
 	}
 
-	// ActivateStep dispatches to the v2 or legacy codepath. For the legacy path
-	// we pass the already-resolved step info so it isn't resolved a second time.
-	resolvedStep, err := steplib.ActivateStep(id, activatedStepDir, stepYMLPath, log, isOfflineMode, libraryAPI, legacyStepInfo)
+	// ActivateStep dispatches to the v2 or legacy codepath.
+	resolvedStep, err := steplib.ActivateStep(id, activatedStepDir, stepYMLPath, log, isOfflineMode, libraryAPI)
 	if libraryAPI != nil {
 		activationResult.StepInfo = resolvedStep.StepInfo
 	}
