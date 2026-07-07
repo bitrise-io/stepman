@@ -33,28 +33,28 @@ func New(log stepman.Logger, inventoryURL string, fileManager fileutil.FileManag
 	}
 }
 
-func (c *Client) FetchStepMetadata(ctx context.Context, stepRef stepid.CanonicalID, outputYMLPath string) (ActivateResult, error) {
+func (c *Client) FetchStepMetadata(ctx context.Context, stepRef stepid.CanonicalID, outputYMLPath string) (StepMetadata, error) {
 	stepInfo, resolved, err := c.getStepVersionInfo(ctx, stepRef.IDorURI, stepRef.Version)
 	if err != nil {
-		return ActivateResult{}, fmt.Errorf("resolve step version: %w", err)
+		return StepMetadata{}, fmt.Errorf("resolve step version: %w", err)
 	}
 
 	stepModel, err := c.api.GetStepModel(ctx, resolved)
 	if err != nil {
-		return ActivateResult{}, fmt.Errorf("fetch step definition: %w", err)
+		return StepMetadata{}, fmt.Errorf("fetch step definition: %w", err)
 	}
 	stepInfo.Step = stepModel
 
 	stepYML, err := yaml.Marshal(stepModel)
 	if err != nil {
-		return ActivateResult{}, fmt.Errorf("marshal step model to YAML: %w", err)
+		return StepMetadata{}, fmt.Errorf("marshal step model to YAML: %w", err)
 	}
 
 	if err := c.fileManager.WriteBytes(outputYMLPath, stepYML); err != nil {
-		return ActivateResult{}, fmt.Errorf("write step.yml: %w", err)
+		return StepMetadata{}, fmt.Errorf("write step.yml: %w", err)
 	}
 
-	return ActivateResult{
+	return StepMetadata{
 		StepInfo:    stepInfo,
 		StepYMLPath: outputYMLPath,
 	}, nil

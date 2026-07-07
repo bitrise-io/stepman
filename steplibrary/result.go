@@ -2,7 +2,7 @@ package steplibrary
 
 import "github.com/bitrise-io/stepman/models"
 
-type ActivateResult struct {
+type StepMetadata struct {
 	StepInfo    models.StepInfoModel
 	StepYMLPath string
 }

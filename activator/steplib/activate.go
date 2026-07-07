@@ -107,12 +107,12 @@ func downloadPrecompiled(log stepman.Logger, step models.StepModel, id stepid.Ca
 
 func resolveStepModel(client steplibrary.Client, id stepid.CanonicalID, outputYMLPath string) (models.StepInfoModel, error) {
 	ctx := context.Background()
-	activateResult, err := client.FetchStepMetadata(ctx, id, outputYMLPath)
+	stepMetadata, err := client.FetchStepMetadata(ctx, id, outputYMLPath)
 	if err != nil {
 		return models.StepInfoModel{}, fmt.Errorf("fetch step metadata: %s", err)
 	}
 
-	return activateResult.StepInfo, nil
+	return stepMetadata.StepInfo, nil
 }
 
 // resolveStepModelLegacy looks the step up in the local steplib spec, resolving
