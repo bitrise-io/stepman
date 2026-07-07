@@ -116,39 +116,24 @@ func resolveStepModel(client steplibrary.Client, id stepid.CanonicalID, outputYM
 }
 
 // resolveStepModelLegacy looks the step up in the local steplib spec, resolving
-// the version constraint in id.Version against the cached versions.
+// the version constraint in id.Version to a concrete version.
 func resolveStepModelLegacy(id stepid.CanonicalID) (models.StepModel, string, error) {
 	stepCollection, err := stepman.ReadStepSpec(id.SteplibSource)
 	if err != nil {
 		return models.StepModel{}, "", fmt.Errorf("failed to read %s steplib: %s", id.SteplibSource, err)
 	}
 
-	step, resolvedVersion, err := queryStepMetadata(stepCollection, id.SteplibSource, id.IDorURI, id.Version)
-	if err != nil {
-		return models.StepModel{}, "", fmt.Errorf("failed to find step: %s", err)
-	}
-	return step, resolvedVersion, nil
-}
-
-func queryStepMetadata(stepLib models.StepCollectionModel, stepLibURI string, id, version string) (models.StepModel, string, error) {
-	step, stepFound, versionFound := stepLib.GetStep(id, version)
-
+	// GetStepVersion resolves the constraint (e.g. 2.3 -> 2.3.7) and returns the
+	// concrete version, which the activation callsites need for the cache path.
+	stepVersion, stepFound, versionFound := stepCollection.GetStepVersion(id.IDorURI, id.Version)
 	if !stepFound {
-		return models.StepModel{}, "", fmt.Errorf("%s steplib does not contain %s step", stepLibURI, id)
+		return models.StepModel{}, "", fmt.Errorf("%s steplib does not contain %s step", id.SteplibSource, id.IDorURI)
 	}
 	if !versionFound {
-		return models.StepModel{}, "", fmt.Errorf("%s steplib does not contain %s step %s version", stepLibURI, id, version)
+		return models.StepModel{}, "", fmt.Errorf("%s steplib does not contain %s step %s version", id.SteplibSource, id.IDorURI, id.Version)
 	}
 
-	if version == "" {
-		latest, err := stepLib.GetLatestStepVersion(id)
-		if err != nil {
-			return models.StepModel{}, "", fmt.Errorf("failed to find latest version of %s step", id)
-		}
-		version = latest
-	}
-
-	return step, version, nil
+	return stepVersion.Step, stepVersion.Version, nil
 }
 
 func copyStepYML(libraryURL, id, version, dest string) error {
