@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/bitrise-io/go-utils/pointers"
 	"github.com/bitrise-io/go-utils/v2/fileutil"
@@ -18,9 +17,8 @@ import (
 const (
 	bitriseV1SteplibURL = "https://github.com/bitrise-io/bitrise-steplib.git"
 	// bitriseSteplibAPIURL is V2 Steplib API
-	bitriseSteplibAPIURL           = "https://steplib.bitrise.io"
-	steplibAPIURLOverrideEnv       = "BITRISE_EXPERIMENT_STEPLIB_API_URL_OVERRIDE"
-	shouldMigrateV1SteplibToAPIEnv = "BITRISE_EXPERIMENT_STEPLIB_API_ENABLE_MIGRATE"
+	bitriseSteplibAPIURL = "https://steplib.bitrise.io"
+	enableSteplibAPIEnv  = "BITRISE_EXPERIMENT_STEPLIB_API_ENABLE_MIGRATE"
 )
 
 func ActivateSteplibRefStep(
@@ -37,7 +35,7 @@ func ActivateSteplibRefStep(
 		StepYMLPath:      stepYMLPath,
 		DidStepLibUpdate: false,
 	}
-	libraryAPI := inventoryAPIClientFactory(id.SteplibSource, log)
+	libraryAPI := libraryAPIFactory(id.SteplibSource, log)
 
 	if libraryAPI == nil {
 		// Old stepman preparation codepath
@@ -67,16 +65,12 @@ func ActivateSteplibRefStep(
 	return activationResult, nil
 }
 
-// inventoryAPIClientFactory builds a Steplib API client when the V2 read path
+// libraryAPIFactory builds a Steplib API client when the V2 read path
 // should be used, or returns nil to keep the legacy (V1) activation path.
-func inventoryAPIClientFactory(steplibURI string, logger stepman.Logger) (client *steplibrary.Client) {
-	shouldMigrate := os.Getenv(shouldMigrateV1SteplibToAPIEnv) == "true" || os.Getenv(shouldMigrateV1SteplibToAPIEnv) == "1"
-	APIURL := os.Getenv(steplibAPIURLOverrideEnv)
-	if strings.TrimSpace(APIURL) == "" {
-		APIURL = bitriseSteplibAPIURL
-	}
-	if shouldMigrate && steplibURI == bitriseV1SteplibURL {
-		return steplibrary.New(logger, APIURL, fileutil.NewFileManager())
+func libraryAPIFactory(steplibURI string, logger stepman.Logger) (client *steplibrary.Client) {
+	enableAPI := os.Getenv(enableSteplibAPIEnv) == "true" || os.Getenv(enableSteplibAPIEnv) == "1"
+	if enableAPI && steplibURI == bitriseV1SteplibURL {
+		return steplibrary.New(logger, bitriseSteplibAPIURL, fileutil.NewFileManager())
 	}
 	return nil
 }
