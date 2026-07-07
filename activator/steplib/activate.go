@@ -26,6 +26,8 @@ var precompiledStepsDefaultStorageURLs = []string{
 }
 
 type ResolvedStep struct {
+	// ExecPath is optional: it holds the activated step executable only for
+	// precompiled executable activation, and is empty for source activation.
 	ExecPath string
 	StepInfo models.StepInfoModel
 }
