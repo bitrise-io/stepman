@@ -70,13 +70,18 @@ func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string,
 
 	// Fall back to step source activation.
 	//
-	// TODO: source activation reads the local steplib spec, so it only works when
-	// the local steplib was set up — i.e. the legacy path. With the steplib API
-	// enabled the local steplib isn't prepared, so this breaks; decoupling source
-	// activation from the local spec is a follow-up.
-	//
 	// The returns below carry the already-resolved StepInfo even on error, so the
 	// caller can surface the step id/version in its error logs.
+	if libraryAPI != nil {
+		// V2: activate the source from the API-resolved step model, without
+		// requiring the local steplib to be set up. Reuses the V1 cache if present.
+		if err := stepman.ActivateStepSourceFromModel(id.SteplibSource, id.IDorURI, version, stepModel.Source, destination, log, isOfflineMode); err != nil {
+			return ResolvedStep{ExecPath: "", StepInfo: stepInfo}, err
+		}
+		return ResolvedStep{ExecPath: "", StepInfo: stepInfo}, nil
+	}
+
+	// V1: the local steplib was already set up by prepareStepLibForActivation.
 	stepCollection, err := stepman.ReadStepSpec(id.SteplibSource)
 	if err != nil {
 		return ResolvedStep{ExecPath: "", StepInfo: stepInfo}, fmt.Errorf("failed to read %s steplib: %s", id.SteplibSource, err)
