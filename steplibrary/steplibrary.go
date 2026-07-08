@@ -18,10 +18,6 @@ type Client struct {
 	fileManager  fileutil.FileManager
 }
 
-type ActivateOutputPaths struct {
-	YMLPath, CodePath string
-}
-
 // New builds a Client. inventoryURL is the base URL the V2 inventory JSON is
 // fetched from.
 func New(log stepman.Logger, inventoryURL string, fileManager fileutil.FileManager) *Client {
