@@ -75,7 +75,7 @@ func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string,
 	if libraryAPI != nil {
 		// V2: activate the source from the API-resolved step model, without
 		// requiring the local steplib to be set up. Reuses the V1 cache if present.
-		if err := stepman.ActivateStepSourceFromModel(id.SteplibSource, id.IDorURI, version, stepModel.Source, destination, log, isOfflineMode); err != nil {
+		if err := activateStepSourceFromModel(id.SteplibSource, id.IDorURI, version, stepModel.Source, destination, log, isOfflineMode); err != nil {
 			return ResolvedStep{ExecPath: "", StepInfo: stepInfo}, err
 		}
 		return ResolvedStep{ExecPath: "", StepInfo: stepInfo}, nil
