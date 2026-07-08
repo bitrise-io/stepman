@@ -22,7 +22,11 @@ func New(log stepman.Logger, inventoryURL string) *Client {
 	return &Client{
 		log:          log,
 		inventoryURL: inventoryURL,
-		api:          NewHTTPAPI(inventoryURL, httpfetch.NewClient(log)),
+		// The inventory API goes through the on-disk HTTP cache (Cache-Control /
+		// ETag aware, stale-on-error fallback). Binary downloads stay uncached:
+		// they are large, immutable, hash-verified, and already land at a
+		// content-addressed install path.
+		api: NewHTTPAPI(inventoryURL, httpfetch.NewCachingClient(log, stepman.GetHTTPCacheDirPath())),
 	}
 }
 
