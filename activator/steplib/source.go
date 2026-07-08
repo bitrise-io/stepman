@@ -1,4 +1,4 @@
-package stepman
+package steplib
 
 import (
 	"errors"
@@ -8,25 +8,23 @@ import (
 	"github.com/bitrise-io/go-utils/command"
 	"github.com/bitrise-io/go-utils/pathutil"
 	"github.com/bitrise-io/stepman/models"
+	"github.com/bitrise-io/stepman/stepman"
 )
 
-// ErrStepSourceNotCached is returned by ActivateStepSourceFromModel in offline
-// mode when the step source isn't already in the local cache. Callers may match
-// it via errors.Is to build a richer message.
+// ErrStepSourceNotCached is returned by activateStepSourceFromModel in offline
+// mode when the step source is not in the local cache. Match it with errors.Is.
 var ErrStepSourceNotCached = errors.New("step source not available in the local cache and offline mode is set")
 
-// ActivateStepSourceFromModel materializes the source for id@version into destDir
-// without requiring the local steplib to be set up (no ReadStepSpec/SetupLibrary).
-// It reuses the V1 on-disk cache when it is already populated; otherwise it
-// downloads the source from the passed step source (git URL + commit), which the
-// caller obtained from the V2 API. In offline mode a missing local cache returns
-// an error wrapping ErrStepSourceNotCached.
-func ActivateStepSourceFromModel(uri, id, version string, source *models.StepSourceModel, destDir string, log Logger, isOfflineMode bool) error {
-	// Reuse the V1 on-disk cache when it's already populated (e.g. a prior V1
-	// activation, or a warm cache). This is the only place the local steplib is
-	// consulted, and it's optional — a missing route just means "not cached".
-	if route, found := ReadRoute(uri); found {
-		cacheDir := GetStepCacheDirPath(route, id, version)
+// activateStepSourceFromModel materializes id@version's source into destDir
+// without setting up the local steplib (no ReadStepSpec/SetupLibrary). It reuses
+// the V1 on-disk cache when already populated; otherwise it downloads from the
+// given source (git URL + commit, as returned by the V2 API). Offline with no
+// cache returns ErrStepSourceNotCached.
+func activateStepSourceFromModel(uri, id, version string, source *models.StepSourceModel, destDir string, log stepman.Logger, isOfflineMode bool) error {
+	// Reuse the V1 cache when populated. This is the only steplib lookup, and it
+	// is optional: a missing route just means "not cached".
+	if route, found := stepman.ReadRoute(uri); found {
+		cacheDir := stepman.GetStepCacheDirPath(route, id, version)
 		if exists, err := pathutil.IsPathExists(cacheDir); err != nil {
 			return fmt.Errorf("check if %s exists: %s", cacheDir, err)
 		} else if exists {
@@ -43,7 +41,7 @@ func ActivateStepSourceFromModel(uri, id, version string, source *models.StepSou
 	}
 
 	locations := []models.DownloadLocationModel{{Type: "git", Src: source.Git}}
-	if err := downloadStepArchive(destDir, locations, id, version, source.Commit, log); err != nil {
+	if err := stepman.DownloadStepArchive(destDir, locations, id, version, source.Commit, log); err != nil {
 		return fmt.Errorf("download step source %s@%s: %s", id, version, err)
 	}
 	return nil
