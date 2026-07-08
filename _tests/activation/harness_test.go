@@ -23,18 +23,7 @@ import (
 	"github.com/bitrise-io/stepman/stepman"
 )
 
-const (
-	bitriseSteplibURL     = "https://github.com/bitrise-io/bitrise-steplib.git"
-	defaultDevInventoryURL = "https://storage.googleapis.com/steplib-storage-dev"
-)
-
-// inventoryURL is the v2 API inventory base URL, overridable via env.
-func inventoryURL() string {
-	if v := os.Getenv("STEPLIB_API_URL_OVERRIDE"); v != "" {
-		return v
-	}
-	return defaultDevInventoryURL
-}
+const bitriseSteplibURL = "https://github.com/bitrise-io/bitrise-steplib.git"
 
 // logEntry is one captured stepman.Logger call.
 type logEntry struct {
@@ -88,9 +77,10 @@ type activationResult struct {
 func activate(t *testing.T, v variant, id stepid.CanonicalID, offline, didStepLibUpdate bool) activationResult {
 	t.Helper()
 
+	// The V2 API path targets the production inventory; there is no longer an
+	// override to redirect it at a dev/test inventory.
 	if v.useAPI {
 		t.Setenv("BITRISE_EXPERIMENT_STEPLIB_API_ENABLE", "true")
-		t.Setenv("BITRISE_EXPERIMENT_STEPLIB_API_URL_OVERRIDE", inventoryURL())
 	} else {
 		t.Setenv("BITRISE_EXPERIMENT_STEPLIB_API_ENABLE", "false")
 	}
