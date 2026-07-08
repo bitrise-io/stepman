@@ -124,11 +124,19 @@ func DownloadStep(collectionURI string, collection models.StepCollectionModel, i
 		return nil
 	}
 
+	return downloadStepArchive(stepPth, downloadLocations, id, version, commithash, log)
+}
+
+// downloadStepArchive fetches a step's source into destDir from the given download
+// locations (zip or git), verifying the git commit. Locations are tried in order;
+// it returns an error only if all of them fail. It does not touch the steplib
+// route or cache, so it works for both the V1 (local spec) and V2 (API) paths.
+func downloadStepArchive(destDir string, downloadLocations []models.DownloadLocationModel, id, version, commithash string, log Logger) error {
 	for _, downloadLocation := range downloadLocations {
 		switch downloadLocation.Type {
 		case "zip":
 			err := retry.Times(2).Wait(3 * time.Second).Try(func(attempt uint) error {
-				return command.DownloadAndUnZIP(downloadLocation.Src, stepPth)
+				return command.DownloadAndUnZIP(downloadLocation.Src, destDir)
 			})
 
 			if err != nil {
@@ -138,7 +146,7 @@ func DownloadStep(collectionURI string, collection models.StepCollectionModel, i
 			}
 		case "git":
 			err := retry.Times(2).Wait(3 * time.Second).Try(func(attempt uint) error {
-				repo, err := git.New(stepPth)
+				repo, err := git.New(destDir)
 				if err != nil {
 					return err
 				}
