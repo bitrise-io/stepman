@@ -176,3 +176,25 @@ func TestSteplibActivation(t *testing.T) {
 		require.NoError(t, on.err)
 	})
 }
+
+// TestSteplibActivation_V2SourceFreshEnv proves review finding #1 is fixed: the
+// V2 source fallback no longer requires the local steplib to be set up. It runs
+// in its own fresh $HOME (no prior v1 activation provisioned ~/.stepman), then
+// activates a source step over the API. Before the fix this failed in
+// ReadStepSpec ("no route found"); now the source is downloaded from the
+// API-provided git source, with no SetupLibrary.
+func TestSteplibActivation_V2SourceFreshEnv(t *testing.T) {
+	t.Setenv("HOME", t.TempDir()) // fresh: ~/.stepman is not set up
+
+	id := steplibStep("git-clone", "8.5.0")
+	r := activate(t, v2Source, id, false, false)
+	logResult(t, "v2-source (fresh env, no SetupLibrary)", r)
+
+	require.NoError(t, r.err, "v2 source activation must work without the local steplib set up")
+	assert.Equal(t, activator.ActivationTypeSteplibSource, r.activated.ActivationType)
+	assert.Empty(t, r.activated.ExecutablePath)
+	// It must not have gone through the v1 StepLib setup/update path.
+	for _, e := range r.logs {
+		assert.NotContains(t, e.msg, "updating StepLib", "v2 source must not set up/update the v1 StepLib")
+	}
+}
