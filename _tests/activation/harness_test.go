@@ -89,10 +89,10 @@ func activate(t *testing.T, v variant, id stepid.CanonicalID, offline, didStepLi
 	t.Helper()
 
 	if v.useAPI {
-		t.Setenv("BITRISE_EXPERIMENT_STEPLIB_API_ENABLE_MIGRATE", "true")
+		t.Setenv("BITRISE_EXPERIMENT_STEPLIB_API_ENABLE", "true")
 		t.Setenv("BITRISE_EXPERIMENT_STEPLIB_API_URL_OVERRIDE", inventoryURL())
 	} else {
-		t.Setenv("BITRISE_EXPERIMENT_STEPLIB_API_ENABLE_MIGRATE", "false")
+		t.Setenv("BITRISE_EXPERIMENT_STEPLIB_API_ENABLE", "false")
 	}
 	if v.precompiled {
 		t.Setenv("BITRISE_EXPERIMENT_PRECOMPILED_STEPS", "true")
