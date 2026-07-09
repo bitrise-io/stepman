@@ -93,6 +93,10 @@ func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string,
 			return ResolvedStep{ExecPath: "", StepInfo: stepInfo}, fmt.Errorf("%s@%s: %w", id.IDorURI, version, ErrStepSourceNotCached)
 		}
 
+		if sourceGit == "" {
+			return ResolvedStep{ExecPath: "", StepInfo: stepInfo}, fmt.Errorf("step %s@%s has no source git URL to download from", id.IDorURI, version)
+		}
+
 		locations, err := libraryAPI.StepDownloadLocations(context.Background(), id.IDorURI, version, sourceGit)
 		if err != nil {
 			return ResolvedStep{ExecPath: "", StepInfo: stepInfo}, fmt.Errorf("resolve download locations for %s@%s: %s", id.IDorURI, version, err)
