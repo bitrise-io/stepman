@@ -8,8 +8,8 @@ import (
 	"github.com/bitrise-io/stepman/stepman"
 )
 
-// ErrStepSourceNotCached is returned on the V2 source path in offline mode when
-// the step source is not in the local cache. Match it with errors.Is.
+// ErrStepSourceNotCached is returned (wrapped) on the V2 source path in offline
+// mode when the step source is not in the local cache.
 var ErrStepSourceNotCached = errors.New("step source not available in the local cache and offline mode is set")
 
 // reuseCachedStepSource copies the V1 on-disk cache for id@version into destDir
