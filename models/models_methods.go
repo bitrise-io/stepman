@@ -317,28 +317,34 @@ func (collection StepCollectionModel) GetDownloadLocations(id, version string) (
 		return []DownloadLocationModel{}, errors.New("missing Source property")
 	}
 
-	locations := []DownloadLocationModel{}
-	for _, downloadLocation := range collection.DownloadLocations {
-		switch downloadLocation.Type {
-		case "zip":
-			url := downloadLocation.Src + id + "/" + version + "/step.zip"
-			location := DownloadLocationModel{
-				Type: downloadLocation.Type,
-				Src:  url,
-			}
-			locations = append(locations, location)
-		case "git":
-			location := DownloadLocationModel{
-				Type: downloadLocation.Type,
-				Src:  step.Source.Git,
-			}
-			locations = append(locations, location)
-		default:
-			return []DownloadLocationModel{}, fmt.Errorf("invalid download location (%#v) for step (%#v)", downloadLocation, id)
-		}
+	locations, err := BuildStepDownloadLocations(collection.DownloadLocations, id, version, step.Source.Git)
+	if err != nil {
+		return []DownloadLocationModel{}, err
 	}
 	if len(locations) < 1 {
 		return []DownloadLocationModel{}, fmt.Errorf("no download location found for step (%#v)", id)
+	}
+	return locations, nil
+}
+
+// BuildStepDownloadLocations resolves the concrete source download locations for
+// id@version from the steplib's base locations (steplib.yml / the V2 meta.json),
+// preserving their order: a "zip" base becomes <base>/<id>/<version>/step.zip and
+// a "git" base becomes the step's own source git URL (skipped when empty). An
+// unknown location type is an error.
+func BuildStepDownloadLocations(baseLocations []DownloadLocationModel, id, version, sourceGit string) ([]DownloadLocationModel, error) {
+	locations := []DownloadLocationModel{}
+	for _, base := range baseLocations {
+		switch base.Type {
+		case "zip":
+			locations = append(locations, DownloadLocationModel{Type: "zip", Src: base.Src + id + "/" + version + "/step.zip"})
+		case "git":
+			if sourceGit != "" {
+				locations = append(locations, DownloadLocationModel{Type: "git", Src: sourceGit})
+			}
+		default:
+			return nil, fmt.Errorf("invalid download location type %q for step %s", base.Type, id)
+		}
 	}
 	return locations, nil
 }
