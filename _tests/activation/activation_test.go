@@ -3,12 +3,38 @@
 package activation
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/bitrise-io/stepman/activator"
+	"github.com/bitrise-io/stepman/models"
+	"github.com/bitrise-io/stepman/stepid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// assertStepInfoContent checks the resolved StepInfo carries the requested
+// identity, echoes the requested version as OriginalVersion, and holds a
+// concrete Version consistent with the requested form. It runs against both the
+// v1 and v2 paths, so it only asserts fields both populate (not Library or
+// DefinitionPth, which differ by path). form is the version-form label.
+func assertStepInfoContent(t *testing.T, variantName string, info models.StepInfoModel, id stepid.CanonicalID, form string) {
+	t.Helper()
+	assert.Equal(t, id.IDorURI, info.ID, "%s: StepInfo.ID", variantName)
+	assert.Equal(t, id.Version, info.OriginalVersion, "%s: StepInfo.OriginalVersion echoes the requested version", variantName)
+	assert.NotEmpty(t, info.Version, "%s: StepInfo.Version (concrete) must be set", variantName)
+	assert.NotEmpty(t, info.LatestVersion, "%s: StepInfo.LatestVersion must be set", variantName)
+	require.NotNil(t, info.Step.Title, "%s: StepInfo.Step must be populated (Title present)", variantName)
+	assert.NotEmpty(t, *info.Step.Title, "%s: StepInfo.Step.Title", variantName)
+
+	switch form {
+	case "exact":
+		assert.Equal(t, id.Version, info.Version, "%s: exact request resolves to itself", variantName)
+	case "minor-lock", "major-lock":
+		assert.True(t, strings.HasPrefix(info.Version, id.Version+"."),
+			"%s: %s of %q should resolve within it, got %q", variantName, form, id.Version, info.Version)
+	}
+}
 
 // TestSteplibActivation drives activator.ActivateSteplibRefStep across the v1/v2
 // matrix against real steplib URLs. It runs in a hermetic $HOME so the first v1
@@ -40,6 +66,7 @@ func TestSteplibActivation(t *testing.T) {
 					r := activate(t, v, id, false, false)
 					logResult(t, v.name, r)
 					require.NoError(t, r.err, "%s should activate git-clone@%q", v.name, ver.version)
+					assertStepInfoContent(t, v.name, r.activated.StepInfo, id, ver.label)
 				}
 			})
 		}
