@@ -11,10 +11,12 @@ import (
 
 	"github.com/bitrise-io/go-utils/command"
 	"github.com/bitrise-io/go-utils/pathutil"
+	"github.com/bitrise-io/go-utils/v2/fileutil"
 	"github.com/bitrise-io/stepman/models"
 	"github.com/bitrise-io/stepman/stepid"
 	"github.com/bitrise-io/stepman/steplibrary"
 	"github.com/bitrise-io/stepman/stepman"
+	"gopkg.in/yaml.v2"
 )
 
 const precompiledStepsEnv = "BITRISE_EXPERIMENT_PRECOMPILED_STEPS"
@@ -43,7 +45,7 @@ func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string,
 	var version string
 	var resolveErr error
 	if libraryAPI != nil {
-		stepInfo, resolveErr = resolveStepModel(*libraryAPI, id, destinationStepYML)
+		stepInfo, resolveErr = libraryAPI.FetchStepMetadata(context.Background(), id)
 		stepModel = stepInfo.Step
 		version = stepInfo.Version
 	} else {
@@ -56,13 +58,17 @@ func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string,
 		return NewResolvedStep("", models.StepInfoModel{}), resolveErr
 	}
 
-	// Place the step.yml at destinationStepYML once, up front: on the legacy
-	// path copy it from the local steplib cache; on the API path
-	// FetchStepMetadata has already written it there. Doing this before the
-	// precompiled/source split keeps it to a single callsite.
+	// Place the step.yml at destinationStepYML once, up front.
 	if libraryAPI == nil {
 		if err := copyStepYML(id.SteplibSource, id.IDorURI, version, destinationStepYML); err != nil {
 			return NewResolvedStep("", models.StepInfoModel{}), fmt.Errorf("copy step.yml: %s", err)
+		}
+	} else {
+		if err := writeStepYML(stepInfo.Step, destinationStepYML); err != nil {
+			return ResolvedStep{
+				ExecPath: "",
+				StepInfo: stepInfo,
+			}, err
 		}
 	}
 
@@ -110,16 +116,6 @@ func downloadPrecompiled(log stepman.Logger, step models.StepModel, id stepid.Ca
 	return "", nil
 }
 
-func resolveStepModel(client steplibrary.Client, id stepid.CanonicalID, outputYMLPath string) (models.StepInfoModel, error) {
-	ctx := context.Background()
-	stepMetadata, err := client.FetchStepMetadata(ctx, id, outputYMLPath)
-	if err != nil {
-		return models.StepInfoModel{}, fmt.Errorf("fetch step metadata: %s", err)
-	}
-
-	return stepMetadata.StepInfo, nil
-}
-
 // resolveStepModelLegacy looks the step up in the local steplib spec, resolving
 // the version constraint in id.Version to a concrete version.
 func resolveStepModelLegacy(id stepid.CanonicalID) (models.StepModel, string, error) {
@@ -158,6 +154,20 @@ func copyStepYML(libraryURL, id, version, dest string) error {
 	if err := command.CopyFile(stepYMLSrc, dest); err != nil {
 		return fmt.Errorf("copy command failed: %s", err)
 	}
+	return nil
+}
+
+func writeStepYML(step models.StepModel, outputPath string) error {
+	stepYML, err := yaml.Marshal(step)
+	if err != nil {
+		return fmt.Errorf("marshal step model to YAML: %w", err)
+	}
+
+	fileManager := fileutil.NewFileManager()
+	if err := fileManager.WriteBytes(outputPath, stepYML); err != nil {
+		return fmt.Errorf("write step.yml: %w", err)
+	}
+
 	return nil
 }
 
