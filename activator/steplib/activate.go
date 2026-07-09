@@ -35,23 +35,21 @@ type ResolvedStep struct {
 }
 
 func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string, log stepman.Logger, isOfflineMode bool, libraryAPI *steplibrary.Client) (ResolvedStep, error) {
-	var stepModel models.StepModel
 	var stepInfo models.StepInfoModel
-	var version string
 	var resolveErr error
 	if libraryAPI != nil {
 		stepInfo, resolveErr = libraryAPI.FetchStepMetadata(context.Background(), id)
-		stepModel = stepInfo.Step
-		version = stepInfo.Version
 	} else {
 		// Legacy path: resolve the step from the local steplib spec. This repeats
 		// the resolution already done by prepareStepLibForActivation, but keeps
 		// the legacy path self-contained instead of threading resolved info in.
-		stepModel, version, resolveErr = resolveStepModelLegacy(id)
+		stepInfo, resolveErr = resolveStepInfoLegacy(id, log)
 	}
 	if resolveErr != nil {
 		return ResolvedStep{ExecPath: "", StepInfo: models.StepInfoModel{}}, resolveErr
 	}
+	stepModel := stepInfo.Step
+	version := stepInfo.Version
 
 	// Place the step.yml at destinationStepYML once, up front.
 	if libraryAPI == nil {
@@ -108,25 +106,16 @@ func downloadPrecompiled(log stepman.Logger, step models.StepModel, id stepid.Ca
 	return "", nil
 }
 
-// resolveStepModelLegacy looks the step up in the local steplib spec, resolving
-// the version constraint in id.Version to a concrete version.
-func resolveStepModelLegacy(id stepid.CanonicalID) (models.StepModel, string, error) {
-	stepCollection, err := stepman.ReadStepSpec(id.SteplibSource)
+// resolveStepInfoLegacy looks the step up in the local steplib spec, resolving
+// the version constraint in id.Version to a concrete version. It returns the
+// full StepInfoModel (the same source prepareStepLibForActivation uses), so the
+// legacy path populates ResolvedStep.StepInfo just like the API path does.
+func resolveStepInfoLegacy(id stepid.CanonicalID, log stepman.Logger) (models.StepInfoModel, error) {
+	stepInfo, err := stepman.QueryStepInfoFromLibrary(id.SteplibSource, id.IDorURI, id.Version, log)
 	if err != nil {
-		return models.StepModel{}, "", fmt.Errorf("failed to read %s steplib: %s", id.SteplibSource, err)
+		return models.StepInfoModel{}, fmt.Errorf("query %s from %s steplib: %s", id.IDorURI, id.SteplibSource, err)
 	}
-
-	// GetStepVersion resolves the constraint (e.g. 2.3 -> 2.3.7) and returns the
-	// concrete version, which the activation callsites need for the cache path.
-	stepVersion, stepFound, versionFound := stepCollection.GetStepVersion(id.IDorURI, id.Version)
-	if !stepFound {
-		return models.StepModel{}, "", fmt.Errorf("%s steplib does not contain %s step", id.SteplibSource, id.IDorURI)
-	}
-	if !versionFound {
-		return models.StepModel{}, "", fmt.Errorf("%s steplib does not contain %s step %s version", id.SteplibSource, id.IDorURI, id.Version)
-	}
-
-	return stepVersion.Step, stepVersion.Version, nil
+	return stepInfo, nil
 }
 
 func copyStepYML(libraryURL, id, version, dest string) error {
