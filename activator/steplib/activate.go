@@ -73,39 +73,9 @@ func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string,
 	// The returns below carry the already-resolved StepInfo even on error, so the
 	// caller can surface the step id/version in its error logs.
 	if libraryAPI != nil {
-		// V2: activate the source without requiring the local steplib to be set up.
-		// Reuse the V1 cache if present; otherwise download from the inventory's
-		// locations (zip fast path, git fallback). Locations are fetched only on
-		// the download path, so offline mode and a cache hit do no network.
-		var commit, sourceGit string
-		if stepModel.Source != nil {
-			commit = stepModel.Source.Commit
-			sourceGit = stepModel.Source.Git
-		}
-
-		if reused, err := reuseCachedStepSource(id.SteplibSource, id.IDorURI, version, destination); err != nil {
+		// V2: activate the source over the API, without setting up the local steplib.
+		if err := activateStepSourceV2(libraryAPI, id.SteplibSource, id.IDorURI, version, stepModel.Source, destination, log, isOfflineMode); err != nil {
 			return ResolvedStep{ExecPath: "", StepInfo: stepInfo}, err
-		} else if reused {
-			return ResolvedStep{ExecPath: "", StepInfo: stepInfo}, nil
-		}
-
-		if isOfflineMode {
-			return ResolvedStep{ExecPath: "", StepInfo: stepInfo}, fmt.Errorf("%s@%s: %w", id.IDorURI, version, ErrStepSourceNotCached)
-		}
-
-		if sourceGit == "" {
-			return ResolvedStep{ExecPath: "", StepInfo: stepInfo}, fmt.Errorf("step %s@%s has no source git URL to download from", id.IDorURI, version)
-		}
-
-		locations, err := libraryAPI.StepDownloadLocations(context.Background(), id.IDorURI, version, sourceGit)
-		if err != nil {
-			return ResolvedStep{ExecPath: "", StepInfo: stepInfo}, fmt.Errorf("resolve download locations for %s@%s: %s", id.IDorURI, version, err)
-		}
-		if len(locations) == 0 {
-			return ResolvedStep{ExecPath: "", StepInfo: stepInfo}, fmt.Errorf("step %s@%s has no download location", id.IDorURI, version)
-		}
-		if err := stepman.DownloadStepArchive(destination, locations, id.IDorURI, version, commit, log); err != nil {
-			return ResolvedStep{ExecPath: "", StepInfo: stepInfo}, fmt.Errorf("download step source %s@%s: %s", id.IDorURI, version, err)
 		}
 		return ResolvedStep{ExecPath: "", StepInfo: stepInfo}, nil
 	}
