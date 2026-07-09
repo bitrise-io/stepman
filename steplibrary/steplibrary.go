@@ -51,20 +51,5 @@ func (c *Client) StepDownloadLocations(ctx context.Context, id, version, sourceG
 	if err != nil {
 		return nil, fmt.Errorf("fetch download locations: %w", err)
 	}
-
-	var locations []models.DownloadLocationModel
-	for _, base := range bases {
-		switch base.Type {
-		case "zip":
-			locations = append(locations, models.DownloadLocationModel{
-				Type: "zip",
-				Src:  base.Src + id + "/" + version + "/step.zip",
-			})
-		case "git":
-			if sourceGit != "" {
-				locations = append(locations, models.DownloadLocationModel{Type: "git", Src: sourceGit})
-			}
-		}
-	}
-	return locations, nil
+	return models.BuildStepDownloadLocations(bases, id, version, sourceGit)
 }
