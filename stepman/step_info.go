@@ -131,10 +131,14 @@ func QueryStepInfoFromLibrary(library, id, version string, log Logger) (models.S
 		DefinitionPth:   stepDefinitionPth,
 	}
 
-	// Default the step title to its ID when the definition omits one.
-	if stepInfo.Step.Title == nil || *stepInfo.Step.Title == "" {
-		stepInfo.Step.Title = pointers.NewStringPtr(stepInfo.ID)
-	}
+	return defaultStepTitle(stepInfo), nil
+}
 
-	return stepInfo, nil
+// defaultStepTitle sets the step title to the step ID when the definition omits
+// one, so callers always have a non-empty display title.
+func defaultStepTitle(info models.StepInfoModel) models.StepInfoModel {
+	if info.Step.Title == nil || *info.Step.Title == "" {
+		info.Step.Title = pointers.NewStringPtr(info.ID)
+	}
+	return info
 }
