@@ -34,11 +34,6 @@ type ResolvedStep struct {
 	StepInfo models.StepInfoModel
 }
 
-// NewResolvedStep builds a ResolvedStep. execPath is optional (empty for source activation).
-func NewResolvedStep(execPath string, stepInfo models.StepInfoModel) ResolvedStep {
-	return ResolvedStep{ExecPath: execPath, StepInfo: stepInfo}
-}
-
 func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string, log stepman.Logger, isOfflineMode bool, libraryAPI *steplibrary.Client) (ResolvedStep, error) {
 	var stepModel models.StepModel
 	var stepInfo models.StepInfoModel
@@ -55,26 +50,23 @@ func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string,
 		stepModel, version, resolveErr = resolveStepModelLegacy(id)
 	}
 	if resolveErr != nil {
-		return NewResolvedStep("", models.StepInfoModel{}), resolveErr
+		return ResolvedStep{ExecPath: "", StepInfo: models.StepInfoModel{}}, resolveErr
 	}
 
 	// Place the step.yml at destinationStepYML once, up front.
 	if libraryAPI == nil {
 		if err := copyStepYML(id.SteplibSource, id.IDorURI, version, destinationStepYML); err != nil {
-			return NewResolvedStep("", models.StepInfoModel{}), fmt.Errorf("copy step.yml: %s", err)
+			return ResolvedStep{ExecPath: "", StepInfo: models.StepInfoModel{}}, fmt.Errorf("copy step.yml: %s", err)
 		}
 	} else {
 		if err := writeStepYML(stepInfo.Step, destinationStepYML); err != nil {
-			return ResolvedStep{
-				ExecPath: "",
-				StepInfo: stepInfo,
-			}, err
+			return ResolvedStep{ExecPath: "", StepInfo: stepInfo}, err
 		}
 	}
 
 	execPath, err := downloadPrecompiled(log, stepModel, id, destination)
 	if execPath != "" {
-		return NewResolvedStep(execPath, stepInfo), err
+		return ResolvedStep{ExecPath: execPath, StepInfo: stepInfo}, err
 	}
 
 	// Fallback path to step source activation
@@ -87,13 +79,13 @@ func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string,
 	// caller surfaces this partial result (step id/version) in its error logs.
 	stepCollection, err := stepman.ReadStepSpec(id.SteplibSource)
 	if err != nil {
-		return NewResolvedStep("", stepInfo), fmt.Errorf("failed to read %s steplib: %s", id.SteplibSource, err)
+		return ResolvedStep{ExecPath: "", StepInfo: stepInfo}, fmt.Errorf("failed to read %s steplib: %s", id.SteplibSource, err)
 	}
 	if err := activateStepSource(stepCollection, id.SteplibSource, id.IDorURI, version, stepModel, destination, log, isOfflineMode); err != nil {
-		return NewResolvedStep("", stepInfo), err
+		return ResolvedStep{ExecPath: "", StepInfo: stepInfo}, err
 	}
 
-	return NewResolvedStep("", stepInfo), nil
+	return ResolvedStep{ExecPath: "", StepInfo: stepInfo}, nil
 }
 
 func downloadPrecompiled(log stepman.Logger, step models.StepModel, id stepid.CanonicalID, destination string) (string, error) {
