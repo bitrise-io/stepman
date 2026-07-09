@@ -40,10 +40,11 @@ func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string,
 	if libraryAPI != nil {
 		stepInfo, resolveErr = libraryAPI.FetchStepMetadata(context.Background(), id)
 	} else {
-		// Legacy path: resolve the step from the local steplib spec. This repeats
-		// the resolution already done by prepareStepLibForActivation, but keeps
-		// the legacy path self-contained instead of threading resolved info in.
-		stepInfo, resolveErr = resolveStepInfoLegacy(id, log)
+		// Legacy path: resolve the step from the local steplib spec (resolving the
+		// version constraint to a concrete version). This repeats the resolution
+		// already done by prepareStepLibForActivation, but keeps the legacy path
+		// self-contained instead of threading resolved info in.
+		stepInfo, resolveErr = stepman.QueryStepInfoFromLibrary(id.SteplibSource, id.IDorURI, id.Version, log)
 	}
 	if resolveErr != nil {
 		return ResolvedStep{ExecPath: "", StepInfo: models.StepInfoModel{}}, resolveErr
@@ -104,18 +105,6 @@ func downloadPrecompiled(log stepman.Logger, step models.StepModel, id stepid.Ca
 		log.Infof("No prebuilt executable found for %s, fallback to step source activation", platform)
 	}
 	return "", nil
-}
-
-// resolveStepInfoLegacy looks the step up in the local steplib spec, resolving
-// the version constraint in id.Version to a concrete version. It returns the
-// full StepInfoModel (the same source prepareStepLibForActivation uses), so the
-// legacy path populates ResolvedStep.StepInfo just like the API path does.
-func resolveStepInfoLegacy(id stepid.CanonicalID, log stepman.Logger) (models.StepInfoModel, error) {
-	stepInfo, err := stepman.QueryStepInfoFromLibrary(id.SteplibSource, id.IDorURI, id.Version, log)
-	if err != nil {
-		return models.StepInfoModel{}, fmt.Errorf("query %s from %s steplib: %s", id.IDorURI, id.SteplibSource, err)
-	}
-	return stepInfo, nil
 }
 
 func copyStepYML(libraryURL, id, version, dest string) error {
