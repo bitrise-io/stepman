@@ -48,8 +48,7 @@ func ActivateSteplibRefStep(
 		}
 	}
 
-	// ActivateStep dispatches to the v2 or legacy codepath. It resolves StepInfo
-	// on both paths, so take it unconditionally.
+	// ActivateStep dispatches to the v2 or legacy codepath.
 	resolvedStep, err := steplib.ActivateStep(id, activatedStepDir, stepYMLPath, log, isOfflineMode, libraryAPI)
 	activationResult.StepInfo = resolvedStep.StepInfo
 	activationResult.ExecutablePath = resolvedStep.ExecPath
