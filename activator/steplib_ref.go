@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 
 	"github.com/bitrise-io/go-utils/pointers"
-	"github.com/bitrise-io/go-utils/v2/fileutil"
 	"github.com/bitrise-io/stepman/activator/steplib"
 	"github.com/bitrise-io/stepman/models"
 	"github.com/bitrise-io/stepman/stepid"
@@ -15,9 +14,8 @@ import (
 )
 
 const (
-	bitriseV1SteplibURL = "https://github.com/bitrise-io/bitrise-steplib.git"
-	// bitriseSteplibAPIURL is V2 Steplib API
-	bitriseSteplibAPIURL = "https://steplib.bitrise.io"
+	bitriseSteplibURL    = "https://github.com/bitrise-io/bitrise-steplib.git"
+	bitriseSteplibAPIURL = "https://steplib.bitrise.io" // Base URL of steplib API
 	enableSteplibAPIEnv  = "BITRISE_EXPERIMENT_STEPLIB_API_ENABLE"
 )
 
@@ -35,7 +33,11 @@ func ActivateSteplibRefStep(
 		StepYMLPath:      stepYMLPath,
 		DidStepLibUpdate: false,
 	}
-	libraryAPI := libraryAPIFactory(id.SteplibSource, log)
+
+	var libraryAPI *steplibrary.Client
+	if shouldUseSteplibAPI(id.SteplibSource) {
+		libraryAPI = steplibrary.New(log, bitriseSteplibAPIURL)
+	}
 
 	if libraryAPI == nil {
 		// Old stepman preparation codepath
@@ -65,14 +67,9 @@ func ActivateSteplibRefStep(
 	return activationResult, nil
 }
 
-// libraryAPIFactory builds a Steplib API client when the V2 read path
-// should be used, or returns nil to keep the legacy (V1) activation path.
-func libraryAPIFactory(steplibURI string, logger stepman.Logger) (client *steplibrary.Client) {
+func shouldUseSteplibAPI(steplibURI string) bool {
 	enableAPI := os.Getenv(enableSteplibAPIEnv) == "true" || os.Getenv(enableSteplibAPIEnv) == "1"
-	if enableAPI && steplibURI == bitriseV1SteplibURL {
-		return steplibrary.New(logger, bitriseSteplibAPIURL, fileutil.NewFileManager())
-	}
-	return nil
+	return enableAPI && steplibURI == bitriseSteplibURL
 }
 
 func prepareStepLibForActivation(

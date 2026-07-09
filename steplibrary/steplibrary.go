@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/bitrise-io/go-utils/v2/fileutil"
 	"github.com/bitrise-io/stepman/internal/httpfetch"
 	"github.com/bitrise-io/stepman/models"
 	"github.com/bitrise-io/stepman/stepid"
@@ -19,7 +18,7 @@ type Client struct {
 
 // New builds a stepman.Client.
 // inventoryURL: the base URL of the API where metadata is fetched from.
-func New(log stepman.Logger, inventoryURL string, fileManager fileutil.FileManager) *Client {
+func New(log stepman.Logger, inventoryURL string) *Client {
 	return &Client{
 		log:          log,
 		inventoryURL: inventoryURL,
