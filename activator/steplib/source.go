@@ -3,9 +3,7 @@ package steplib
 import (
 	"errors"
 	"fmt"
-	"os"
 
-	"github.com/bitrise-io/go-utils/command"
 	"github.com/bitrise-io/go-utils/pathutil"
 	"github.com/bitrise-io/stepman/models"
 	"github.com/bitrise-io/stepman/stepman"
@@ -28,7 +26,7 @@ func activateStepSourceFromModel(uri, id, version string, source *models.StepSou
 		if exists, err := pathutil.IsPathExists(cacheDir); err != nil {
 			return fmt.Errorf("check if %s exists: %s", cacheDir, err)
 		} else if exists {
-			return copyStepDir(cacheDir, destDir)
+			return copyStep(cacheDir, destDir)
 		}
 	}
 
@@ -43,20 +41,6 @@ func activateStepSourceFromModel(uri, id, version string, source *models.StepSou
 	locations := []models.DownloadLocationModel{{Type: "git", Src: source.Git}}
 	if err := stepman.DownloadStepArchive(destDir, locations, id, version, source.Commit, log); err != nil {
 		return fmt.Errorf("download step source %s@%s: %s", id, version, err)
-	}
-	return nil
-}
-
-func copyStepDir(src, dst string) error {
-	if exists, err := pathutil.IsPathExists(dst); err != nil {
-		return fmt.Errorf("check if %s exists: %s", dst, err)
-	} else if !exists {
-		if err := os.MkdirAll(dst, 0777); err != nil {
-			return fmt.Errorf("create dir %s: %s", dst, err)
-		}
-	}
-	if err := command.CopyDir(src+"/", dst, true); err != nil {
-		return fmt.Errorf("copy %s to %s: %s", src, dst, err)
 	}
 	return nil
 }
