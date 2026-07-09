@@ -68,14 +68,15 @@ func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string,
 		return ResolvedStep{ExecPath: execPath, StepInfo: stepInfo}, err
 	}
 
-	// Fallback path to step source activation
-	// TODO: this is tied to the old stepman codepath because source activation needs a `stepCollection` object.
-	// Might be a good cleanup in a follow-up PR, maybe source activation can be made independent of `stepCollection`
-	// TODO: this assumes that the step library spec is already up-to-date.
-	// This breaks when the new steplib API is NOT ENABLED and should be fixed in a follow-up PR. See steplib_ref.go.
+	// Fall back to step source activation.
 	//
-	// The returns below carry the already-resolved StepInfo even on error: the
-	// caller surfaces this partial result (step id/version) in its error logs.
+	// TODO: source activation reads the local steplib spec, so it only works when
+	// the local steplib was set up — i.e. the legacy path. With the steplib API
+	// enabled the local steplib isn't prepared, so this breaks; decoupling source
+	// activation from the local spec is a follow-up.
+	//
+	// The returns below carry the already-resolved StepInfo even on error, so the
+	// caller can surface the step id/version in its error logs.
 	stepCollection, err := stepman.ReadStepSpec(id.SteplibSource)
 	if err != nil {
 		return ResolvedStep{ExecPath: "", StepInfo: stepInfo}, fmt.Errorf("failed to read %s steplib: %s", id.SteplibSource, err)
