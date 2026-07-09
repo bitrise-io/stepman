@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/bitrise-io/go-utils/pointers"
 	"github.com/bitrise-io/stepman/activator/steplib"
 	"github.com/bitrise-io/stepman/models"
 	"github.com/bitrise-io/stepman/stepid"
@@ -120,11 +119,6 @@ func prepareStepLibForActivation(
 			return stepInfo, didUpdate, err
 		}
 	}
-
-	if stepInfo.Step.Title == nil || *stepInfo.Step.Title == "" {
-		stepInfo.Step.Title = pointers.NewStringPtr(stepInfo.ID)
-	}
-	stepInfo.OriginalVersion = id.Version
 
 	return stepInfo, didUpdate, nil
 }

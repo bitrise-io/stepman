@@ -7,6 +7,7 @@ import (
 
 	"github.com/bitrise-io/go-utils/command/git"
 	"github.com/bitrise-io/go-utils/pathutil"
+	"github.com/bitrise-io/go-utils/pointers"
 	"github.com/bitrise-io/go-utils/retry"
 	"github.com/bitrise-io/stepman/models"
 )
@@ -119,14 +120,21 @@ func QueryStepInfoFromLibrary(library, id, version string, log Logger) (models.S
 		return models.StepInfoModel{}, err
 	}
 
-	return models.StepInfoModel{
+	stepInfo := models.StepInfoModel{
 		Library:         library,
 		ID:              id,
 		Version:         stepVersion.Version,
-		OriginalVersion: "",
+		OriginalVersion: version,
 		LatestVersion:   stepVersion.LatestAvailableVersion,
 		GroupInfo:       groupInfo,
 		Step:            stepVersion.Step,
 		DefinitionPth:   stepDefinitionPth,
-	}, nil
+	}
+
+	// Default the step title to its ID when the definition omits one.
+	if stepInfo.Step.Title == nil || *stepInfo.Step.Title == "" {
+		stepInfo.Step.Title = pointers.NewStringPtr(stepInfo.ID)
+	}
+
+	return stepInfo, nil
 }
