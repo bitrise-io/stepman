@@ -40,3 +40,31 @@ func (c *Client) FetchStepMetadata(ctx context.Context, stepRef stepid.Canonical
 
 	return stepInfo, nil
 }
+
+// StepDownloadLocations resolves the concrete source download locations for
+// id@version from the inventory's base locations (meta.json download_locations),
+// preserving their order: a "zip" base becomes <base>/<id>/<version>/step.zip and
+// a "git" base becomes the step's own source git URL. For the bitrise steplib zip
+// comes first, so callers try the zip fast path before falling back to a git clone.
+func (c *Client) StepDownloadLocations(ctx context.Context, id, version, sourceGit string) ([]models.DownloadLocationModel, error) {
+	bases, err := c.api.GetDownloadLocations(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("fetch download locations: %w", err)
+	}
+
+	var locations []models.DownloadLocationModel
+	for _, base := range bases {
+		switch base.Type {
+		case "zip":
+			locations = append(locations, models.DownloadLocationModel{
+				Type: "zip",
+				Src:  base.Src + id + "/" + version + "/step.zip",
+			})
+		case "git":
+			if sourceGit != "" {
+				locations = append(locations, models.DownloadLocationModel{Type: "git", Src: sourceGit})
+			}
+		}
+	}
+	return locations, nil
+}

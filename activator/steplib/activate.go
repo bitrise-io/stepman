@@ -74,8 +74,18 @@ func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string,
 	// caller can surface the step id/version in its error logs.
 	if libraryAPI != nil {
 		// V2: activate the source from the API-resolved step model, without
-		// requiring the local steplib to be set up. Reuses the V1 cache if present.
-		if err := activateStepSourceFromModel(id.SteplibSource, id.IDorURI, version, stepModel.Source, destination, log, isOfflineMode); err != nil {
+		// requiring the local steplib to be set up. Reuses the V1 cache if present,
+		// otherwise downloads via the inventory's locations (zip fast path, git
+		// fallback), resolved lazily so offline mode does no network.
+		var commit, sourceGit string
+		if stepModel.Source != nil {
+			commit = stepModel.Source.Commit
+			sourceGit = stepModel.Source.Git
+		}
+		resolveLocations := func() ([]models.DownloadLocationModel, error) {
+			return libraryAPI.StepDownloadLocations(context.Background(), id.IDorURI, version, sourceGit)
+		}
+		if err := activateStepSourceFromModel(id.SteplibSource, id.IDorURI, version, commit, resolveLocations, destination, log, isOfflineMode); err != nil {
 			return ResolvedStep{ExecPath: "", StepInfo: stepInfo}, err
 		}
 		return ResolvedStep{ExecPath: "", StepInfo: stepInfo}, nil

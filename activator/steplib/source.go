@@ -16,9 +16,11 @@ var ErrStepSourceNotCached = errors.New("step source not available in the local 
 // activateStepSourceFromModel materializes id@version's source into destDir
 // without setting up the local steplib (no ReadStepSpec/SetupLibrary). It reuses
 // the V1 on-disk cache when already populated; otherwise it downloads from the
-// given source (git URL + commit, as returned by the V2 API). Offline with no
-// cache returns ErrStepSourceNotCached.
-func activateStepSourceFromModel(uri, id, version string, source *models.StepSourceModel, destDir string, log stepman.Logger, isOfflineMode bool) error {
+// locations resolveLocations returns (zip fast path + git fallback, as built
+// from the V2 API), verifying commit for the git clone. resolveLocations is
+// called lazily so offline mode does no network. Offline with no cache returns
+// ErrStepSourceNotCached.
+func activateStepSourceFromModel(uri, id, version, commit string, resolveLocations func() ([]models.DownloadLocationModel, error), destDir string, log stepman.Logger, isOfflineMode bool) error {
 	// Reuse the V1 cache when populated. This is the only steplib lookup, and it
 	// is optional: a missing route just means "not cached".
 	if route, found := stepman.ReadRoute(uri); found {
@@ -34,12 +36,15 @@ func activateStepSourceFromModel(uri, id, version string, source *models.StepSou
 		return fmt.Errorf("%s@%s: %w", id, version, ErrStepSourceNotCached)
 	}
 
-	if source == nil || source.Git == "" {
-		return fmt.Errorf("step %s@%s has no source git URL to download from", id, version)
+	locations, err := resolveLocations()
+	if err != nil {
+		return fmt.Errorf("resolve download locations for %s@%s: %s", id, version, err)
+	}
+	if len(locations) == 0 {
+		return fmt.Errorf("step %s@%s has no download location", id, version)
 	}
 
-	locations := []models.DownloadLocationModel{{Type: "git", Src: source.Git}}
-	if err := stepman.DownloadStepArchive(destDir, locations, id, version, source.Commit, log); err != nil {
+	if err := stepman.DownloadStepArchive(destDir, locations, id, version, commit, log); err != nil {
 		return fmt.Errorf("download step source %s@%s: %s", id, version, err)
 	}
 	return nil

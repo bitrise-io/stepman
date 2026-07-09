@@ -21,9 +21,11 @@ type fakeAPI struct {
 	latestVersionsErr error
 	allVersions       map[string][]string
 	allVersionsErr    error
-	groupInfo         map[string]steplibindex.StepInfo
-	groupInfoErr      error
-	stepModel         map[string]models.StepModel
+	groupInfo            map[string]steplibindex.StepInfo
+	groupInfoErr         error
+	stepModel            map[string]models.StepModel
+	downloadLocations    []models.DownloadLocationModel
+	downloadLocationsErr error
 }
 
 // newFakeAPI returns a fakeAPI pre-populated with the standard "script" step
@@ -47,6 +49,10 @@ func newFakeAPI() fakeAPI {
 		},
 		stepModel: map[string]models.StepModel{
 			"script": {Title: pointers.NewStringPtr("Script"), Summary: pointers.NewStringPtr("Runs a shell script.")},
+		},
+		downloadLocations: []models.DownloadLocationModel{
+			{Type: "zip", Src: "https://cdn.example/step-archives/"},
+			{Type: "git", Src: "source/git"},
 		},
 	}
 }
@@ -94,6 +100,10 @@ func (f fakeAPI) GetStepModel(_ context.Context, step ResolvedStepVersion) (mode
 		return models.StepModel{}, errors.New("not found")
 	}
 	return v, nil
+}
+
+func (f fakeAPI) GetDownloadLocations(_ context.Context) ([]models.DownloadLocationModel, error) {
+	return f.downloadLocations, f.downloadLocationsErr
 }
 
 // fakeGetFetcher implements httpfetch.Client.Get, returning a fixed body whose
