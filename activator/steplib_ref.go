@@ -16,7 +16,7 @@ import (
 const (
 	bitriseSteplibURL    = "https://github.com/bitrise-io/bitrise-steplib.git"
 	bitriseSteplibAPIURL = "https://steplib.bitrise.io" // Base URL of steplib API
-	enableSteplibAPIEnv  = "BITRISE_EXPERIMENT_STEPLIB_API_ENABLE"
+	enableSteplibAPIEnv  = "BITRISE_STEPLIB_API_ENABLE"
 )
 
 func ActivateSteplibRefStep(

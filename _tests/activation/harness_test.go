@@ -53,10 +53,10 @@ type variant struct {
 }
 
 var (
-	v1Source       = variant{name: "v1-source", useAPI: false, precompiled: false}
-	v1Precompiled  = variant{name: "v1-precompiled", useAPI: false, precompiled: true}
-	v2Source       = variant{name: "v2-source", useAPI: true, precompiled: false}
-	v2Precompiled  = variant{name: "v2-precompiled", useAPI: true, precompiled: true}
+	v1Source      = variant{name: "v1-source", useAPI: false, precompiled: false}
+	v1Precompiled = variant{name: "v1-precompiled", useAPI: false, precompiled: true}
+	v2Source      = variant{name: "v2-source", useAPI: true, precompiled: false}
+	v2Precompiled = variant{name: "v2-precompiled", useAPI: true, precompiled: true}
 )
 
 // steplibStep builds a canonical ID for a step in the bitrise steplib.
@@ -80,9 +80,9 @@ func activate(t *testing.T, v variant, id stepid.CanonicalID, offline, didStepLi
 	// The V2 API path targets the production inventory; there is no longer an
 	// override to redirect it at a dev/test inventory.
 	if v.useAPI {
-		t.Setenv("BITRISE_EXPERIMENT_STEPLIB_API_ENABLE", "true")
+		t.Setenv("BITRISE_STEPLIB_API_ENABLE", "true")
 	} else {
-		t.Setenv("BITRISE_EXPERIMENT_STEPLIB_API_ENABLE", "false")
+		t.Setenv("BITRISE_STEPLIB_API_ENABLE", "false")
 	}
 	if v.precompiled {
 		t.Setenv("BITRISE_EXPERIMENT_PRECOMPILED_STEPS", "true")
