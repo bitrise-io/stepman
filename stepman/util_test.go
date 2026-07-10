@@ -1,6 +1,12 @@
 package stepman
 
 import (
+	"archive/zip"
+	"bytes"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 
@@ -10,6 +16,57 @@ import (
 	"github.com/bitrise-io/stepman/models"
 	"github.com/stretchr/testify/require"
 )
+
+type stubLogger struct{ t *testing.T }
+
+func (l stubLogger) Debugf(format string, v ...any) { l.t.Logf(format, v...) }
+func (l stubLogger) Errorf(format string, v ...any) { l.t.Logf(format, v...) }
+func (l stubLogger) Warnf(format string, v ...any)  { l.t.Logf(format, v...) }
+func (l stubLogger) Infof(format string, v ...any)  { l.t.Logf(format, v...) }
+
+func zipOf(t *testing.T, files map[string]string) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	w := zip.NewWriter(&buf)
+	for name, content := range files {
+		f, err := w.Create(name)
+		require.NoError(t, err)
+		_, err = f.Write([]byte(content))
+		require.NoError(t, err)
+	}
+	require.NoError(t, w.Close())
+	return buf.Bytes()
+}
+
+func TestDownloadStepZip(t *testing.T) {
+	payload := zipOf(t, map[string]string{"step.yml": "title: Test\n"})
+
+	t.Run("downloads and extracts", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, _ = w.Write(payload)
+		}))
+		defer server.Close()
+
+		destDir := t.TempDir()
+		err := downloadStepZip(stubLogger{t}, server.URL, destDir)
+		require.NoError(t, err)
+
+		got, err := os.ReadFile(filepath.Join(destDir, "step.yml"))
+		require.NoError(t, err)
+		require.Equal(t, "title: Test\n", string(got))
+	})
+
+	t.Run("propagates HTTP failures", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+		}))
+		defer server.Close()
+
+		err := downloadStepZip(stubLogger{t}, server.URL, t.TempDir())
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "download step zip")
+	})
+}
 
 func TestAddStepVersionToStepGroup(t *testing.T) {
 	step := models.StepModel{
