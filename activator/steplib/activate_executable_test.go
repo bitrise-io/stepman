@@ -19,6 +19,9 @@ import (
 type testLogger struct{ t *testing.T }
 
 func (l testLogger) Debugf(format string, v ...any) { l.t.Logf(format, v...) }
+func (l testLogger) Errorf(format string, v ...any) { l.t.Logf(format, v...) }
+func (l testLogger) Warnf(format string, v ...any)  { l.t.Logf(format, v...) }
+func (l testLogger) Infof(format string, v ...any)  { l.t.Logf(format, v...) }
 
 func sha256Hash(b []byte) string {
 	sum := sha256.Sum256(b)
@@ -126,7 +129,7 @@ func TestDownloadFromURLs(t *testing.T) {
 		defer secondary.Close()
 
 		destPath := filepath.Join(t.TempDir(), "executable")
-		err := downloadFromURLs(ctx, fetcher, []string{primary.URL, secondary.URL}, hash, destPath)
+		err := downloadFromURLs(ctx, fetcher, testLogger{t}, []string{primary.URL, secondary.URL}, hash, destPath)
 		require.NoError(t, err)
 		require.Equal(t, 0, secondaryHits)
 
@@ -146,7 +149,7 @@ func TestDownloadFromURLs(t *testing.T) {
 		defer secondary.Close()
 
 		destPath := filepath.Join(t.TempDir(), "executable")
-		err := downloadFromURLs(ctx, fetcher, []string{primary.URL, secondary.URL}, hash, destPath)
+		err := downloadFromURLs(ctx, fetcher, testLogger{t}, []string{primary.URL, secondary.URL}, hash, destPath)
 		require.NoError(t, err)
 
 		got, err := os.ReadFile(destPath)
@@ -165,7 +168,7 @@ func TestDownloadFromURLs(t *testing.T) {
 		defer secondary.Close()
 
 		destPath := filepath.Join(t.TempDir(), "executable")
-		err := downloadFromURLs(ctx, fetcher, []string{primary.URL, secondary.URL}, hash, destPath)
+		err := downloadFromURLs(ctx, fetcher, testLogger{t}, []string{primary.URL, secondary.URL}, hash, destPath)
 		require.NoError(t, err)
 
 		got, err := os.ReadFile(destPath)
@@ -184,7 +187,7 @@ func TestDownloadFromURLs(t *testing.T) {
 		defer secondary.Close()
 
 		destPath := filepath.Join(t.TempDir(), "executable")
-		err := downloadFromURLs(ctx, fetcher, []string{primary.URL, secondary.URL}, hash, destPath)
+		err := downloadFromURLs(ctx, fetcher, testLogger{t}, []string{primary.URL, secondary.URL}, hash, destPath)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "failed to download executable")
 		require.Contains(t, err.Error(), primary.URL)
@@ -204,7 +207,7 @@ func TestDownloadFromURLs(t *testing.T) {
 		defer secondary.Close()
 
 		destPath := filepath.Join(t.TempDir(), "executable")
-		err := downloadFromURLs(ctx, fetcher, []string{primary.URL, secondary.URL}, hash, destPath)
+		err := downloadFromURLs(ctx, fetcher, testLogger{t}, []string{primary.URL, secondary.URL}, hash, destPath)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "failed to download executable")
 		require.Contains(t, err.Error(), "hash mismatch")

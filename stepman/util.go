@@ -129,11 +129,7 @@ func DownloadStep(collectionURI string, collection models.StepCollectionModel, i
 	for _, downloadLocation := range downloadLocations {
 		switch downloadLocation.Type {
 		case "zip":
-			err := retry.Times(2).Wait(3 * time.Second).Try(func(attempt uint) error {
-				return downloadStepZip(log, downloadLocation.Src, stepPth)
-			})
-
-			if err != nil {
+			if err := downloadStepZip(log, downloadLocation.Src, stepPth); err != nil {
 				log.Warnf("Failed to download step.zip: %s", err)
 			} else {
 				return nil

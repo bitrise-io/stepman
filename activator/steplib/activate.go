@@ -55,7 +55,7 @@ func downloadPrecompiled(log stepman.Logger, step models.StepModel, id string, d
 		if ok && executableForPlatform.Hash != "" && executableForPlatform.StorageURI != "" {
 			log.Debugf("Downloading executable for %s", platform)
 			downloadStart := time.Now()
-			execPath, err := activateStepExecutable(context.Background(), httpfetch.NewClient(log), id, executableForPlatform, destination)
+			execPath, err := activateStepExecutable(context.Background(), httpfetch.NewClient(log), log, id, executableForPlatform, destination)
 			if err == nil {
 				log.Debugf("Downloaded executable in %s", time.Since(downloadStart).Round(time.Millisecond))
 

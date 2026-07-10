@@ -10,18 +10,20 @@ import (
 
 	"github.com/bitrise-io/stepman/internal/httpfetch"
 	"github.com/bitrise-io/stepman/models"
+	"github.com/bitrise-io/stepman/stepman"
 )
 
 func activateStepExecutable(
 	ctx context.Context,
 	fetcher httpfetch.Client,
+	log stepman.Logger,
 	stepID string,
 	executable models.Executable,
 	destinationDir string,
 ) (string, error) {
 	path := filepath.Join(destinationDir, stepID)
 
-	if err := downloadExecutable(ctx, fetcher, executable, path); err != nil {
+	if err := downloadExecutable(ctx, fetcher, log, executable, path); err != nil {
 		return "", err
 	}
 
@@ -53,7 +55,7 @@ func buildDownloadURLs(bases []string, executable models.Executable) ([]string, 
 	return urls, nil
 }
 
-func downloadExecutable(ctx context.Context, fetcher httpfetch.Client, executable models.Executable, destPath string) error {
+func downloadExecutable(ctx context.Context, fetcher httpfetch.Client, log stepman.Logger, executable models.Executable, destPath string) error {
 	bases := precompiledStepsDefaultStorageURLs
 	if override := os.Getenv(precompiledStepsStorageURLsEnv); override != "" {
 		bases = strings.Split(override, ",")
@@ -63,18 +65,17 @@ func downloadExecutable(ctx context.Context, fetcher httpfetch.Client, executabl
 	if err != nil {
 		return err
 	}
-	return downloadFromURLs(ctx, fetcher, urls, executable.Hash, destPath)
+	return downloadFromURLs(ctx, fetcher, log, urls, executable.Hash, destPath)
 }
 
-// downloadFromURLs tries each URL in order via fetcher, verifying executable.Hash
-// on each attempt; a mismatch or failure falls through to the next mirror.
-func downloadFromURLs(ctx context.Context, fetcher httpfetch.Client, urls []string, hash, destPath string) error {
+func downloadFromURLs(ctx context.Context, fetcher httpfetch.Client, log stepman.Logger, urls []string, hash, destPath string) error {
 	var errs []error
 	for _, url := range urls {
 		err := fetcher.DownloadWithHash(ctx, destPath, url, hash)
 		if err == nil {
 			return nil
 		}
+		log.Warnf("Failed to download step executable from %s: %s", url, err)
 		errs = append(errs, fmt.Errorf("%s: %w", url, err))
 	}
 	return fmt.Errorf("failed to download executable: %w", errors.Join(errs...))
