@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/bitrise-io/go-utils/pathutil"
 	"github.com/bitrise-io/stepman/models"
 	"github.com/bitrise-io/stepman/steplibrary"
 	"github.com/bitrise-io/stepman/stepman"
@@ -17,13 +16,7 @@ var ErrStepSourceNotCached = errors.New("step source not available in the local 
 
 // activateStepSourceWithAPI materializes id@version's source into destDir
 // without cloning a git steplib.
-func activateStepSourceWithAPI(libraryAPI *steplibrary.Client, uri, id, version string, source *models.StepSourceModel, destDir string, log stepman.Logger, isOfflineMode bool) error {
-	if reused, err := reuseCachedStepSource(uri, id, version, destDir); err != nil {
-		return err
-	} else if reused {
-		return nil
-	}
-
+func activateStepSourceWithAPI(libraryAPI *steplibrary.Client, id, version string, source *models.StepSourceModel, destDir string, log stepman.Logger, isOfflineMode bool) error {
 	if isOfflineMode {
 		return fmt.Errorf("%s@%s: %w", id, version, ErrStepSourceNotCached)
 	}
@@ -32,8 +25,7 @@ func activateStepSourceWithAPI(libraryAPI *steplibrary.Client, uri, id, version 
 		return fmt.Errorf("step %s@%s has no source git URL to download from", id, version)
 	}
 
-	// The source download locations are fetched only if no cache hit and not offline mode
-	locations, err := libraryAPI.StepDownloadLocations(context.Background(), id, version, source.Git)
+	locations, err := libraryAPI.StepSourceDownloadLocations(context.Background(), id, version, source.Git)
 	if err != nil {
 		return fmt.Errorf("resolve download locations for %s@%s: %s", id, version, err)
 	}
@@ -45,23 +37,4 @@ func activateStepSourceWithAPI(libraryAPI *steplibrary.Client, uri, id, version 
 		return fmt.Errorf("download step source %s@%s: %s", id, version, err)
 	}
 	return nil
-}
-
-// reuseCachedStepSource copies the V1 on-disk cache for id@version into destDir
-// when it is populated, reporting whether it did. This is the only steplib
-// lookup on the V2 path and is optional: a missing route just means "not cached".
-func reuseCachedStepSource(uri, id, version, destDir string) (bool, error) {
-	route, found := stepman.ReadRoute(uri)
-	if !found {
-		return false, nil
-	}
-	cacheDir := stepman.GetStepCacheDirPath(route, id, version)
-	exists, err := pathutil.IsPathExists(cacheDir)
-	if err != nil {
-		return false, fmt.Errorf("check if %s exists: %s", cacheDir, err)
-	}
-	if !exists {
-		return false, nil
-	}
-	return true, copyStep(cacheDir, destDir)
 }
