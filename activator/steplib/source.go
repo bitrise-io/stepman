@@ -10,15 +10,11 @@ import (
 	"github.com/bitrise-io/stepman/stepman"
 )
 
-// ErrStepSourceNotCached is returned (wrapped) on the V2 source path in offline
-// mode when the step source is not in the local cache.
-var ErrStepSourceNotCached = errors.New("step source not available in the local cache and offline mode is set")
-
 // activateStepSourceWithAPI materializes id@version's source into destDir
 // without cloning a git steplib.
 func activateStepSourceWithAPI(libraryAPI *steplibrary.Client, id, version string, source *models.StepSourceModel, destDir string, log stepman.Logger, isOfflineMode bool) error {
 	if isOfflineMode {
-		return fmt.Errorf("%s@%s: %w", id, version, ErrStepSourceNotCached)
+		return fmt.Errorf("%s@%s: %w", id, version, errors.New("offline mode is not supported with Steplib API"))
 	}
 
 	if source == nil || source.Git == "" {
