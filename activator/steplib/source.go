@@ -15,13 +15,9 @@ import (
 // mode when the step source is not in the local cache.
 var ErrStepSourceNotCached = errors.New("step source not available in the local cache and offline mode is set")
 
-// activateStepSourceV2 materializes id@version's source into destDir over the
-// steplib API, without setting up the local steplib. It reuses the V1 on-disk
-// cache when present; otherwise it downloads from the inventory's locations (zip
-// fast path, git fallback). The inventory locations are fetched only on the
-// download path, so offline mode and a cache hit do no network. Offline with no
-// cache returns ErrStepSourceNotCached.
-func activateStepSourceV2(libraryAPI *steplibrary.Client, uri, id, version string, source *models.StepSourceModel, destDir string, log stepman.Logger, isOfflineMode bool) error {
+// activateStepSourceWithAPI materializes id@version's source into destDir
+// without cloning a git steplib.
+func activateStepSourceWithAPI(libraryAPI *steplibrary.Client, uri, id, version string, source *models.StepSourceModel, destDir string, log stepman.Logger, isOfflineMode bool) error {
 	if reused, err := reuseCachedStepSource(uri, id, version, destDir); err != nil {
 		return err
 	} else if reused {
@@ -36,6 +32,7 @@ func activateStepSourceV2(libraryAPI *steplibrary.Client, uri, id, version strin
 		return fmt.Errorf("step %s@%s has no source git URL to download from", id, version)
 	}
 
+	// The source download locations are fetched only if no cache hit and not offline mode
 	locations, err := libraryAPI.StepDownloadLocations(context.Background(), id, version, source.Git)
 	if err != nil {
 		return fmt.Errorf("resolve download locations for %s@%s: %s", id, version, err)

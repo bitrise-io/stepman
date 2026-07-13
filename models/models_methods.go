@@ -327,20 +327,17 @@ func (collection StepCollectionModel) GetDownloadLocations(id, version string) (
 	return locations, nil
 }
 
-// BuildStepDownloadLocations resolves the concrete source download locations for
-// id@version from the steplib's base locations (steplib.yml / the V2 meta.json),
-// preserving their order: a "zip" base becomes <base>/<id>/<version>/step.zip and
-// a "git" base becomes the step's own source git URL (skipped when empty). An
-// unknown location type is an error.
-func BuildStepDownloadLocations(baseLocations []DownloadLocationModel, id, version, sourceGit string) ([]DownloadLocationModel, error) {
+// BuildStepDownloadLocations resolves a priority order of source download locations for
+// an exact step version.
+func BuildStepDownloadLocations(baseLocations []DownloadLocationModel, id, version, repoURL string) ([]DownloadLocationModel, error) {
 	locations := []DownloadLocationModel{}
 	for _, base := range baseLocations {
 		switch base.Type {
 		case "zip":
 			locations = append(locations, DownloadLocationModel{Type: "zip", Src: base.Src + id + "/" + version + "/step.zip"})
 		case "git":
-			if sourceGit != "" {
-				locations = append(locations, DownloadLocationModel{Type: "git", Src: sourceGit})
+			if repoURL != "" {
+				locations = append(locations, DownloadLocationModel{Type: "git", Src: repoURL})
 			}
 		default:
 			return nil, fmt.Errorf("invalid download location type %q for step %s", base.Type, id)
