@@ -179,11 +179,10 @@ func TestActivateSteplibRefStep(t *testing.T) {
 	}
 }
 
-// TestActivateSteplibRefStep_APIEnabled covers the v2 (steplib API) activation
+// TestActivateSteplibRefStep_APIEnabled covers steplib API activation
 // path. Each case runs in a fresh $HOME with the API flag on, so a passing run
-// proves v2 resolves and activates against the hosted inventory without the
-// local steplib being set up — the dependency the v1-first integration matrix
-// masks. It also asserts no v1 steplib route was created.
+// proves API resolves and activates against the hosted inventory without the
+// git cloned steplib being set up
 func TestActivateSteplibRefStep_APIEnabled(t *testing.T) {
 	const steplib = "https://github.com/bitrise-io/bitrise-steplib.git"
 
@@ -213,7 +212,7 @@ func TestActivateSteplibRefStep_APIEnabled(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("HOME", t.TempDir()) // fresh: the v1 steplib is not set up
+			t.Setenv("HOME", t.TempDir()) // fresh: the git cloned steplib is not set up
 			t.Setenv("BITRISE_STEPLIB_API_ENABLE", "true")
 			t.Setenv("BITRISE_EXPERIMENT_PRECOMPILED_STEPS", "false")
 
@@ -245,7 +244,7 @@ func TestActivateSteplibRefStep_APIEnabled(t *testing.T) {
 			require.NoError(t, err)
 			require.True(t, exists, "current_step.yml should be written into the work dir")
 
-			// V2 must not have set up the v1 local steplib.
+			// API route must not have set up the git cloned steplib.
 			_, found := stepman.ReadRoute(steplib)
 			require.False(t, found, "v2 activation must not set up the v1 steplib")
 		})
