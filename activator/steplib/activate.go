@@ -55,7 +55,7 @@ func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string,
 	// Place the step.yml at destinationStepYML once, up front.
 	if libraryAPI == nil {
 		if err := copyStepYML(id.SteplibSource, id.IDorURI, version, destinationStepYML); err != nil {
-			return ResolvedStep{ExecPath: "", StepInfo: models.StepInfoModel{}}, fmt.Errorf("copy step.yml: %s", err)
+			return ResolvedStep{ExecPath: "", StepInfo: stepInfo}, fmt.Errorf("copy step.yml: %s", err)
 		}
 	} else {
 		if err := writeStepYML(stepInfo.Step, destinationStepYML); err != nil {
@@ -69,18 +69,15 @@ func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string,
 	}
 
 	// Fall back to step source activation.
-	//
-	// The returns below carry the already-resolved StepInfo even on error, so the
-	// caller can surface the step id/version in its error logs.
 	if libraryAPI != nil {
-		// V2: activate the source over the API, without setting up the local steplib.
+		// activate the source over the API, without git clone
 		if err := activateStepSourceWithAPI(libraryAPI, id.SteplibSource, version, stepModel.Source, destination, log, isOfflineMode); err != nil {
 			return ResolvedStep{ExecPath: "", StepInfo: stepInfo}, err
 		}
 		return ResolvedStep{ExecPath: "", StepInfo: stepInfo}, nil
 	}
 
-	// V1: the local steplib was already set up by prepareStepLibForActivation.
+	// using git cloned steplib
 	stepCollection, err := stepman.ReadStepSpec(id.SteplibSource)
 	if err != nil {
 		return ResolvedStep{ExecPath: "", StepInfo: stepInfo}, fmt.Errorf("failed to read %s steplib: %s", id.SteplibSource, err)
