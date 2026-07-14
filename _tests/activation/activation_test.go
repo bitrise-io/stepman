@@ -184,13 +184,13 @@ func TestSteplibActivation_APISourceFreshEnv(t *testing.T) {
 
 	id := steplibStep("git-clone", "8.5.0")
 	r := activate(t, v2Source, id, false, false)
-	logResult(t, "v2-source (fresh env, no SetupLibrary)", r)
+	logResult(t, "api-source (fresh env, no SetupLibrary)", r)
 
-	require.NoError(t, r.err, "v2 source activation must work without the local steplib set up")
+	require.NoError(t, r.err, "api source activation must work without the git cloned steplib set up")
 	assert.Equal(t, activator.ActivationTypeSteplibSource, r.activated.ActivationType)
 	assert.Empty(t, r.activated.ExecutablePath)
 	// It must not have gone through the v1 StepLib setup/update path.
 	for _, e := range r.logs {
-		assert.NotContains(t, e.msg, "updating StepLib", "v2 source must not set up/update the v1 StepLib")
+		assert.NotContains(t, e.msg, "updating StepLib", "api source must not set up/update the git cloned StepLib")
 	}
 }
