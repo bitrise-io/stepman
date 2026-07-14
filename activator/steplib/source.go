@@ -14,7 +14,7 @@ import (
 // without cloning a git steplib.
 func activateStepSourceWithAPI(libraryAPI *steplibrary.Client, id, version string, source *models.StepSourceModel, destDir string, log stepman.Logger, isOfflineMode bool) error {
 	if isOfflineMode {
-		return fmt.Errorf("%s@%s: %w", id, version, errors.New("offline mode is not supported with Steplib API"))
+		return errors.New("offline mode is not supported with Steplib API")
 	}
 
 	if source == nil || source.Git == "" {
