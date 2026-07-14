@@ -125,7 +125,7 @@ func TestResolveMinorLocked(t *testing.T) {
 	}
 }
 
-func TestClient_StepDownloadLocations(t *testing.T) {
+func TestClient_StepSourceDownloadLocations(t *testing.T) {
 	api := newFakeAPI()    // zip base "https://cdn.example/step-archives/" + git marker
 	c := &Client{api: api} //nolint:exhaustruct // only api is needed
 
