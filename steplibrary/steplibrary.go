@@ -47,5 +47,5 @@ func (c *Client) StepSourceDownloadLocations(ctx context.Context, id, version, s
 	if err != nil {
 		return nil, fmt.Errorf("fetch download locations: %w", err)
 	}
-	return models.BuildStepDownloadLocations(bases, id, version, sourceGit)
+	return models.BuildStepSourceDownloadLocations(bases, id, version, sourceGit)
 }

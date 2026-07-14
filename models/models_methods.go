@@ -317,7 +317,7 @@ func (collection StepCollectionModel) GetDownloadLocations(id, version string) (
 		return []DownloadLocationModel{}, errors.New("missing Source property")
 	}
 
-	locations, err := BuildStepDownloadLocations(collection.DownloadLocations, id, version, step.Source.Git)
+	locations, err := BuildStepSourceDownloadLocations(collection.DownloadLocations, id, version, step.Source.Git)
 	if err != nil {
 		return []DownloadLocationModel{}, err
 	}
@@ -327,9 +327,9 @@ func (collection StepCollectionModel) GetDownloadLocations(id, version string) (
 	return locations, nil
 }
 
-// BuildStepDownloadLocations resolves a priority order of source download locations for
+// BuildStepSourceDownloadLocations resolves a priority order of source download locations for
 // an exact step version.
-func BuildStepDownloadLocations(baseLocations []DownloadLocationModel, id, version, repoURL string) ([]DownloadLocationModel, error) {
+func BuildStepSourceDownloadLocations(baseLocations []DownloadLocationModel, id, version, repoURL string) ([]DownloadLocationModel, error) {
 	locations := []DownloadLocationModel{}
 	for _, base := range baseLocations {
 		switch base.Type {

@@ -15,17 +15,17 @@ import (
 // fixtures and injectable errors. Construct the standard "script" fixtures with
 // newFakeAPI; override individual fields for table-driven and error cases.
 type fakeAPI struct {
-	ids                  []string
-	listErr              error
-	latestVersions       map[string]steplibindex.LatestPointer
-	latestVersionsErr    error
-	allVersions          map[string][]string
-	allVersionsErr       error
-	groupInfo            map[string]steplibindex.StepInfo
-	groupInfoErr         error
-	stepModel            map[string]models.StepModel
-	downloadLocations    []models.DownloadLocationModel
-	downloadLocationsErr error
+	ids                            []string
+	listErr                        error
+	latestVersions                 map[string]steplibindex.LatestPointer
+	latestVersionsErr              error
+	allVersions                    map[string][]string
+	allVersionsErr                 error
+	groupInfo                      map[string]steplibindex.StepInfo
+	groupInfoErr                   error
+	stepModel                      map[string]models.StepModel
+	stepSourceDownloadLocations    []models.DownloadLocationModel
+	stepSourceDownloadLocationsErr error
 }
 
 // newFakeAPI returns a fakeAPI pre-populated with the standard "script" step
@@ -50,7 +50,7 @@ func newFakeAPI() fakeAPI {
 		stepModel: map[string]models.StepModel{
 			"script": {Title: pointers.NewStringPtr("Script"), Summary: pointers.NewStringPtr("Runs a shell script.")},
 		},
-		downloadLocations: []models.DownloadLocationModel{
+		stepSourceDownloadLocations: []models.DownloadLocationModel{
 			{Type: "zip", Src: "https://cdn.example/step-archives/"},
 			{Type: "git", Src: "source/git"},
 		},
@@ -103,7 +103,7 @@ func (f fakeAPI) GetStepModel(_ context.Context, step ResolvedStepVersion) (mode
 }
 
 func (f fakeAPI) GetStepSourceDownloadLocations(_ context.Context) ([]models.DownloadLocationModel, error) {
-	return f.downloadLocations, f.downloadLocationsErr
+	return f.stepSourceDownloadLocations, f.stepSourceDownloadLocationsErr
 }
 
 // fakeGetFetcher implements httpfetch.Client.Get, returning a fixed body whose
