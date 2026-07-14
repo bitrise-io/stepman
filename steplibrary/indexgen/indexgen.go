@@ -134,8 +134,9 @@ func generateFromSteplibClone(inputFS fs.FS, outputDir string, opts Options, log
 	}()
 
 	// The writer is rooted at the inventory root (staging); every path it gets
-	// comes from steplibindex, which roots files under the format-version dir
-	// (e.g. v2/), so the published outputDir contains <version>/{meta,index,steps}.
+	// comes from steplibindex, which roots files under the inventory root
+	// (e.g. api/v2/), so the published outputDir contains
+	// <inventory-root>/{meta,index,steps}.
 	w := newWriter(staging, fileutil.NewFileManager())
 	if err := writeInventory(w, inputFS, steps, steplibYML, opts); err != nil {
 		return Stats{}, err

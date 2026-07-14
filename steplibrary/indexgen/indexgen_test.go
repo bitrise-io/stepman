@@ -106,7 +106,7 @@ func TestGenerator_authored_files_are_owner_only(t *testing.T) {
 	require.NoError(t, err, "stat meta.json")
 	assert.Equal(t, os.FileMode(0o600), metaInfo.Mode().Perm(), "authored file is 0600")
 
-	dirInfo, err := os.Stat(filepath.Join(root, steplibindex.VersionDir(), steplibindex.IndexRootFS))
+	dirInfo, err := os.Stat(filepath.Join(root, steplibindex.InventoryRoot(), steplibindex.IndexRootFS))
 	require.NoError(t, err, "stat index/ dir")
 	assert.Equal(t, os.FileMode(0o700), dirInfo.Mode().Perm(), "authored dir is 0700")
 }

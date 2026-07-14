@@ -160,7 +160,7 @@ func TestValidate(t *testing.T) {
 		},
 		"stale file under index/": {
 			mutate: func(t *testing.T, root string) {
-				seedFile(t, root, filepath.Join(steplibindex.VersionDir(), steplibindex.IndexRootFS, "stale.json"), "{}")
+				seedFile(t, root, filepath.Join(steplibindex.InventoryRoot(), steplibindex.IndexRootFS, "stale.json"), "{}")
 			},
 			wantPath: "stale.json", wantMsg: "unexpected",
 		},

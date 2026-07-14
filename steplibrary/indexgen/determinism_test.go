@@ -21,7 +21,7 @@ import (
 // regenerated sample tree.
 //
 // Comparison is by per-file SHA-256 keyed on the output-relative path
-// (covering the whole v2/ tree); a failure prints which path's hash differs.
+// (covering the whole api/v2/ tree); a failure prints which path's hash differs.
 func TestGenerator_deterministic_output(t *testing.T) {
 	// Two runs of the same helper = identical fixture, Options, and logger; any
 	// output difference is therefore non-determinism in the generator.

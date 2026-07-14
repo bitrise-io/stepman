@@ -14,22 +14,22 @@ import (
 
 func TestHTTPAPI(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/v2/index/step_ids.json", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/v2/index/step_ids.json", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"step_ids":["hello-step","git-clone"]}`))
 	})
-	mux.HandleFunc("/v2/index/steps/hello-step/latest.json", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/v2/index/steps/hello-step/latest.json", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"step_id":"hello-step","latest":"2.0.0","latest_by_major":{"1":"1.1.0","2":"2.0.0"}}`))
 	})
-	mux.HandleFunc("/v2/index/steps/hello-step/versions.json", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/v2/index/steps/hello-step/versions.json", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"step_id":"hello-step","versions":["2.0.0","1.1.0","1.0.0"]}`))
 	})
-	mux.HandleFunc("/v2/steps/hello-step/step-info.json", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/v2/steps/hello-step/step-info.json", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"maintainer":"bitrise","deprecation":null,"asset_urls":["assets/icon.svg"]}`))
 	})
-	mux.HandleFunc("/v2/steps/hello-step/2.0.0/step.json", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/v2/steps/hello-step/2.0.0/step.json", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"title":"Hello","summary":"says hi"}`))
 	})
-	mux.HandleFunc("/v2/steps/hello-step/2.0.0/src.zip", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/v2/steps/hello-step/2.0.0/src.zip", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("PK\x03\x04seed-zip-bytes"))
 	})
 

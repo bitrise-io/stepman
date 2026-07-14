@@ -46,7 +46,7 @@ func TestRoundTrip_stepYAML_to_stepJSON(t *testing.T) {
 	route, found := stepman.ReadRoute(uri)
 	require.True(t, found, "no route for %s after Generate", uri)
 	inputFS := os.DirFS(stepman.GetLibraryBaseDirPath(route))
-	v2Dir := filepath.Join(out, steplibindex.VersionDir())
+	v2Dir := filepath.Join(out, steplibindex.InventoryRoot())
 
 	pairs := collectStepYMLAndJSONPaths(t, inputFS, v2Dir)
 	require.NotEmpty(t, pairs, "expected at least one step.yml/step.json pair to compare")
@@ -75,8 +75,8 @@ type stepYAMLJSONPair struct {
 
 // collectStepYMLAndJSONPaths walks inputFS's source steps/ tree for every
 // step.yml and returns the matching pair of (input step.yml path, generated
-// step.json path under the v2 output dir). Asserts each generated step.json
-// exists.
+// step.json path under the inventory root, e.g. api/v2/). Asserts each
+// generated step.json exists.
 func collectStepYMLAndJSONPaths(t *testing.T, inputFS fs.FS, outV2Dir string) []stepYAMLJSONPair {
 	t.Helper()
 	var pairs []stepYAMLJSONPair

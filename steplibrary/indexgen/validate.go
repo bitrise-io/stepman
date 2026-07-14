@@ -204,7 +204,7 @@ func (v *validator) checkStep(id string) []ValidationError {
 	return issues
 }
 
-// checkStepJSON validates v2/steps/<id>/<version>/step.json. versionsPath is the
+// checkStepJSON validates api/v2/steps/<id>/<version>/step.json. versionsPath is the
 // step's versions.json, where an invalid version string is reported (the version
 // comes from there).
 func (v *validator) checkStepJSON(id, version, versionsPath string) []ValidationError {
@@ -278,12 +278,12 @@ func (v *validator) checkAssetURL(infoPath, stepDir, rel string) []ValidationErr
 	return nil
 }
 
-// staleFileViolations walks v2/steps and v2/index once each and returns a
+// staleFileViolations walks api/v2/steps and api/v2/index once each and returns a
 // violation for every file the checks above did not consume — left-over files
 // from a previous generation (a removed step), or a stray file from a generator
 // bug. It reads the accumulated seen set, so it must run after all other checks.
 func (v *validator) staleFileViolations() []ValidationError {
-	root := steplibindex.VersionDir()
+	root := steplibindex.InventoryRoot()
 	issues := []ValidationError{}
 	walkErr := fs.WalkDir(v.fs, root, func(p string, d fs.DirEntry, err error) error {
 		switch {

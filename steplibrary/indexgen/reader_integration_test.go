@@ -43,8 +43,8 @@ func TestHTTPAPI_Integration(t *testing.T) {
 	)
 	require.NoError(t, err, "generate V2 inventory")
 
-	// The tree is rooted under v2/; serving outDir lets the reader's v2/-prefixed
-	// path helpers resolve against srv.URL directly.
+	// The tree is rooted under api/v2/; serving outDir lets the reader's
+	// inventory-root-prefixed path helpers resolve against srv.URL directly.
 	srv := httptest.NewServer(http.FileServer(http.Dir(outDir)))
 	t.Cleanup(srv.Close)
 

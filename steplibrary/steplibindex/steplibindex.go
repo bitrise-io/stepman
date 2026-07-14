@@ -3,7 +3,7 @@
 // read path (steplibrary).
 //
 // The V2 layout splits the inventory into two URL prefixes (both nested under
-// the format-version dir, e.g. v2/):
+// the inventory root, e.g. api/v2/):
 //   - steps/  — source of truth, self-contained per step, immutable per version
 //   - index/  — derived index files, regeneratable from steps/, short-TTL
 //
@@ -29,10 +29,15 @@ import (
 // breaking changes; additive changes (new optional fields) do not bump.
 const FormatVersion = 2
 
-// VersionDir is the inventory's top-level directory for this format version
-// (e.g. "v2"). The whole tree is rooted under it so multiple format versions
-// can be hosted side by side; readers prefix their fetch URLs with it.
-func VersionDir() string { return fmt.Sprintf("v%d", FormatVersion) }
+// InventoryRoot is the on-disk / URL root that every file in the V2 inventory
+// hangs off. Reader prefixes fetch URLs with it; generator writes files under
+// it. Callers treat the returned string as a single opaque prefix.
+//
+// The current shape combines a hosting-path prefix ("api") and a
+// format-version segment ("v2"). If those two concerns ever need independent
+// evolution knobs, they can be split behind this function without any
+// call-site changes.
+func InventoryRoot() string { return fmt.Sprintf("api/v%d", FormatVersion) }
 
 // Meta is the inventory-level metadata file at the inventory root (meta.json).
 // It is the only file that carries FormatVersion.

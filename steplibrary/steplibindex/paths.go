@@ -78,12 +78,12 @@ func validateSegment(s string) error {
 	return nil
 }
 
-// build assembles a Path from segments under the version dir (e.g. v2/),
+// build assembles a Path from segments under the inventory root (e.g. api/v2/),
 // validating every dynamic segment. It is the single place each layout is
 // spelled out, so the FS and URL forms are always derived from the same list.
 func build(segs ...seg) (Path, error) {
-	fsParts := []string{VersionDir()}
-	urlParts := []string{VersionDir()}
+	fsParts := []string{InventoryRoot()}
+	urlParts := []string{InventoryRoot()}
 	for _, s := range segs {
 		if s.dyn {
 			if err := validateSegment(s.v); err != nil {
@@ -101,56 +101,56 @@ func build(segs ...seg) (Path, error) {
 // staticPath builds a Path from static segments only; with no dynamic input
 // there is nothing to validate, so it cannot fail.
 func staticPath(segs ...string) Path {
-	joined := path.Join(append([]string{VersionDir()}, segs...)...)
+	joined := path.Join(append([]string{InventoryRoot()}, segs...)...)
 	return Path{fs: joined, url: "/" + joined}
 }
 
-// MetaPath is v2/meta.json.
+// MetaPath is api/v2/meta.json.
 func MetaPath() Path { return staticPath("meta.json") }
 
-// StepIDsPath is v2/index/step_ids.json.
+// StepIDsPath is api/v2/index/step_ids.json.
 func StepIDsPath() Path { return staticPath(IndexRootFS, "step_ids.json") }
 
-// LatestPointerPath is v2/index/steps/<id>/latest.json.
+// LatestPointerPath is api/v2/index/steps/<id>/latest.json.
 func LatestPointerPath(stepID string) (Path, error) {
 	return build(lit(IndexRootFS), lit("steps"), dyn(stepID), lit("latest.json"))
 }
 
-// VersionsPath is v2/index/steps/<id>/versions.json.
+// VersionsPath is api/v2/index/steps/<id>/versions.json.
 func VersionsPath(stepID string) (Path, error) {
 	return build(lit(IndexRootFS), lit("steps"), dyn(stepID), lit("versions.json"))
 }
 
-// StepInfoPath is v2/steps/<id>/step-info.json.
+// StepInfoPath is api/v2/steps/<id>/step-info.json.
 func StepInfoPath(stepID string) (Path, error) {
 	return build(lit(StepsRootFS), dyn(stepID), lit("step-info.json"))
 }
 
-// StepJSONPath is v2/steps/<id>/<version>/step.json.
+// StepJSONPath is api/v2/steps/<id>/<version>/step.json.
 func StepJSONPath(stepID, version string) (Path, error) {
 	return build(lit(StepsRootFS), dyn(stepID), dyn(version), lit("step.json"))
 }
 
-// StepAssetPath is v2/steps/<id>/assets/<file>.
+// StepAssetPath is api/v2/steps/<id>/assets/<file>.
 func StepAssetPath(stepID, file string) (Path, error) {
 	return build(lit(StepsRootFS), dyn(stepID), lit("assets"), dyn(file))
 }
 
-// StepDirFS is the v2/steps/<id>/ directory (the per-step source subtree:
+// StepDirFS is the api/v2/steps/<id>/ directory (the per-step source subtree:
 // step-info.json, assets/, and per-version dirs).
 func StepDirFS(stepID string) (string, error) {
 	p, err := build(lit(StepsRootFS), dyn(stepID))
 	return p.FS(), err
 }
 
-// IndexStepDirFS is the v2/index/steps/<id>/ directory (the per-step subtree of
+// IndexStepDirFS is the api/v2/index/steps/<id>/ directory (the per-step subtree of
 // derived index files).
 func IndexStepDirFS(stepID string) (string, error) {
 	p, err := build(lit(IndexRootFS), lit("steps"), dyn(stepID))
 	return p.FS(), err
 }
 
-// StepAssetDirFS is the v2/steps/<id>/assets directory.
+// StepAssetDirFS is the api/v2/steps/<id>/assets directory.
 func StepAssetDirFS(stepID string) (string, error) {
 	p, err := build(lit(StepsRootFS), dyn(stepID), lit("assets"))
 	return p.FS(), err
