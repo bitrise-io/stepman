@@ -15,12 +15,12 @@ import (
 // fixtures and injectable errors. Construct the standard "script" fixtures with
 // newFakeAPI; override individual fields for table-driven and error cases.
 type fakeAPI struct {
-	ids               []string
-	listErr           error
-	latestVersions    map[string]steplibindex.LatestPointer
-	latestVersionsErr error
-	allVersions       map[string][]string
-	allVersionsErr    error
+	ids                  []string
+	listErr              error
+	latestVersions       map[string]steplibindex.LatestPointer
+	latestVersionsErr    error
+	allVersions          map[string][]string
+	allVersionsErr       error
 	groupInfo            map[string]steplibindex.StepInfo
 	groupInfoErr         error
 	stepModel            map[string]models.StepModel
@@ -102,7 +102,7 @@ func (f fakeAPI) GetStepModel(_ context.Context, step ResolvedStepVersion) (mode
 	return v, nil
 }
 
-func (f fakeAPI) GetDownloadLocations(_ context.Context) ([]models.DownloadLocationModel, error) {
+func (f fakeAPI) GetStepSourceDownloadLocations(_ context.Context) ([]models.DownloadLocationModel, error) {
 	return f.downloadLocations, f.downloadLocationsErr
 }
 

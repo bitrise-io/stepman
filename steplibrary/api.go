@@ -23,8 +23,8 @@ type API interface {
 	// GetStepModel fetches the V2 per-version step manifest (mirrors
 	// `steps/<id>/<version>/step.json`, which serializes models.StepModel).
 	GetStepModel(ctx context.Context, step ResolvedStepVersion) (models.StepModel, error)
-	// GetDownloadLocations returns the inventory-wide base download locations
+	// GetStepSourceDownloadLocations returns the inventory-wide base download locations
 	// (mirrors meta.json's download_locations): a zip base and a git marker,
 	// from which per-step source URLs are built.
-	GetDownloadLocations(ctx context.Context) ([]models.DownloadLocationModel, error)
+	GetStepSourceDownloadLocations(ctx context.Context) ([]models.DownloadLocationModel, error)
 }

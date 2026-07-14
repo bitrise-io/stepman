@@ -43,7 +43,7 @@ func (c *Client) FetchStepMetadata(ctx context.Context, stepRef stepid.Canonical
 
 // StepSourceDownloadLocations returns a priority order of step source zip download locations
 func (c *Client) StepSourceDownloadLocations(ctx context.Context, id, version, sourceGit string) ([]models.DownloadLocationModel, error) {
-	bases, err := c.api.GetDownloadLocations(ctx)
+	bases, err := c.api.GetStepSourceDownloadLocations(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("fetch download locations: %w", err)
 	}

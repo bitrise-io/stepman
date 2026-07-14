@@ -81,7 +81,7 @@ func (h *HTTPAPI) GetStepModel(ctx context.Context, step ResolvedStepVersion) (m
 	return out, nil
 }
 
-func (h *HTTPAPI) GetDownloadLocations(ctx context.Context) ([]models.DownloadLocationModel, error) {
+func (h *HTTPAPI) GetStepSourceDownloadLocations(ctx context.Context) ([]models.DownloadLocationModel, error) {
 	var out steplibindex.Meta
 	if err := h.fetchJSON(ctx, steplibindex.MetaPath().URL(), &out); err != nil {
 		return nil, err
