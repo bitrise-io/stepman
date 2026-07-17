@@ -124,7 +124,7 @@ func TestDownloadFromURLs(t *testing.T) {
 		defer secondary.Close()
 
 		destPath := filepath.Join(t.TempDir(), "executable")
-		err := downloadFromURLs(ctx, fetcher, []string{primary.URL, secondary.URL}, hash, destPath, logger)
+		err := downloadFromURLs(ctx, fetcher, []string{primary.URL, secondary.URL}, destPath, hash, logger)
 		require.NoError(t, err)
 		require.Equal(t, 0, secondaryHits)
 
@@ -144,7 +144,7 @@ func TestDownloadFromURLs(t *testing.T) {
 		defer secondary.Close()
 
 		destPath := filepath.Join(t.TempDir(), "executable")
-		err := downloadFromURLs(ctx, fetcher, []string{primary.URL, secondary.URL}, hash, destPath, logger)
+		err := downloadFromURLs(ctx, fetcher, []string{primary.URL, secondary.URL}, destPath, hash, logger)
 		require.NoError(t, err)
 
 		got, err := os.ReadFile(destPath)
@@ -163,7 +163,7 @@ func TestDownloadFromURLs(t *testing.T) {
 		defer secondary.Close()
 
 		destPath := filepath.Join(t.TempDir(), "executable")
-		err := downloadFromURLs(ctx, fetcher, []string{primary.URL, secondary.URL}, hash, destPath, logger)
+		err := downloadFromURLs(ctx, fetcher, []string{primary.URL, secondary.URL}, destPath, hash, logger)
 		require.NoError(t, err)
 
 		got, err := os.ReadFile(destPath)
@@ -182,7 +182,7 @@ func TestDownloadFromURLs(t *testing.T) {
 		defer secondary.Close()
 
 		destPath := filepath.Join(t.TempDir(), "executable")
-		err := downloadFromURLs(ctx, fetcher, []string{primary.URL, secondary.URL}, hash, destPath, logger)
+		err := downloadFromURLs(ctx, fetcher, []string{primary.URL, secondary.URL}, destPath, hash, logger)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "failed to download executable")
 		require.Contains(t, err.Error(), primary.URL)
@@ -202,7 +202,7 @@ func TestDownloadFromURLs(t *testing.T) {
 		defer secondary.Close()
 
 		destPath := filepath.Join(t.TempDir(), "executable")
-		err := downloadFromURLs(ctx, fetcher, []string{primary.URL, secondary.URL}, hash, destPath, logger)
+		err := downloadFromURLs(ctx, fetcher, []string{primary.URL, secondary.URL}, destPath, hash, logger)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "failed to download executable")
 		require.Contains(t, err.Error(), "hash mismatch")

@@ -65,20 +65,22 @@ func downloadExecutable(ctx context.Context, fetcher httpfetch.Client, executabl
 	if err != nil {
 		return err
 	}
-	return downloadFromURLs(ctx, fetcher, urls, executable.Hash, destPath, logger)
+	return downloadFromURLs(ctx, fetcher, urls, destPath, executable.Hash, logger)
 }
 
 // downloadFromURLs tries each URL in order via fetcher, verifying executable.Hash
 // on each attempt; a mismatch or failure falls through to the next mirror, logging
 // each failed attempt so a mirror silently degrading isn't invisible on fallback success.
-func downloadFromURLs(ctx context.Context, fetcher httpfetch.Client, urls []string, hash, destPath string, logger stepman.Logger) error {
+func downloadFromURLs(ctx context.Context, fetcher httpfetch.Client, urls []string, destPath, hash string, logger stepman.Logger) error {
 	var errs []error
 	for _, url := range urls {
 		err := fetcher.DownloadWithHash(ctx, destPath, url, hash)
 		if err == nil {
 			return nil
 		}
-		logger.Warnf("Failed to download step executable from %s: %s", url, err)
+		// err already names the failing URL (fetcher wraps it in the underlying
+		// GET/status/hash-mismatch error), so it isn't repeated here.
+		logger.Warnf("Failed to download step executable: %s", err)
 		errs = append(errs, fmt.Errorf("%s: %w", url, err))
 	}
 	return fmt.Errorf("failed to download executable: %w", errors.Join(errs...))
