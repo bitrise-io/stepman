@@ -1,5 +1,11 @@
 format_version: "11"
 default_step_lib_source: https://github.com/bitrise-io/bitrise-steplib.git
+
+include:
+- repository: steps-check
+  branch: master
+  path: yamlfmt.bitrise.yml
+
 project_type: other
 
 app:
@@ -18,11 +24,7 @@ workflows:
   test:
     title: Runs tests
     steps:
-    - git::https://github.com/bitrise-steplib/steps-check.git:
-        inputs:
-        - workflow: lint
-        - skip_step_yml_validation: "yes"
-        - skip_go_checks: "yes"
+    - bundle::yamlfmt: { }
     - bundle::setup-go: { }
     - go-list: { }
     - script:
