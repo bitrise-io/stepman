@@ -1,6 +1,7 @@
 package stepman
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,6 +18,7 @@ import (
 	"github.com/bitrise-io/go-utils/pathutil"
 	"github.com/bitrise-io/go-utils/retry"
 	"github.com/bitrise-io/go-utils/urlutil"
+	"github.com/bitrise-io/stepman/internal/httpfetch"
 	"github.com/bitrise-io/stepman/models"
 	version "github.com/hashicorp/go-version"
 	"gopkg.in/yaml.v2"
@@ -134,11 +136,7 @@ func DownloadStepSourceArchive(destDir string, downloadLocations []models.Downlo
 	for _, downloadLocation := range downloadLocations {
 		switch downloadLocation.Type {
 		case "zip":
-			err := retry.Times(2).Wait(3 * time.Second).Try(func(attempt uint) error {
-				return command.DownloadAndUnZIP(downloadLocation.Src, destDir)
-			})
-
-			if err != nil {
+			if err := downloadStepZip(log, downloadLocation.Src, destDir); err != nil {
 				log.Warnf("Failed to download step.zip: %s", err)
 			} else {
 				return nil
@@ -176,6 +174,22 @@ func DownloadStepSourceArchive(destDir string, downloadLocations []models.Downlo
 	}
 
 	return errors.New("failed to download step")
+}
+
+// downloadStepZip fetches the step source archive at url into a temp file and
+// extracts it into destDir.
+func downloadStepZip(log Logger, url, destDir string) error {
+	tmpDir, err := pathutil.NormalizedOSTempDirPath("stepman-step-zip")
+	if err != nil {
+		return fmt.Errorf("create temp dir: %w", err)
+	}
+	defer func() { _ = os.RemoveAll(tmpDir) }()
+
+	zipPath := filepath.Join(tmpDir, "step.zip")
+	if err := httpfetch.NewClient(log).Download(context.Background(), zipPath, url); err != nil {
+		return fmt.Errorf("download step zip: %w", err)
+	}
+	return command.UnZIP(zipPath, destDir)
 }
 
 func addStepVersionToStepGroup(step models.StepModel, stepVersionStr string, stepGroup models.StepGroupModel) (models.StepGroupModel, error) {
