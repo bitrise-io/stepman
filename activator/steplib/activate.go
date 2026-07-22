@@ -28,6 +28,11 @@ var precompiledStepsDefaultStorageURLs = []string{
 	"https://storage.googleapis.com/bitrise-steplib-storage",
 }
 
+// newPrecompiledFetcher builds the HTTP client used to download precompiled step
+// executables. It's a package var so tests can inject a fake httpfetch.Client
+// and exercise the executable-activation branch without a real download.
+var newPrecompiledFetcher = httpfetch.NewClient
+
 type ResolvedStep struct {
 	// ExecPath is optional: it holds the activated step executable only for
 	// precompiled executable activation, and is empty for source activation.
@@ -97,7 +102,7 @@ func downloadPrecompiled(log stepman.Logger, step models.StepModel, id stepid.Ca
 		if ok && executableForPlatform.Hash != "" && executableForPlatform.StorageURI != "" {
 			log.Debugf("Downloading executable for %s", platform)
 			downloadStart := time.Now()
-			execPath, err := activateStepExecutable(context.Background(), httpfetch.NewClient(log), id.IDorURI, executableForPlatform, destination, log)
+			execPath, err := activateStepExecutable(context.Background(), newPrecompiledFetcher(log), id.IDorURI, executableForPlatform, destination, log)
 			if err == nil {
 				log.Debugf("Downloaded executable in %s", time.Since(downloadStart).Round(time.Millisecond))
 

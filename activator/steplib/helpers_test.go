@@ -3,7 +3,10 @@ package steplib
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -11,21 +14,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bitrise-io/stepman/internal/httpfetch"
 	"github.com/bitrise-io/stepman/models"
-	"github.com/bitrise-io/stepman/stepid"
-	"github.com/bitrise-io/stepman/steplibrary"
 	"github.com/bitrise-io/stepman/steplibrary/steplibindex"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// These tests exercise ActivateStep's V2 (API) dispatch logic hermetically: a
-// steplibrary.Client is pointed at a local httptest server that serves a small,
-// wire-faithful inventory (built from the real steplibindex/models structs and
-// addressed via the real Path helpers, so it can't structurally drift from the
-// reader). Source archives are wired back to the same server, so the whole
-// activation — resolve → write step.yml → precompiled gate → source fetch — runs
-// without touching the network or the git-cloned steplib.
+// Shared hermetic fixtures for the steplib package tests. A steplibrary.Client
+// pointed at serveHelloStepInventory's server exercises the real read and source
+// paths with no network and no git-cloned steplib; the inventory is built from
+// the real steplibindex/models structs via the real Path helpers, so it cannot
+// structurally drift from the reader.
 
 const testSteplibURL = "https://github.com/bitrise-io/bitrise-steplib.git"
 
@@ -44,6 +43,13 @@ var helloStepVersions = []string{"2.0.0", "1.1.0", "1.0.0"}
 // served from the same server (keyed by step ID + version, the correct layout),
 // so source activation resolves entirely against localhost.
 func serveHelloStepInventory(t *testing.T) *httptest.Server {
+	return serveHelloStepInventoryWithExecutables(t, nil)
+}
+
+// serveHelloStepInventoryWithExecutables is serveHelloStepInventory with an
+// optional executables block applied to every version's step.json, so the
+// precompiled-activation branch can be exercised.
+func serveHelloStepInventoryWithExecutables(t *testing.T, executables *models.Executables) *httptest.Server {
 	t.Helper()
 	root := t.TempDir()
 
@@ -78,6 +84,7 @@ func serveHelloStepInventory(t *testing.T) *httptest.Server {
 				Git:    "https://github.com/example/hello-step.git",
 				Commit: "cccc3333cccc3333cccc3333cccc3333cccc3333",
 			},
+			Executables: executables,
 		})
 	}
 
@@ -132,72 +139,30 @@ func writeStepSourceZip(t *testing.T, path string) {
 	require.NoError(t, os.WriteFile(path, buf.Bytes(), 0o644))
 }
 
-func TestActivateStep_APISource_ExactVersion(t *testing.T) {
-	srv := serveHelloStepInventory(t)
-	log := apiTestLogger{t}
-	t.Setenv(precompiledStepsEnv, "false")
+// errFakeDownload is returned by fakeExecutableFetcher when it is set to fail,
+// so the executable-download-failure fallback can be driven deterministically.
+var errFakeDownload = errors.New("simulated executable download failure")
 
-	destination := t.TempDir()
-	workDir := t.TempDir()
-	stepYML := filepath.Join(workDir, "current_step.yml")
-
-	id := stepid.CanonicalID{SteplibSource: testSteplibURL, IDorURI: "hello-step", Version: "2.0.0"}
-
-	resolved, err := ActivateStep(id, destination, stepYML, log, false, steplibrary.New(log, srv.URL))
-	require.NoError(t, err)
-
-	assert.Equal(t, "hello-step", resolved.StepInfo.ID)
-	assert.Equal(t, "2.0.0", resolved.StepInfo.Version, "exact request resolves to itself")
-	assert.Equal(t, "2.0.0", resolved.StepInfo.OriginalVersion)
-	assert.Empty(t, resolved.ExecPath, "source activation must not yield an executable path")
-
-	// writeStepYML placed a step.yml at the requested path.
-	require.FileExists(t, stepYML, "step.yml should be written to the work dir")
-
-	// The source archive was fetched and unpacked into the destination.
-	require.FileExists(t, filepath.Join(destination, "activated_marker.txt"),
-		"step source should be materialized into the destination dir")
+// fakeExecutableFetcher is an httpfetch.Client that records the requested
+// download and writes a stub file at destPath instead of fetching bytes, so the
+// executable-activation path can be exercised without a real download or a
+// hash-matching served artifact. When downloadErr is set, DownloadWithHash
+// returns it instead. Only DownloadWithHash is used by that path.
+type fakeExecutableFetcher struct {
+	calledURL   string
+	calledHash  string
+	downloadErr error
 }
 
-func TestActivateStep_APISource_MajorLockResolves(t *testing.T) {
-	srv := serveHelloStepInventory(t)
-	log := apiTestLogger{t}
-	t.Setenv(precompiledStepsEnv, "false")
+var _ httpfetch.Client = (*fakeExecutableFetcher)(nil)
 
-	id := stepid.CanonicalID{SteplibSource: testSteplibURL, IDorURI: "hello-step", Version: "1"}
-
-	resolved, err := ActivateStep(id, t.TempDir(), filepath.Join(t.TempDir(), "current_step.yml"), log, false, steplibrary.New(log, srv.URL))
-	require.NoError(t, err)
-
-	assert.Equal(t, "1.1.0", resolved.StepInfo.Version, "major lock 1 resolves to the highest 1.x")
-	assert.Equal(t, "1", resolved.StepInfo.OriginalVersion)
-	assert.Empty(t, resolved.ExecPath)
-}
-
-func TestActivateStep_APISource_NonexistentVersionFails(t *testing.T) {
-	srv := serveHelloStepInventory(t)
-	log := apiTestLogger{t}
-	t.Setenv(precompiledStepsEnv, "false")
-
-	id := stepid.CanonicalID{SteplibSource: testSteplibURL, IDorURI: "hello-step", Version: "99.99.99"}
-
-	_, err := ActivateStep(id, t.TempDir(), filepath.Join(t.TempDir(), "current_step.yml"), log, false, steplibrary.New(log, srv.URL))
-	require.Error(t, err, "a version not in the inventory must fail resolution")
-}
-
-// hello-step ships no prebuilt executables, so with the precompiled experiment
-// enabled ActivateStep must still fall back to source activation.
-func TestActivateStep_APIPrecompiledEnabled_FallsBackToSource(t *testing.T) {
-	srv := serveHelloStepInventory(t)
-	log := apiTestLogger{t}
-	t.Setenv(precompiledStepsEnv, "true")
-
-	destination := t.TempDir()
-	id := stepid.CanonicalID{SteplibSource: testSteplibURL, IDorURI: "hello-step", Version: "2.0.0"}
-
-	resolved, err := ActivateStep(id, destination, filepath.Join(t.TempDir(), "current_step.yml"), log, false, steplibrary.New(log, srv.URL))
-	require.NoError(t, err)
-
-	assert.Empty(t, resolved.ExecPath, "a step without executables must fall back to source")
-	require.FileExists(t, filepath.Join(destination, "activated_marker.txt"))
+func (fakeExecutableFetcher) Get(context.Context, string) (io.ReadCloser, error) { return nil, nil }
+func (fakeExecutableFetcher) Download(context.Context, string, string) error     { return nil }
+func (f *fakeExecutableFetcher) DownloadWithHash(_ context.Context, destPath, url, expectedHash string) error {
+	f.calledURL = url
+	f.calledHash = expectedHash
+	if f.downloadErr != nil {
+		return f.downloadErr
+	}
+	return os.WriteFile(destPath, []byte("stub binary"), 0o644)
 }
