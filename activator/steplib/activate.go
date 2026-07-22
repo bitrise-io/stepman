@@ -72,7 +72,7 @@ func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string,
 	// Fall back to step source activation.
 	if libraryAPI != nil {
 		// activate the source over the API, without git clone
-		if err := activateStepSourceWithAPI(libraryAPI, id.SteplibSource, version, stepModel.Source, destination, log, isOfflineMode); err != nil {
+		if err := activateStepSourceWithAPI(libraryAPI, id.IDorURI, version, stepModel.Source, destination, log, isOfflineMode); err != nil {
 			return ResolvedStep{ExecPath: "", StepInfo: stepInfo}, err
 		}
 		return ResolvedStep{ExecPath: "", StepInfo: stepInfo}, nil
