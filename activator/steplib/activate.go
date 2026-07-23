@@ -28,11 +28,6 @@ var precompiledStepsDefaultStorageURLs = []string{
 	"https://storage.googleapis.com/bitrise-steplib-storage",
 }
 
-// newPrecompiledFetcher builds the HTTP client used to download precompiled step
-// executables. It's a package var so tests can inject a fake httpfetch.Client
-// and exercise the executable-activation branch without a real download.
-var newPrecompiledFetcher = httpfetch.NewClient
-
 type ResolvedStep struct {
 	// ExecPath is optional: it holds the activated step executable only for
 	// precompiled executable activation, and is empty for source activation.
@@ -40,7 +35,7 @@ type ResolvedStep struct {
 	StepInfo models.StepInfoModel
 }
 
-func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string, log stepman.Logger, isOfflineMode bool, libraryAPI *steplibrary.Client) (ResolvedStep, error) {
+func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string, log stepman.Logger, isOfflineMode bool, libraryAPI *steplibrary.Client, precompiledFetcher httpfetch.Client) (ResolvedStep, error) {
 	var stepInfo models.StepInfoModel
 	var resolveErr error
 	if libraryAPI != nil {
@@ -69,7 +64,7 @@ func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string,
 		}
 	}
 
-	execPath, err := downloadPrecompiled(log, stepModel, id, destination)
+	execPath, err := downloadPrecompiled(log, stepModel, id, destination, precompiledFetcher)
 	if execPath != "" {
 		return ResolvedStep{ExecPath: execPath, StepInfo: stepInfo}, err
 	}
@@ -95,14 +90,14 @@ func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string,
 	return ResolvedStep{ExecPath: "", StepInfo: stepInfo}, nil
 }
 
-func downloadPrecompiled(log stepman.Logger, step models.StepModel, id stepid.CanonicalID, destination string) (string, error) {
+func downloadPrecompiled(log stepman.Logger, step models.StepModel, id stepid.CanonicalID, destination string, fetcher httpfetch.Client) (string, error) {
 	if (os.Getenv(precompiledStepsEnv) == "true" || os.Getenv(precompiledStepsEnv) == "1") && step.Executables != nil {
 		platform := fmt.Sprintf("%s-%s", runtime.GOOS, runtime.GOARCH)
 		executableForPlatform, ok := (*step.Executables)[platform]
 		if ok && executableForPlatform.Hash != "" && executableForPlatform.StorageURI != "" {
 			log.Debugf("Downloading executable for %s", platform)
 			downloadStart := time.Now()
-			execPath, err := activateStepExecutable(context.Background(), newPrecompiledFetcher(log), id.IDorURI, executableForPlatform, destination, log)
+			execPath, err := activateStepExecutable(context.Background(), fetcher, id.IDorURI, executableForPlatform, destination, log)
 			if err == nil {
 				log.Debugf("Downloaded executable in %s", time.Since(downloadStart).Round(time.Millisecond))
 
