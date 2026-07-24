@@ -4,56 +4,48 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/bitrise-io/go-utils/v2/fileutil"
 	"github.com/bitrise-io/stepman/internal/httpfetch"
+	"github.com/bitrise-io/stepman/models"
+	"github.com/bitrise-io/stepman/stepid"
 	"github.com/bitrise-io/stepman/stepman"
-	"gopkg.in/yaml.v2"
 )
 
 type Client struct {
 	log          stepman.Logger
 	inventoryURL string
 	api          API
-	fileManager  fileutil.FileManager
 }
 
-type ActivateOutputPaths struct {
-	YMLPath, CodePath string
-}
-
-// New builds a Client. steplibURI is the steplib identity; inventoryURL is
-// the base URL the V2 inventory JSON is fetched from.
-func New(log stepman.Logger, steplibURI, inventoryURL string, fileManager fileutil.FileManager) *Client {
+// New builds a stepman.Client.
+// inventoryURL: the base URL of the API where metadata is fetched from.
+func New(log stepman.Logger, inventoryURL string) *Client {
 	return &Client{
 		log:          log,
 		inventoryURL: inventoryURL,
 		api:          NewHTTPAPI(inventoryURL, httpfetch.NewClient(log)),
-		fileManager:  fileManager,
 	}
 }
 
-func (c *Client) FetchStepMetadata(ctx context.Context, stepID, version string, outputPaths ActivateOutputPaths) (ActivateResult, error) {
-	stepInfo, resolved, err := c.getStepVersionInfo(ctx, stepID, version)
+func (c *Client) FetchStepMetadata(ctx context.Context, stepRef stepid.CanonicalID) (models.StepInfoModel, error) {
+	stepInfo, resolved, err := c.getStepVersionInfo(ctx, stepRef.IDorURI, stepRef.Version)
 	if err != nil {
-		return ActivateResult{}, fmt.Errorf("resolve step version: %w", err)
+		return models.StepInfoModel{}, fmt.Errorf("resolve step version: %w", err)
 	}
 
 	stepModel, err := c.api.GetStepModel(ctx, resolved)
 	if err != nil {
-		return ActivateResult{}, fmt.Errorf("fetch step definition: %w", err)
+		return models.StepInfoModel{}, fmt.Errorf("fetch step definition: %w", err)
 	}
+	stepInfo.Step = stepModel
 
-	stepYML, err := yaml.Marshal(stepModel)
+	return stepInfo, nil
+}
+
+// StepSourceDownloadLocations returns a priority order of step source zip download locations
+func (c *Client) StepSourceDownloadLocations(ctx context.Context, id, version, sourceGit string) ([]models.DownloadLocationModel, error) {
+	bases, err := c.api.GetStepSourceDownloadLocations(ctx)
 	if err != nil {
-		return ActivateResult{}, fmt.Errorf("marshal step model to YAML: %w", err)
+		return nil, fmt.Errorf("fetch download locations: %w", err)
 	}
-
-	if err := c.fileManager.WriteBytes(outputPaths.YMLPath, stepYML); err != nil {
-		return ActivateResult{}, fmt.Errorf("write step.yml: %w", err)
-	}
-
-	return ActivateResult{
-		StepInfo:    stepInfo,
-		StepYMLPath: outputPaths.YMLPath,
-	}, nil
+	return models.BuildStepSourceDownloadLocations(bases, id, version, sourceGit)
 }

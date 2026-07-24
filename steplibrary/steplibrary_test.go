@@ -78,7 +78,6 @@ func TestSteplib_getStepVersionInfo(t *testing.T) {
 		log:          nil,
 		inventoryURL: "https://steplib.example",
 		api:          newFakeAPI(),
-		fileManager:  nil,
 	}
 
 	for name, tc := range cases {
@@ -124,4 +123,26 @@ func TestResolveMinorLocked(t *testing.T) {
 			assert.Equal(t, tc.want, got, "resolved version")
 		})
 	}
+}
+
+func TestClient_StepSourceDownloadLocations(t *testing.T) {
+	api := newFakeAPI()    // zip base "https://cdn.example/step-archives/" + git marker
+	c := &Client{api: api} //nolint:exhaustruct // only api is needed
+
+	t.Run("zip first, git fallback with the step's own git URL", func(t *testing.T) {
+		got, err := c.StepSourceDownloadLocations(t.Context(), "git-clone", "8.5.0", "https://github.com/x/steps-git-clone.git")
+		require.NoError(t, err)
+		require.Equal(t, []models.DownloadLocationModel{
+			{Type: "zip", Src: "https://cdn.example/step-archives/git-clone/8.5.0/step.zip"},
+			{Type: "git", Src: "https://github.com/x/steps-git-clone.git"},
+		}, got)
+	})
+
+	t.Run("git location is omitted when the step has no source git URL", func(t *testing.T) {
+		got, err := c.StepSourceDownloadLocations(t.Context(), "git-clone", "8.5.0", "")
+		require.NoError(t, err)
+		require.Equal(t, []models.DownloadLocationModel{
+			{Type: "zip", Src: "https://cdn.example/step-archives/git-clone/8.5.0/step.zip"},
+		}, got)
+	})
 }

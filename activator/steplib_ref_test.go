@@ -3,10 +3,12 @@ package activator
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/bitrise-io/go-utils/pathutil"
 	"github.com/bitrise-io/stepman/stepid"
+	"github.com/bitrise-io/stepman/stepman"
 	"github.com/stretchr/testify/require"
 )
 
@@ -108,6 +110,143 @@ func Test_activateStepLibStep(t *testing.T) {
 			if got.Version != tt.wantVersion {
 				t.Errorf("activateStepLibStep() got = %v, want %v", got.Version, tt.wantVersion)
 			}
+		})
+	}
+}
+
+func TestActivateSteplibRefStep(t *testing.T) {
+	const steplib = "https://github.com/bitrise-io/bitrise-steplib.git"
+	logger := TestLogger[*testing.T]{t}
+
+	tests := []struct {
+		name        string
+		id          stepid.CanonicalID
+		wantVersion string
+		wantErr     bool
+	}{
+		{
+			name:        "Exact version resolves and activates from source",
+			id:          stepid.CanonicalID{SteplibSource: steplib, IDorURI: "xcode-archive", Version: "2.3.2"},
+			wantVersion: "2.3.2",
+		},
+		{
+			name:        "Minor version lock resolves to the highest patch",
+			id:          stepid.CanonicalID{SteplibSource: steplib, IDorURI: "xcode-archive", Version: "2.3"},
+			wantVersion: "2.3.7",
+		},
+		{
+			name:    "Invalid version constraint fails",
+			id:      stepid.CanonicalID{SteplibSource: steplib, IDorURI: "xcode-archive", Version: "1.2.3.4"},
+			wantErr: true,
+		},
+		{
+			name:    "Non-existent version fails",
+			id:      stepid.CanonicalID{SteplibSource: steplib, IDorURI: "xcode-archive", Version: "99.99.99"},
+			wantErr: true,
+		},
+		{
+			name:    "Non-existent step fails",
+			id:      stepid.CanonicalID{SteplibSource: steplib, IDorURI: "this-step-does-not-exist-xyz", Version: "1.0.0"},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			activatedStepDir := t.TempDir()
+			workDir := t.TempDir()
+
+			// didStepLibUpdateInWorkflow=true keeps the StepLib update path off, so
+			// resolution is served from the local cache and DidStepLibUpdate is false.
+			got, err := ActivateSteplibRefStep(logger, tt.id, activatedStepDir, workDir, true, false)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+
+			require.Equal(t, tt.id.IDorURI, got.StepInfo.ID)
+			require.Equal(t, tt.wantVersion, got.StepInfo.Version)
+			require.Equal(t, ActivationTypeSteplibSource, got.ActivationType)
+			require.Empty(t, got.ExecutablePath)
+			require.False(t, got.DidStepLibUpdate)
+
+			require.Equal(t, filepath.Join(workDir, "current_step.yml"), got.StepYMLPath)
+			exists, err := pathutil.IsPathExists(got.StepYMLPath)
+			require.NoError(t, err)
+			require.True(t, exists, "step.yml should be copied into the work dir")
+		})
+	}
+}
+
+// TestActivateSteplibRefStep_APIEnabled covers steplib API activation
+// path. Each case runs in a fresh $HOME with the API flag on, so a passing run
+// proves API resolves and activates against the hosted inventory without the
+// git cloned steplib being set up
+func TestActivateSteplibRefStep_APIEnabled(t *testing.T) {
+	const steplib = "https://github.com/bitrise-io/bitrise-steplib.git"
+
+	tests := []struct {
+		name        string
+		id          stepid.CanonicalID
+		wantVersion string // exact concrete version; empty when only wantPrefix is checked
+		wantPrefix  string
+		wantErr     bool
+	}{
+		{
+			name:        "Exact version activates from source over the API",
+			id:          stepid.CanonicalID{SteplibSource: steplib, IDorURI: "git-clone", Version: "8.5.0"},
+			wantVersion: "8.5.0",
+		},
+		{
+			name:       "Minor version lock resolves to a concrete version",
+			id:         stepid.CanonicalID{SteplibSource: steplib, IDorURI: "git-clone", Version: "8.4"},
+			wantPrefix: "8.4.",
+		},
+		{
+			name:    "Non-existent version fails",
+			id:      stepid.CanonicalID{SteplibSource: steplib, IDorURI: "git-clone", Version: "99.99.99"},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("HOME", t.TempDir()) // fresh: the git cloned steplib is not set up
+			t.Setenv("BITRISE_STEPLIB_API_ENABLE", "true")
+			t.Setenv("BITRISE_EXPERIMENT_PRECOMPILED_STEPS", "false")
+
+			activatedStepDir := t.TempDir()
+			workDir := t.TempDir()
+
+			got, err := ActivateSteplibRefStep(TestLogger[*testing.T]{t}, tt.id, activatedStepDir, workDir, false, false)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+
+			require.Equal(t, tt.id.IDorURI, got.StepInfo.ID)
+			require.Equal(t, tt.id.Version, got.StepInfo.OriginalVersion)
+			if tt.wantVersion != "" {
+				require.Equal(t, tt.wantVersion, got.StepInfo.Version)
+			}
+			if tt.wantPrefix != "" {
+				require.True(t, strings.HasPrefix(got.StepInfo.Version, tt.wantPrefix),
+					"resolved version %q should start with %q", got.StepInfo.Version, tt.wantPrefix)
+			}
+			require.Equal(t, ActivationTypeSteplibSource, got.ActivationType)
+			require.Empty(t, got.ExecutablePath)
+			require.False(t, got.DidStepLibUpdate)
+
+			require.Equal(t, filepath.Join(workDir, "current_step.yml"), got.StepYMLPath)
+			exists, err := pathutil.IsPathExists(got.StepYMLPath)
+			require.NoError(t, err)
+			require.True(t, exists, "current_step.yml should be written into the work dir")
+
+			// API route must not have set up the git cloned steplib.
+			_, found := stepman.ReadRoute(steplib)
+			require.False(t, found, "v2 activation must not set up the v1 steplib")
 		})
 	}
 }
