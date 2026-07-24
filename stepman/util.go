@@ -108,7 +108,7 @@ func ParseStepCollection(pth string) (models.StepCollectionModel, error) {
 }
 
 // DownloadStep ...
-func DownloadStep(collectionURI string, collection models.StepCollectionModel, id, version, commithash string, log Logger) error {
+func DownloadStep(collectionURI string, collection models.StepCollectionModel, id, version, commithash string, log Logger, fetcher httpfetch.Client) error {
 	downloadLocations, err := collection.GetDownloadLocations(id, version)
 	if err != nil {
 		return err
@@ -126,17 +126,17 @@ func DownloadStep(collectionURI string, collection models.StepCollectionModel, i
 		return nil
 	}
 
-	return DownloadStepSourceArchive(stepPth, downloadLocations, id, version, commithash, log)
+	return DownloadStepSourceArchive(stepPth, downloadLocations, id, version, commithash, log, fetcher)
 }
 
 // DownloadStepSourceArchive fetches a step's source into destDir from the given
 // download locations in priority order.
 // commithash applies only to git source.
-func DownloadStepSourceArchive(destDir string, downloadLocations []models.DownloadLocationModel, id, version, commithash string, log Logger) error {
+func DownloadStepSourceArchive(destDir string, downloadLocations []models.DownloadLocationModel, id, version, commithash string, log Logger, fetcher httpfetch.Client) error {
 	for _, downloadLocation := range downloadLocations {
 		switch downloadLocation.Type {
 		case "zip":
-			if err := downloadStepZip(log, downloadLocation.Src, destDir); err != nil {
+			if err := downloadStepZip(fetcher, downloadLocation.Src, destDir); err != nil {
 				log.Warnf("Failed to download step.zip: %s", err)
 			} else {
 				return nil
@@ -178,7 +178,7 @@ func DownloadStepSourceArchive(destDir string, downloadLocations []models.Downlo
 
 // downloadStepZip fetches the step source archive at url into a temp file and
 // extracts it into destDir.
-func downloadStepZip(log Logger, url, destDir string) error {
+func downloadStepZip(fetcher httpfetch.Client, url, destDir string) error {
 	tmpDir, err := pathutil.NormalizedOSTempDirPath("stepman-step-zip")
 	if err != nil {
 		return fmt.Errorf("create temp dir: %w", err)
@@ -186,7 +186,7 @@ func downloadStepZip(log Logger, url, destDir string) error {
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	zipPath := filepath.Join(tmpDir, "step.zip")
-	if err := httpfetch.NewClient(log).Download(context.Background(), zipPath, url); err != nil {
+	if err := fetcher.Download(context.Background(), zipPath, url); err != nil {
 		return fmt.Errorf("download step zip: %w", err)
 	}
 	return command.UnZIP(zipPath, destDir)

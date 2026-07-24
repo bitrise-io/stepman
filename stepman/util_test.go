@@ -13,6 +13,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/bitrise-io/go-utils/pointers"
+	"github.com/bitrise-io/stepman/internal/httpfetch"
 	"github.com/bitrise-io/stepman/models"
 	"github.com/stretchr/testify/require"
 )
@@ -40,7 +41,10 @@ func zipOf(t *testing.T, files map[string]string) []byte {
 
 func TestDownloadStepZip(t *testing.T) {
 	payload := zipOf(t, map[string]string{"step.yml": "title: Test\n"})
+	fetcher := httpfetch.NewClient(stubLogger{t})
 
+	// downloadStepZip is exercised against a real httptest server (rather than a
+	// fake fetcher) so the zip-download-and-extract path is covered end to end.
 	t.Run("downloads and extracts", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			_, _ = w.Write(payload)
@@ -48,7 +52,7 @@ func TestDownloadStepZip(t *testing.T) {
 		defer server.Close()
 
 		destDir := t.TempDir()
-		err := downloadStepZip(stubLogger{t}, server.URL, destDir)
+		err := downloadStepZip(fetcher, server.URL, destDir)
 		require.NoError(t, err)
 
 		got, err := os.ReadFile(filepath.Join(destDir, "step.yml"))
@@ -62,7 +66,7 @@ func TestDownloadStepZip(t *testing.T) {
 		}))
 		defer server.Close()
 
-		err := downloadStepZip(stubLogger{t}, server.URL, t.TempDir())
+		err := downloadStepZip(fetcher, server.URL, t.TempDir())
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "download step zip")
 	})
