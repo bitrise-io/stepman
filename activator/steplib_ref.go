@@ -34,8 +34,6 @@ func ActivateSteplibRefStep(
 		DidStepLibUpdate: false,
 	}
 
-	// Set before any return: the caller keeps the partial result on error, so a
-	// failed activation stays attributable to the inventory that served it.
 	var libraryAPI *steplibrary.Client
 	if shouldUseSteplibAPI(id.SteplibSource) {
 		libraryAPI = steplibrary.New(log, bitriseSteplibAPIURL)
