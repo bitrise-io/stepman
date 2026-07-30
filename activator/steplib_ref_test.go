@@ -163,6 +163,10 @@ func TestActivateSteplibRefStep(t *testing.T) {
 			got, err := ActivateSteplibRefStep(logger, tt.id, activatedStepDir, workDir, true, false)
 			if tt.wantErr {
 				require.Error(t, err)
+				// The partial result kept on error is reported as telemetry, so it must
+				// still name the path that served it.
+				require.Equal(t, ActivationTypeSteplibSource, got.ActivationType)
+				require.Equal(t, ActivationInventorySourceSteplib, got.ActivationInventorySource)
 				return
 			}
 			require.NoError(t, err)
@@ -225,6 +229,9 @@ func TestActivateSteplibRefStep_APIEnabled(t *testing.T) {
 			got, err := ActivateSteplibRefStep(TestLogger[*testing.T]{t}, tt.id, activatedStepDir, workDir, false, false)
 			if tt.wantErr {
 				require.Error(t, err)
+				// Same as the legacy case: a failed activation stays attributable.
+				require.Equal(t, ActivationTypeSteplibSource, got.ActivationType)
+				require.Equal(t, ActivationInventorySourceSteplibAPI, got.ActivationInventorySource)
 				return
 			}
 			require.NoError(t, err)

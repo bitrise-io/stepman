@@ -32,6 +32,9 @@ func ActivateSteplibRefStep(
 	activationResult := ActivatedStep{
 		StepYMLPath:      stepYMLPath,
 		DidStepLibUpdate: false,
+		// Set up front so the partial result kept on error still has a type; the
+		// dispatch below upgrades it on a successful precompiled download.
+		ActivationType: ActivationTypeSteplibSource,
 	}
 
 	var libraryAPI *steplibrary.Client
