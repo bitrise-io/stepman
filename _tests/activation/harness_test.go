@@ -21,7 +21,7 @@ import (
 	"github.com/bitrise-io/stepman/activator"
 	"github.com/bitrise-io/stepman/stepid"
 	"github.com/bitrise-io/stepman/stepman"
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
 )
 
 const bitriseSteplibURL = "https://github.com/bitrise-io/bitrise-steplib.git"
@@ -98,12 +98,14 @@ func activate(t *testing.T, v variant, id stepid.CanonicalID, offline, didStepLi
 
 	// Asserted here so every case below covers it, including the failing ones:
 	// the inventory source is set before any early return, so a failed activation
-	// stays attributable to the path that served it.
-	wantInventorySource := activator.ActivationInventorySourceGitClone
+	// stays attributable to the path that served it. assert, not require: callers
+	// pair two activations and log both afterwards, and FailNow here would cut off
+	// the side-by-side diagnostics this harness exists to print.
+	wantInventorySource := activator.ActivationInventorySourceSteplib
 	if v.useAPI {
 		wantInventorySource = activator.ActivationInventorySourceSteplibAPI
 	}
-	require.Equal(t, wantInventorySource, activated.ActivationInventorySource, "%s inventory source", v.name)
+	assert.Equal(t, wantInventorySource, activated.ActivationInventorySource, "%s inventory source", v.name)
 
 	return activationResult{activated: activated, err: err, logs: logger.entries, elapsed: elapsed}
 }

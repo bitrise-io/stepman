@@ -170,7 +170,7 @@ func TestActivateSteplibRefStep(t *testing.T) {
 			require.Equal(t, tt.id.IDorURI, got.StepInfo.ID)
 			require.Equal(t, tt.wantVersion, got.StepInfo.Version)
 			require.Equal(t, ActivationTypeSteplibSource, got.ActivationType)
-			require.Equal(t, ActivationInventorySourceGitClone, got.ActivationInventorySource)
+			require.Equal(t, ActivationInventorySourceSteplib, got.ActivationInventorySource)
 			require.Empty(t, got.ExecutablePath)
 			require.False(t, got.DidStepLibUpdate)
 
