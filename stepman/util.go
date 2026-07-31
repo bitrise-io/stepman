@@ -12,13 +12,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bitrise-io/go-utils/command"
 	"github.com/bitrise-io/go-utils/command/git"
 	"github.com/bitrise-io/go-utils/fileutil"
 	"github.com/bitrise-io/go-utils/pathutil"
 	"github.com/bitrise-io/go-utils/retry"
 	"github.com/bitrise-io/go-utils/urlutil"
 	"github.com/bitrise-io/stepman/internal/httpfetch"
+	"github.com/bitrise-io/stepman/internal/ziputil"
 	"github.com/bitrise-io/stepman/models"
 	version "github.com/hashicorp/go-version"
 	"gopkg.in/yaml.v2"
@@ -126,7 +126,32 @@ func DownloadStep(collectionURI string, collection models.StepCollectionModel, i
 		return nil
 	}
 
-	return DownloadStepSourceArchive(stepPth, downloadLocations, id, version, commithash, log, fetcher)
+	// Materialize into a staging dir next to the cache dir and move it into place
+	// only once it is complete: the cache is keyed by the existence of stepPth
+	// alone (see the check above and activateStepSource), so a half-written
+	// stepPth would be served as a valid cache hit on the next run.
+	if err := os.MkdirAll(filepath.Dir(stepPth), 0o755); err != nil {
+		return fmt.Errorf("create step cache dir: %w", err)
+	}
+	// Staging under the cache dir's parent keeps the rename on one filesystem.
+	stagingDir, err := os.MkdirTemp(filepath.Dir(stepPth), ".staging-")
+	if err != nil {
+		return fmt.Errorf("create staging dir: %w", err)
+	}
+	defer func() {
+		if err := os.RemoveAll(stagingDir); err != nil {
+			log.Warnf("Failed to remove staging dir %s: %s", stagingDir, err)
+		}
+	}()
+
+	if err := DownloadStepSourceArchive(stagingDir, downloadLocations, id, version, commithash, log, fetcher); err != nil {
+		return err
+	}
+
+	if err := os.Rename(stagingDir, stepPth); err != nil {
+		return fmt.Errorf("move staged step to %s: %w", stepPth, err)
+	}
+	return nil
 }
 
 // DownloadStepSourceArchive fetches a step's source into destDir from the given
@@ -136,7 +161,7 @@ func DownloadStepSourceArchive(destDir string, downloadLocations []models.Downlo
 	for _, downloadLocation := range downloadLocations {
 		switch downloadLocation.Type {
 		case "zip":
-			if err := downloadStepZip(fetcher, downloadLocation.Src, destDir); err != nil {
+			if err := downloadStepZip(fetcher, downloadLocation.Src, destDir, log); err != nil {
 				log.Warnf("Failed to download step.zip: %s", err)
 			} else {
 				return nil
@@ -185,19 +210,25 @@ func DownloadStepSourceArchive(destDir string, downloadLocations []models.Downlo
 }
 
 // downloadStepZip fetches the step source archive at url into a temp file and
-// extracts it into destDir.
-func downloadStepZip(fetcher httpfetch.Client, url, destDir string) error {
+// extracts it into destDir. Callers own destDir's atomicity: DownloadStep stages
+// into a temp dir it renames into the cache, and the V2 API path passes a fresh
+// per-activation dir.
+func downloadStepZip(fetcher httpfetch.Client, url, destDir string, log Logger) error {
 	tmpDir, err := pathutil.NormalizedOSTempDirPath("stepman-step-zip")
 	if err != nil {
 		return fmt.Errorf("create temp dir: %w", err)
 	}
-	defer func() { _ = os.RemoveAll(tmpDir) }()
+	defer func() {
+		if err := os.RemoveAll(tmpDir); err != nil {
+			log.Warnf("Failed to remove temp dir %s: %s", tmpDir, err)
+		}
+	}()
 
 	zipPath := filepath.Join(tmpDir, "step.zip")
 	if err := fetcher.Download(context.Background(), zipPath, url); err != nil {
 		return fmt.Errorf("download step zip: %w", err)
 	}
-	return command.UnZIP(zipPath, destDir)
+	return ziputil.UnZip(zipPath, destDir)
 }
 
 func addStepVersionToStepGroup(step models.StepModel, stepVersionStr string, stepGroup models.StepGroupModel) (models.StepGroupModel, error) {

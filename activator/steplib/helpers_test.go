@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -143,20 +142,16 @@ func writeStepSourceZip(t *testing.T, path string) {
 // so the executable-download-failure fallback can be driven deterministically.
 var errFakeDownload = errors.New("simulated executable download failure")
 
-// discardLogger drops every log line; it satisfies httpfetch.Logger for tests
-// that don't care about the retry-adapter's debug output.
-type discardLogger struct{}
-
-func (discardLogger) Debugf(string, ...any) {}
-
-// fakeExecutableFetcher is an httpfetch.Client that records the requested
-// executable download and writes a stub file at destPath instead of fetching
-// bytes, so the executable-activation path can be exercised without a
+// fakeExecutableFetcher is a real httpfetch.Client with only DownloadWithHash
+// stubbed: it records the requested executable download and writes a stub file at
+// destPath, so the executable-activation path can be exercised without a
 // hash-matching served artifact. When downloadErr is set, DownloadWithHash
-// returns it instead. ActivateStep also uses the same injected fetcher for the
-// step-source zip download, so Download delegates to a real client rather than
-// stubbing, keeping that path's httptest-server download real.
+// returns it instead. Get and Download pass through to the embedded real client,
+// which is what the step-source zip download needs — that keeps the download
+// location ActivateStep builds under test, rather than stubbing past it.
 type fakeExecutableFetcher struct {
+	httpfetch.Client
+
 	calledURL   string
 	calledHash  string
 	downloadErr error
@@ -164,10 +159,11 @@ type fakeExecutableFetcher struct {
 
 var _ httpfetch.Client = (*fakeExecutableFetcher)(nil)
 
-func (fakeExecutableFetcher) Get(context.Context, string) (io.ReadCloser, error) { return nil, nil }
-func (fakeExecutableFetcher) Download(ctx context.Context, destPath, url string) error {
-	return httpfetch.NewClient(discardLogger{}).Download(ctx, destPath, url)
+func newFakeExecutableFetcher(t *testing.T) *fakeExecutableFetcher {
+	t.Helper()
+	return &fakeExecutableFetcher{Client: httpfetch.NewClient(apiTestLogger{t})}
 }
+
 func (f *fakeExecutableFetcher) DownloadWithHash(_ context.Context, destPath, url, expectedHash string) error {
 	f.calledURL = url
 	f.calledHash = expectedHash
