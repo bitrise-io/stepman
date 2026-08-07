@@ -1,13 +1,3 @@
-// Package ziputil extracts zip archives with the stdlib. It exists because
-// go-utils/v1's command.UnZIP calls log.Fatal from its deferred Close handlers
-// (os.Exit(1) from inside a library, which would kill the bitrise CLI mid-run)
-// and joins entry names onto the destination without a containment check, so a
-// crafted archive can write outside it ("zip slip").
-//
-// go-utils/v2 has a ziputil that fixes both, but it is not in a tagged release
-// yet (it sits on the repo's unmerged ziputil-v2 branch), so this local
-// equivalent keeps the same UnZip(zipPath, destDir) shape: once v2's ziputil
-// ships, callers can swap to it without changing their call sites.
 package ziputil
 
 import (
@@ -19,14 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 )
-
-// UnZip extracts the zip archive at zipPath into destDir, which is created if
-// missing. Entry permissions are preserved. Entries that would resolve outside
-// destDir are rejected and extraction stops at the first such entry.
-//
-// Only directories and regular files are extracted; other entry types (symlinks,
-// devices) are written as regular files holding their raw entry data, matching
-// what command.UnZIP did. Step source archives don't contain them in practice.
 func UnZip(zipPath, destDir string) (err error) {
 	r, err := zip.OpenReader(zipPath)
 	if err != nil {
