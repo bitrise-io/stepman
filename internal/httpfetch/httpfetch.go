@@ -41,6 +41,7 @@ type Client interface {
 // emits debug lines.
 type Logger interface {
 	Debugf(format string, v ...any)
+	Warnf(format string, v ...any)
 }
 
 // retryhttpLogger adapts Logger to the retryablehttp.Logger interface (Printf only).
@@ -179,4 +180,21 @@ func (c *client) fetchToTemp(ctx context.Context, dir, url string) (path string,
 		return "", "", fmt.Errorf("write to %s: %w", tmp.Name(), copyErr)
 	}
 	return tmp.Name(), "sha256-" + hex.EncodeToString(h.Sum(nil)), nil
+}
+
+func FirstSuccess[T any](candidates []T, log Logger, attempt func(T) error) error {
+	if len(candidates) == 0 {
+		return errors.New("no download candidate")
+	}
+
+	var errs []error
+	for _, candidate := range candidates {
+		err := attempt(candidate)
+		if err == nil {
+			return nil
+		}
+		log.Warnf("Download attempt failed: %s", err)
+		errs = append(errs, err)
+	}
+	return errors.Join(errs...)
 }
