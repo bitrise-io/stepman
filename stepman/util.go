@@ -14,11 +14,11 @@ import (
 
 	"github.com/bitrise-io/go-utils/command/git"
 	"github.com/bitrise-io/go-utils/fileutil"
-	"github.com/bitrise-io/go-utils/pathutil"
 	"github.com/bitrise-io/go-utils/retry"
 	"github.com/bitrise-io/go-utils/urlutil"
+	"github.com/bitrise-io/go-utils/v2/pathutil"
+	"github.com/bitrise-io/go-utils/v2/ziputil"
 	"github.com/bitrise-io/stepman/internal/httpfetch"
-	"github.com/bitrise-io/stepman/internal/ziputil"
 	"github.com/bitrise-io/stepman/models"
 	version "github.com/hashicorp/go-version"
 	"gopkg.in/yaml.v2"
@@ -26,7 +26,7 @@ import (
 
 // ParseStepGroupInfoModel ...
 func ParseStepGroupInfoModel(pth string) (models.StepGroupInfoModel, bool, error) {
-	if exist, err := pathutil.IsPathExists(pth); err != nil {
+	if exist, err := pathutil.NewPathChecker().IsPathExists(pth); err != nil {
 		return models.StepGroupInfoModel{}, false, err
 	} else if !exist {
 		return models.StepGroupInfoModel{}, false, nil
@@ -120,7 +120,7 @@ func DownloadStep(collectionURI string, collection models.StepCollectionModel, i
 	}
 
 	stepPth := GetStepCacheDirPath(route, id, version)
-	if exist, err := pathutil.IsPathExists(stepPth); err != nil {
+	if exist, err := pathutil.NewPathChecker().IsPathExists(stepPth); err != nil {
 		return err
 	} else if exist {
 		return nil
@@ -214,7 +214,7 @@ func DownloadStepSourceArchive(destDir string, downloadLocations []models.Downlo
 // into a temp dir it renames into the cache, and the V2 API path passes a fresh
 // per-activation dir.
 func downloadStepZip(fetcher httpfetch.Client, url, destDir string, log Logger) error {
-	tmpDir, err := pathutil.NormalizedOSTempDirPath("stepman-step-zip")
+	tmpDir, err := pathutil.NewPathProvider().CreateTempDir("stepman-step-zip")
 	if err != nil {
 		return fmt.Errorf("create temp dir: %w", err)
 	}
@@ -228,7 +228,8 @@ func downloadStepZip(fetcher httpfetch.Client, url, destDir string, log Logger) 
 	if err := fetcher.Download(context.Background(), zipPath, url); err != nil {
 		return fmt.Errorf("download step zip: %w", err)
 	}
-	return ziputil.UnZip(zipPath, destDir)
+	zipManager := ziputil.NewZipManager(pathutil.NewPathChecker())
+	return zipManager.UnZip(zipPath, destDir)
 }
 
 func addStepVersionToStepGroup(step models.StepModel, stepVersionStr string, stepGroup models.StepGroupModel) (models.StepGroupModel, error) {
@@ -285,7 +286,7 @@ func parseStepCollection(route SteplibRoute, templateCollection models.StepColle
 
 				// Check for step-info.yml - STEP_SPEC_DIR/steps/step-id/step-info.yml
 				stepGroupInfoPth := filepath.Join(stepsCollectionDirPth, stepsDirName, stepID, "step-info.yml")
-				if exist, err := pathutil.IsPathExists(stepGroupInfoPth); err != nil {
+				if exist, err := pathutil.NewPathChecker().IsPathExists(stepGroupInfoPth); err != nil {
 					return err
 				} else if exist {
 					deprecationInfo, err := ParseStepGroupInfo(stepGroupInfoPth)
@@ -301,7 +302,7 @@ func parseStepCollection(route SteplibRoute, templateCollection models.StepColle
 				// Check for assets - STEP_SPEC_DIR/steps/step-id/assets
 				if collection.AssetsDownloadBaseURI != "" {
 					assetsFolderPth := filepath.Join(stepsCollectionDirPth, stepsDirName, stepID, "assets")
-					exist, err := pathutil.IsPathExists(assetsFolderPth)
+					exist, err := pathutil.NewPathChecker().IsPathExists(assetsFolderPth)
 					if err != nil {
 						return err
 					}
@@ -382,7 +383,7 @@ func generateSlimStepModel(collection models.StepCollectionModel) models.StepCol
 func WriteStepSpecToFile(templateCollection models.StepCollectionModel, route SteplibRoute) error {
 	pth := GetStepSpecPath(route)
 
-	if exist, err := pathutil.IsPathExists(pth); err != nil {
+	if exist, err := pathutil.NewPathChecker().IsPathExists(pth); err != nil {
 		return err
 	} else if !exist {
 		dir, _ := path.Split(pth)
@@ -470,7 +471,7 @@ func ReadStepVersionInfo(collectionURI, stepID, stepVersionID string) (models.St
 // ReGenerateLibrarySpec ...
 func ReGenerateLibrarySpec(route SteplibRoute) error {
 	pth := GetLibraryBaseDirPath(route)
-	if exists, err := pathutil.IsPathExists(pth); err != nil {
+	if exists, err := pathutil.NewPathChecker().IsPathExists(pth); err != nil {
 		return err
 	} else if !exists {
 		return errors.New("not initialized")
