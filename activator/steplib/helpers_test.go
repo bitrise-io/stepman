@@ -144,20 +144,34 @@ func writeStepSourceZip(t *testing.T, path string) {
 var errFakeDownload = errors.New("simulated executable download failure")
 
 // fakeExecutableFetcher is an httpfetch.Client that records the requested
-// download and writes a stub file at destPath instead of fetching bytes, so the
-// executable-activation path can be exercised without a real download or a
-// hash-matching served artifact. When downloadErr is set, DownloadWithHash
-// returns it instead. Only DownloadWithHash is used by that path.
+// executable download and writes a stub file at destPath instead of fetching
+// bytes, so the executable-activation path can be exercised without a real
+// download or a hash-matching served artifact. When downloadErr is set,
+// DownloadWithHash returns it instead. Get and Download are delegated to a real
+// client, because source activation shares the same fetcher and must transfer
+// the served step.zip for real.
 type fakeExecutableFetcher struct {
 	calledURL   string
 	calledHash  string
 	downloadErr error
+	real        httpfetch.Client
 }
 
 var _ httpfetch.Client = (*fakeExecutableFetcher)(nil)
 
-func (fakeExecutableFetcher) Get(context.Context, string) (io.ReadCloser, error) { return nil, nil }
-func (fakeExecutableFetcher) Download(context.Context, string, string) error     { return nil }
+func newFakeExecutableFetcher(t *testing.T, downloadErr error) *fakeExecutableFetcher {
+	t.Helper()
+	return &fakeExecutableFetcher{downloadErr: downloadErr, real: httpfetch.NewClient(apiTestLogger{t})}
+}
+
+func (f *fakeExecutableFetcher) Get(ctx context.Context, url string) (io.ReadCloser, error) {
+	return f.real.Get(ctx, url)
+}
+
+func (f *fakeExecutableFetcher) Download(ctx context.Context, destPath, url string) error {
+	return f.real.Download(ctx, destPath, url)
+}
+
 func (f *fakeExecutableFetcher) DownloadWithHash(_ context.Context, destPath, url, expectedHash string) error {
 	f.calledURL = url
 	f.calledHash = expectedHash
