@@ -1,6 +1,7 @@
 package stepman
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,12 +12,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bitrise-io/go-utils/command"
 	"github.com/bitrise-io/go-utils/command/git"
 	"github.com/bitrise-io/go-utils/fileutil"
 	"github.com/bitrise-io/go-utils/pathutil"
 	"github.com/bitrise-io/go-utils/retry"
 	"github.com/bitrise-io/go-utils/urlutil"
+	pathutilv2 "github.com/bitrise-io/go-utils/v2/pathutil"
+	"github.com/bitrise-io/go-utils/v2/ziputil"
+	"github.com/bitrise-io/stepman/internal/httpfetch"
 	"github.com/bitrise-io/stepman/models"
 	version "github.com/hashicorp/go-version"
 	"gopkg.in/yaml.v2"
@@ -106,7 +109,7 @@ func ParseStepCollection(pth string) (models.StepCollectionModel, error) {
 }
 
 // DownloadStep ...
-func DownloadStep(collectionURI string, collection models.StepCollectionModel, id, version, commithash string, log Logger) error {
+func DownloadStep(collectionURI string, collection models.StepCollectionModel, id, version, commithash string, log Logger, fetcher httpfetch.Client) error {
 	downloadLocations, err := collection.GetDownloadLocations(id, version)
 	if err != nil {
 		return err
@@ -124,66 +127,72 @@ func DownloadStep(collectionURI string, collection models.StepCollectionModel, i
 		return nil
 	}
 
-	return DownloadStepSourceArchive(stepPth, downloadLocations, id, version, commithash, log)
+	return DownloadStepSourceArchive(stepPth, downloadLocations, id, version, commithash, log, fetcher)
 }
 
 // DownloadStepSourceArchive fetches a step's source into destDir from the given
 // download locations in priority order.
 // commithash applies only to git source.
-func DownloadStepSourceArchive(destDir string, downloadLocations []models.DownloadLocationModel, id, version, commithash string, log Logger) error {
-	for _, downloadLocation := range downloadLocations {
+func DownloadStepSourceArchive(destDir string, downloadLocations []models.DownloadLocationModel, id, version, commithash string, log Logger, fetcher httpfetch.Client) error {
+	err := httpfetch.FirstSuccess(downloadLocations, log, func(downloadLocation models.DownloadLocationModel) error {
 		switch downloadLocation.Type {
 		case "zip":
-			err := retry.Times(2).Wait(3 * time.Second).Try(func(attempt uint) error {
-				return command.DownloadAndUnZIP(downloadLocation.Src, destDir)
-			})
-
-			if err != nil {
-				log.Warnf("Failed to download step.zip: %s", err)
-			} else {
-				return nil
-			}
+			return downloadStepZip(fetcher, downloadLocation.Src, destDir)
 		case "git":
-			err := retry.Times(2).Wait(3 * time.Second).Try(func(attempt uint) error {
-				// Clone into a clean target. git clone refuses a non-empty dir, so a
-				// retry after an attempt that already populated stepPth (e.g. a clone
-				// that succeeded but failed the commit-hash check) would otherwise
-				// fail with a misleading "already exists and is not empty" error,
-				// masking the real cause.
-				if err := os.RemoveAll(destDir); err != nil {
-					return fmt.Errorf("clean %s before clone: %s", destDir, err)
-				}
-				repo, err := git.New(destDir)
-				if err != nil {
-					return err
-				}
-
-				if err := repo.CloneTagOrBranch(downloadLocation.Src, version).Run(); err != nil {
-					return err
-				}
-
-				hash, err := repo.RevParse("HEAD").RunAndReturnTrimmedCombinedOutput()
-				if err != nil {
-					return err
-				}
-
-				if hash != commithash {
-					return fmt.Errorf("commit hash (%s) doesn't match the one specified (%s) for the version tag (%s)", hash, commithash, version)
-				}
-				return nil
-			})
-
-			if err != nil {
-				log.Warnf("Failed to clone step (%s): %v", downloadLocation.Src, err)
-			} else {
-				return nil
-			}
+			return cloneStepSource(destDir, downloadLocation.Src, version, commithash)
 		default:
-			return fmt.Errorf("failed to download: Invalid download location (%#v) for step %#v (%#v)", downloadLocation, id, version)
+			return fmt.Errorf("invalid download location (%#v) for step %#v (%#v)", downloadLocation, id, version)
 		}
+	})
+	if err != nil {
+		return fmt.Errorf("failed to download step %s@%s: %w", id, version, err)
 	}
+	return nil
+}
 
-	return errors.New("failed to download step")
+func downloadStepZip(fetcher httpfetch.Client, url, destDir string) error {
+	tmpDir, err := os.MkdirTemp("", "stepman-step-zip")
+	if err != nil {
+		return fmt.Errorf("create temp dir: %w", err)
+	}
+	defer func() { _ = os.RemoveAll(tmpDir) }()
+
+	zipPath := filepath.Join(tmpDir, "step.zip")
+	if err := fetcher.Download(context.Background(), zipPath, url); err != nil {
+		return err
+	}
+	return ziputil.NewZipManager(pathutilv2.NewPathChecker()).UnZip(zipPath, destDir)
+}
+
+func cloneStepSource(destDir, gitURL, version, commithash string) error {
+	return retry.Times(2).Wait(3 * time.Second).Try(func(attempt uint) error {
+		// Clone into a clean target. git clone refuses a non-empty dir, so a
+		// retry after an attempt that already populated stepPth (e.g. a clone
+		// that succeeded but failed the commit-hash check) would otherwise
+		// fail with a misleading "already exists and is not empty" error,
+		// masking the real cause.
+		if err := os.RemoveAll(destDir); err != nil {
+			return fmt.Errorf("clean %s before clone: %s", destDir, err)
+		}
+		repo, err := git.New(destDir)
+		if err != nil {
+			return err
+		}
+
+		if err := repo.CloneTagOrBranch(gitURL, version).Run(); err != nil {
+			return err
+		}
+
+		hash, err := repo.RevParse("HEAD").RunAndReturnTrimmedCombinedOutput()
+		if err != nil {
+			return err
+		}
+
+		if hash != commithash {
+			return fmt.Errorf("commit hash (%s) doesn't match the one specified (%s) for the version tag (%s)", hash, commithash, version)
+		}
+		return nil
+	})
 }
 
 func addStepVersionToStepGroup(step models.StepModel, stepVersionStr string, stepGroup models.StepGroupModel) (models.StepGroupModel, error) {
