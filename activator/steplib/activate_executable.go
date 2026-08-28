@@ -2,7 +2,6 @@ package steplib
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -72,16 +71,11 @@ func downloadExecutable(ctx context.Context, fetcher httpfetch.Client, executabl
 // on each attempt; a mismatch or failure falls through to the next mirror, logging
 // each failed attempt so a mirror silently degrading isn't invisible on fallback success.
 func downloadFromURLs(ctx context.Context, fetcher httpfetch.Client, urls []string, destPath, hash string, logger stepman.Logger) error {
-	var errs []error
-	for _, url := range urls {
-		err := fetcher.DownloadWithHash(ctx, destPath, url, hash)
-		if err == nil {
-			return nil
-		}
-		// err already names the failing URL (fetcher wraps it in the underlying
-		// GET/status/hash-mismatch error), so it isn't repeated here.
-		logger.Warnf("Failed to download step executable: %s", err)
-		errs = append(errs, fmt.Errorf("%s: %w", url, err))
+	err := httpfetch.FirstSuccess(urls, logger, func(url string) error {
+		return fetcher.DownloadWithHash(ctx, destPath, url, hash)
+	})
+	if err != nil {
+		return fmt.Errorf("failed to download executable: %w", err)
 	}
-	return fmt.Errorf("failed to download executable: %w", errors.Join(errs...))
+	return nil
 }
