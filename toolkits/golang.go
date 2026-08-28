@@ -1,6 +1,7 @@
 package toolkits
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -14,6 +15,7 @@ import (
 	"github.com/bitrise-io/go-utils/command"
 	"github.com/bitrise-io/go-utils/pathutil"
 	"github.com/bitrise-io/go-utils/retry"
+	"github.com/bitrise-io/stepman/internal/httpfetch"
 	"github.com/bitrise-io/stepman/models"
 	"github.com/bitrise-io/stepman/stepid"
 	"github.com/bitrise-io/stepman/stepman"
@@ -214,11 +216,12 @@ func (toolkit GoToolkit) Install() (InstallResult, error) {
 	goArchiveDownloadPath := filepath.Join(goTmpDirPath, localFileName)
 
 	toolkit.logger.Infof("=> Downloading ...")
+	fetcher := httpfetch.NewClient(toolkit.logger)
 	downloadErr := retry.Times(2).Wait(5 * time.Second).Try(func(attempt uint) error {
 		if attempt > 0 {
 			toolkit.logger.Warnf("==> Download failed, retrying ...")
 		}
-		return downloadFile(downloadURL, goArchiveDownloadPath)
+		return fetcher.Download(context.Background(), goArchiveDownloadPath, downloadURL)
 	})
 	if downloadErr != nil {
 		return InstallResult{InstallDuration: time.Since(start)}, fmt.Errorf("download Go toolkit: %s", downloadErr)

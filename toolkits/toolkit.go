@@ -1,9 +1,6 @@
 package toolkits
 
 import (
-	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"path/filepath"
 	"time"
@@ -21,7 +18,7 @@ type PrepareForStepRunResult struct {
 	PrepareDuration time.Duration
 
 	// CacheHit should indicate if PrepareDuration was shorter because of a cache hit or similar optimizations.
-	CacheHit        bool
+	CacheHit bool
 }
 
 type ToolkitCheckResult struct {
@@ -85,14 +82,14 @@ func ToolkitForStep(step models.StepModel, logger stepman.Logger) Toolkit {
 		if stepToolkit.Go != nil {
 			toolkit = NewGoToolkit(logger)
 		} else if stepToolkit.Swift != nil {
-			toolkit = SwiftToolkit{}
+			toolkit = NewSwiftToolkit(logger)
 		}
 	}
 	return toolkit
 }
 
 func AllSupportedToolkits(logger stepman.Logger) []Toolkit {
-	return []Toolkit{NewGoToolkit(logger), BashToolkit{}, SwiftToolkit{}}
+	return []Toolkit{NewGoToolkit(logger), BashToolkit{}, NewSwiftToolkit(logger)}
 }
 
 func toolkitDir(toolkitName string) string {
@@ -101,35 +98,4 @@ func toolkitDir(toolkitName string) string {
 		return filepath.Join(os.TempDir(), "bitrise-toolkits", toolkitName)
 	}
 	return filepath.Join(userHome, ".bitrise", "toolkits", toolkitName)
-}
-
-func downloadFile(url string, targetPath string) error {
-	outFile, err := os.Create(targetPath)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		closeErr := outFile.Close()
-		if closeErr != nil && err == nil {
-			err = fmt.Errorf("failed to close output file: %w", closeErr)
-		}
-	}()
-
-	resp, err := http.Get(url)
-	if err != nil {
-		return fmt.Errorf("downloading %s failed: %s", url, err)
-	}
-	defer func() {
-		closeErr := resp.Body.Close()
-		if closeErr != nil && err == nil {
-			err = fmt.Errorf("failed to close response body: %w", closeErr)
-		}
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("received HTTP status %s downloading: %s", resp.Status, url)
-	}
-
-	_, err = io.Copy(outFile, resp.Body)
-	return err
 }

@@ -1,17 +1,25 @@
 package toolkits
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"time"
 
+	"github.com/bitrise-io/stepman/internal/httpfetch"
 	"github.com/bitrise-io/stepman/models"
 	"github.com/bitrise-io/stepman/stepid"
+	"github.com/bitrise-io/stepman/stepman"
 )
 
 type SwiftToolkit struct {
+	logger stepman.Logger
+}
+
+func NewSwiftToolkit(logger stepman.Logger) SwiftToolkit {
+	return SwiftToolkit{logger: logger}
 }
 
 func (toolkit SwiftToolkit) Bootstrap() error {
@@ -47,7 +55,7 @@ func (toolkit SwiftToolkit) PrepareForStepRun(step models.StepModel, _ stepid.Ca
 	executablePath := filepath.Join(stepAbsDirPath, step.Toolkit.Swift.ExecutableName)
 
 	start := time.Now()
-	err := downloadFile(binaryLocation, executablePath)
+	err := httpfetch.NewClient(toolkit.logger).Download(context.Background(), executablePath, binaryLocation)
 	if err != nil {
 		return PrepareForStepRunResult{CacheHit: false, PrepareDuration: time.Since(start)}, fmt.Errorf("download precompiled step binary: %s", err)
 	}
