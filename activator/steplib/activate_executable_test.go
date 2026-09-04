@@ -9,6 +9,8 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/bitrise-io/go-utils/log"
@@ -20,6 +22,69 @@ import (
 func sha256Hash(b []byte) string {
 	sum := sha256.Sum256(b)
 	return "sha256-" + hex.EncodeToString(sum[:])
+}
+
+func sha256Hex(b []byte) string {
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:])
+}
+
+func redirectCacheDir(t *testing.T) {
+	t.Helper()
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CACHE_HOME", "")
+}
+
+func TestValidateHash(t *testing.T) {
+	tests := []struct {
+		name         string
+		filePath     string
+		expectedHash string
+		expectedErr  error
+	}{
+		{
+			name:         "Valid hash",
+			filePath:     "testdata/file.txt",
+			expectedHash: "sha256-f2040af3939f5033be8ca9b363055b3e53107c4688ba39b71d4529869a9cc9b2",
+			expectedErr:  nil,
+		},
+		{
+			name:         "Hash mismatch",
+			filePath:     "testdata/file.txt",
+			expectedHash: "sha256-1234567890abcdef",
+			expectedErr:  fmt.Errorf("hash mismatch: expected sha256-1234567890abcdef, got sha256-f2040af3939f5033be8ca9b363055b3e53107c4688ba39b71d4529869a9cc9b2"),
+		},
+		{
+			name:         "Nonexistent file",
+			filePath:     "testdata/nonexistent.txt",
+			expectedHash: "sha256-3b6b4f1e2e8b8a9e4f7a4b5e6c7d8e9f",
+			expectedErr:  fmt.Errorf("open testdata/nonexistent.txt: no such file or directory"),
+		},
+		{
+			name:         "Empty hash",
+			filePath:     "testdata/file.txt",
+			expectedHash: "",
+			expectedErr:  fmt.Errorf("hash is empty"),
+		},
+		{
+			name:         "Invalid hash type",
+			filePath:     "testdata/file.txt",
+			expectedHash: "md5-3b6b4f1e2e8b8a9e4f7a4b5e6c7d8e9f",
+			expectedErr:  fmt.Errorf("only SHA256 hashes supported at this time, make sure to prefix the hash with `sha256-`. Found hash value: md5-3b6b4f1e2e8b8a9e4f7a4b5e6c7d8e9f"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateHash(tt.filePath, tt.expectedHash)
+			if tt.expectedErr == nil {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				require.Equal(t, tt.expectedErr.Error(), err.Error())
+			}
+		})
+	}
 }
 
 func TestBuildDownloadURLs(t *testing.T) {
@@ -105,10 +170,6 @@ func TestBuildDownloadURLs(t *testing.T) {
 	}
 }
 
-// TestActivateStepExecutable covers the URL assembly and hash threading between
-// activateStepExecutable → downloadExecutable and the fetcher, using a fake
-// fetcher so no bytes are transferred. The download loop itself (mirror fallback,
-// hash verification) is covered by TestDownloadFromURLs.
 func TestActivateStepExecutable(t *testing.T) {
 	ctx := context.Background()
 	logger := log.NewDefaultLogger(false)
@@ -116,28 +177,144 @@ func TestActivateStepExecutable(t *testing.T) {
 	const hash = "sha256-1111111111111111111111111111111111111111111111111111111111111111"
 
 	t.Run("default bases: first mirror + StorageURI, hash threaded through", func(t *testing.T) {
+		redirectCacheDir(t)
 		fake := newFakeExecutableFetcher(t)
-		destDir := t.TempDir()
 
-		path, err := activateStepExecutable(ctx, fake, "hello-step",
-			models.Executable{StorageURI: storageURI, Hash: hash}, destDir, logger)
+		cachePath, err := stepExecutableCachePath("hello-step", "2.0.0", "linux-amd64")
 		require.NoError(t, err)
 
-		require.Equal(t, filepath.Join(destDir, "hello-step"), path)
+		path, err := activateStepExecutable(ctx, fake, "hello-step", "2.0.0", "linux-amd64",
+			models.Executable{StorageURI: storageURI, Hash: hash}, logger)
+		require.NoError(t, err)
+
+		require.Equal(t, cachePath, path)
 		require.FileExists(t, path)
 		require.Equal(t, precompiledStepsDefaultStorageURLs[0]+"/"+storageURI, fake.calledURL)
-		require.Equal(t, hash, fake.calledHash)
+		hexHash, err := parseExpectedHash(hash)
+		require.NoError(t, err)
+		require.Equal(t, hexHash, fake.calledHash, "the fetcher sees a bare hex digest, not the \"sha256-\" tagged form")
 	})
 
 	t.Run("BITRISE_STEPLIB_STORAGE_URLS override wins", func(t *testing.T) {
+		redirectCacheDir(t)
 		t.Setenv(precompiledStepsStorageURLsEnv, "https://custom.example.com")
 		fake := newFakeExecutableFetcher(t)
 
-		_, err := activateStepExecutable(ctx, fake, "hello-step",
-			models.Executable{StorageURI: storageURI, Hash: hash}, t.TempDir(), logger)
+		_, err := activateStepExecutable(ctx, fake, "hello-step", "2.0.0", "linux-amd64",
+			models.Executable{StorageURI: storageURI, Hash: hash}, logger)
 		require.NoError(t, err)
 
 		require.Equal(t, "https://custom.example.com/"+storageURI, fake.calledURL)
+	})
+}
+
+// newExecutableTestServer spins up a self-signed TLS test server (the download
+// path enforces https), points BITRISE_STEPLIB_STORAGE_URLS at it,
+// and returns a real httpfetch.Client configured to trust its certificate -
+// so activateStepExecutable's real download path can be exercised without
+// depending on OS-specific system cert trust behavior.
+func newExecutableTestServer(t *testing.T, handler http.HandlerFunc) httpfetch.Client {
+	t.Helper()
+	server := httptest.NewTLSServer(handler)
+	t.Cleanup(server.Close)
+	t.Setenv(precompiledStepsStorageURLsEnv, server.URL)
+	return httpfetch.NewWithClient(server.Client())
+}
+
+func TestActivateStepExecutableCache(t *testing.T) {
+	ctx := context.Background()
+	logger := log.NewDefaultLogger(false)
+
+	t.Run("cache miss downloads and populates the cache", func(t *testing.T) {
+		redirectCacheDir(t)
+		var hits int32
+		content := []byte("step binary contents v1")
+		fetcher := newExecutableTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+			atomic.AddInt32(&hits, 1)
+			_, _ = w.Write(content)
+		})
+
+		executable := models.Executable{StorageURI: "steps/step1.bin", Hash: sha256Hash(content)}
+		path, err := activateStepExecutable(ctx, fetcher, "step1", "1.0.0", "linux-amd64", executable, logger)
+		require.NoError(t, err)
+		require.EqualValues(t, 1, atomic.LoadInt32(&hits))
+
+		got, err := os.ReadFile(path)
+		require.NoError(t, err)
+		require.Equal(t, content, got)
+	})
+
+	t.Run("cache hit skips the download", func(t *testing.T) {
+		redirectCacheDir(t)
+		var hits int32
+		content := []byte("step binary contents v2")
+		fetcher := newExecutableTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+			atomic.AddInt32(&hits, 1)
+			_, _ = w.Write(content)
+		})
+
+		executable := models.Executable{StorageURI: "steps/step2.bin", Hash: sha256Hash(content)}
+		firstPath, err := activateStepExecutable(ctx, fetcher, "step2", "1.0.0", "linux-amd64", executable, logger)
+		require.NoError(t, err)
+		require.EqualValues(t, 1, atomic.LoadInt32(&hits))
+
+		secondPath, err := activateStepExecutable(ctx, fetcher, "step2", "1.0.0", "linux-amd64", executable, logger)
+		require.NoError(t, err)
+		require.EqualValues(t, 1, atomic.LoadInt32(&hits), "second activation must not hit the network")
+		require.Equal(t, firstPath, secondPath)
+	})
+
+	t.Run("corrupt cache entry is detected and re-downloaded", func(t *testing.T) {
+		redirectCacheDir(t)
+		var hits int32
+		content := []byte("step binary contents v3")
+		fetcher := newExecutableTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+			atomic.AddInt32(&hits, 1)
+			_, _ = w.Write(content)
+		})
+
+		executable := models.Executable{StorageURI: "steps/step3.bin", Hash: sha256Hash(content)}
+		cachePath, err := stepExecutableCachePath("step3", "1.0.0", "linux-amd64")
+		require.NoError(t, err)
+		require.NoError(t, os.MkdirAll(filepath.Dir(cachePath), 0755))
+		require.NoError(t, os.WriteFile(cachePath, []byte("corrupted"), 0644))
+
+		path, err := activateStepExecutable(ctx, fetcher, "step3", "1.0.0", "linux-amd64", executable, logger)
+		require.NoError(t, err)
+		require.EqualValues(t, 1, atomic.LoadInt32(&hits))
+
+		got, err := os.ReadFile(path)
+		require.NoError(t, err)
+		require.Equal(t, content, got)
+	})
+
+	t.Run("concurrent activations for the same key do not corrupt the cache", func(t *testing.T) {
+		redirectCacheDir(t)
+		content := []byte("step binary contents v4")
+		fetcher := newExecutableTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+			_, _ = w.Write(content)
+		})
+
+		executable := models.Executable{StorageURI: "steps/step4.bin", Hash: sha256Hash(content)}
+		const n = 10
+		var wg sync.WaitGroup
+		paths := make([]string, n)
+		errs := make([]error, n)
+		for i := range n {
+			wg.Add(1)
+			go func(i int) {
+				defer wg.Done()
+				paths[i], errs[i] = activateStepExecutable(ctx, fetcher, "step4", "1.0.0", "linux-amd64", executable, logger)
+			}(i)
+		}
+		wg.Wait()
+
+		for i := range n {
+			require.NoError(t, errs[i])
+			got, err := os.ReadFile(paths[i])
+			require.NoError(t, err)
+			require.Equal(t, content, got)
+		}
 	})
 }
 
@@ -146,7 +323,7 @@ func TestDownloadFromURLs(t *testing.T) {
 	logger := log.NewDefaultLogger(false)
 	fetcher := httpfetch.NewClient(logger)
 	payload := []byte("primary payload")
-	hash := sha256Hash(payload)
+	hash := sha256Hex(payload)
 
 	t.Run("primary succeeds, secondary is not called", func(t *testing.T) {
 		secondaryHits := 0
