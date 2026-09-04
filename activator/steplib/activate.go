@@ -20,8 +20,8 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-const precompiledStepsEnv = "BITRISE_EXPERIMENT_PRECOMPILED_STEPS"
-const precompiledStepsStorageURLsEnv = "BITRISE_PRECOMPILED_STEPS_STORAGE_URLS"
+const precompiledStepsEnv = "BITRISE_STEPLIB_USE_BINARY"
+const precompiledStepsStorageURLsEnv = "BITRISE_STEPLIB_STORAGE_URLS"
 
 var precompiledStepsDefaultStorageURLs = []string{
 	"https://steplib.bitrise.io",
@@ -35,7 +35,7 @@ type ResolvedStep struct {
 	StepInfo models.StepInfoModel
 }
 
-func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string, log stepman.Logger, isOfflineMode bool, libraryAPI *steplibrary.Client, precompiledFetcher httpfetch.Client) (ResolvedStep, error) {
+func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string, log stepman.Logger, isOfflineMode bool, libraryAPI *steplibrary.Client, fetcher httpfetch.Client) (ResolvedStep, error) {
 	var stepInfo models.StepInfoModel
 	var resolveErr error
 	if libraryAPI != nil {
@@ -64,7 +64,7 @@ func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string,
 		}
 	}
 
-	execPath, err := downloadPrecompiled(log, stepModel, id, destination, precompiledFetcher)
+	execPath, err := downloadPrecompiled(log, stepModel, id, destination, fetcher)
 	if execPath != "" {
 		return ResolvedStep{ExecPath: execPath, StepInfo: stepInfo}, err
 	}
@@ -72,7 +72,7 @@ func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string,
 	// Fall back to step source activation.
 	if libraryAPI != nil {
 		// activate the source over the API, without git clone
-		if err := activateStepSourceWithAPI(libraryAPI, id.IDorURI, version, stepModel.Source, destination, log, isOfflineMode); err != nil {
+		if err := activateStepSourceWithAPI(libraryAPI, id.IDorURI, version, stepModel.Source, destination, log, isOfflineMode, fetcher); err != nil {
 			return ResolvedStep{ExecPath: "", StepInfo: stepInfo}, err
 		}
 		return ResolvedStep{ExecPath: "", StepInfo: stepInfo}, nil
@@ -83,7 +83,7 @@ func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string,
 	if err != nil {
 		return ResolvedStep{ExecPath: "", StepInfo: stepInfo}, fmt.Errorf("failed to read %s steplib: %s", id.SteplibSource, err)
 	}
-	if err := activateStepSource(stepCollection, id.SteplibSource, id.IDorURI, version, stepModel, destination, log, isOfflineMode); err != nil {
+	if err := activateStepSource(stepCollection, id.SteplibSource, id.IDorURI, version, stepModel, destination, log, isOfflineMode, fetcher); err != nil {
 		return ResolvedStep{ExecPath: "", StepInfo: stepInfo}, err
 	}
 
@@ -91,7 +91,8 @@ func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string,
 }
 
 func downloadPrecompiled(log stepman.Logger, step models.StepModel, id stepid.CanonicalID, destination string, fetcher httpfetch.Client) (string, error) {
-	if (os.Getenv(precompiledStepsEnv) == "true" || os.Getenv(precompiledStepsEnv) == "1") && step.Executables != nil {
+	precompiledDisabled := os.Getenv(precompiledStepsEnv) == "false" || os.Getenv(precompiledStepsEnv) == "0"
+	if !precompiledDisabled && step.Executables != nil {
 		platform := fmt.Sprintf("%s-%s", runtime.GOOS, runtime.GOARCH)
 		executableForPlatform, ok := (*step.Executables)[platform]
 		if ok && executableForPlatform.Hash != "" && executableForPlatform.StorageURI != "" {
