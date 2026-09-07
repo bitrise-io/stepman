@@ -21,13 +21,13 @@ import (
 func activateStepExecutable(
 	ctx context.Context,
 	fetcher httpfetch.Client,
-	stepID, version, platform string,
+	steplibSource, stepID, version, platform string,
 	executable models.Executable,
 	destinationDir string,
 	logger stepman.Logger,
 	storageURLs []string,
 ) (string, error) {
-	cachePath, err := stepExecutableCachePath(stepID, version, platform)
+	cachePath, err := stepExecutableCachePath(steplibSource, stepID, version, platform)
 	if err != nil {
 		return "", fmt.Errorf("executable cache path: %w", err)
 	}
@@ -76,13 +76,23 @@ func activateStepExecutable(
 	return destPath, nil
 }
 
-func stepExecutableCachePath(stepID, version, platform string) (string, error) {
+func stepExecutableCachePath(steplibSource, stepID, version, platform string) (string, error) {
 	userCacheDir, err := os.UserCacheDir()
 	if err != nil {
 		return "", err
 	}
 	base := filepath.Join(userCacheDir, "bitrise", "steps", "executables")
-	return filepath.Join(base, stepID, version, platform, stepID), nil
+
+	// A step ID is only unique within its StepLib, so the steplib source must be part
+	// of the cache key too, otherwise two libraries could publish different
+	// binaries under the same ID/version/platform and overwrite each other's
+	// cache entry.
+	// Hash the steplib string rather than using it as a path segment directly:
+	// steplibSource is typically a URL, and filepath.Join+Clean would collapse
+	// any ".." in it (path traversal), while characters like ":" in "https://"
+	// aren't valid in a Windows path segment.
+	sourceKey := sha256.Sum256([]byte(steplibSource))
+	return filepath.Join(base, hex.EncodeToString(sourceKey[:]), stepID, version, platform, stepID), nil
 }
 
 func buildDownloadURLs(bases []string, executable models.Executable) ([]string, error) {

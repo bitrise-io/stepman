@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -207,7 +208,7 @@ func TestActivateStepExecutable(t *testing.T) {
 		fake := newFakeExecutableFetcher(t)
 		destDir := t.TempDir()
 
-		path, err := activateStepExecutable(ctx, fake, "hello-step", "2.0.0", "linux-amd64",
+		path, err := activateStepExecutable(ctx, fake, "https://github.com/bitrise-io/bitrise-steplib.git", "hello-step", "2.0.0", "linux-amd64",
 			models.Executable{StorageURI: storageURI, Hash: hash}, destDir, logger, DefaultPrecompiledStorageURLs)
 		require.NoError(t, err)
 
@@ -223,7 +224,7 @@ func TestActivateStepExecutable(t *testing.T) {
 		redirectCacheDir(t)
 		fake := newFakeExecutableFetcher(t)
 
-		_, err := activateStepExecutable(ctx, fake, "hello-step", "2.0.0", "linux-amd64",
+		_, err := activateStepExecutable(ctx, fake, "https://github.com/bitrise-io/bitrise-steplib.git", "hello-step", "2.0.0", "linux-amd64",
 			models.Executable{StorageURI: storageURI, Hash: hash}, t.TempDir(), logger,
 			[]string{"https://custom.example.com"})
 		require.NoError(t, err)
@@ -259,7 +260,7 @@ func TestActivateStepExecutableCache(t *testing.T) {
 
 		executable := models.Executable{StorageURI: "steps/step1.bin", Hash: sha256Hash(content)}
 		destDir := t.TempDir()
-		path, err := activateStepExecutable(ctx, fetcher, "step1", "1.0.0", "linux-amd64", executable, destDir, logger, storageURLs)
+		path, err := activateStepExecutable(ctx, fetcher, "https://github.com/bitrise-io/bitrise-steplib.git", "step1", "1.0.0", "linux-amd64", executable, destDir, logger, storageURLs)
 		require.NoError(t, err)
 		require.EqualValues(t, 1, atomic.LoadInt32(&hits))
 		require.Equal(t, filepath.Join(destDir, "step1"), path)
@@ -268,7 +269,7 @@ func TestActivateStepExecutableCache(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, content, got)
 
-		cachePath, err := stepExecutableCachePath("step1", "1.0.0", "linux-amd64")
+		cachePath, err := stepExecutableCachePath("https://github.com/bitrise-io/bitrise-steplib.git", "step1", "1.0.0", "linux-amd64")
 		require.NoError(t, err)
 		require.FileExists(t, cachePath, "a successful download must populate the shared cache")
 	})
@@ -283,13 +284,13 @@ func TestActivateStepExecutableCache(t *testing.T) {
 		})
 
 		executable := models.Executable{StorageURI: "steps/step2.bin", Hash: sha256Hash(content)}
-		firstPath, err := activateStepExecutable(ctx, fetcher, "step2", "1.0.0", "linux-amd64", executable, t.TempDir(), logger, storageURLs)
+		firstPath, err := activateStepExecutable(ctx, fetcher, "https://github.com/bitrise-io/bitrise-steplib.git", "step2", "1.0.0", "linux-amd64", executable, t.TempDir(), logger, storageURLs)
 		require.NoError(t, err)
 		require.EqualValues(t, 1, atomic.LoadInt32(&hits))
 
 		// A second, independent destination dir: the cache is shared, but each
 		// activation still gets its own served copy.
-		secondPath, err := activateStepExecutable(ctx, fetcher, "step2", "1.0.0", "linux-amd64", executable, t.TempDir(), logger, storageURLs)
+		secondPath, err := activateStepExecutable(ctx, fetcher, "https://github.com/bitrise-io/bitrise-steplib.git", "step2", "1.0.0", "linux-amd64", executable, t.TempDir(), logger, storageURLs)
 		require.NoError(t, err)
 		require.EqualValues(t, 1, atomic.LoadInt32(&hits), "second activation must not hit the network")
 		require.NotEqual(t, firstPath, secondPath, "each activation gets its own destination copy")
@@ -311,18 +312,53 @@ func TestActivateStepExecutableCache(t *testing.T) {
 		})
 
 		executable := models.Executable{StorageURI: "steps/step3.bin", Hash: sha256Hash(content)}
-		cachePath, err := stepExecutableCachePath("step3", "1.0.0", "linux-amd64")
+		cachePath, err := stepExecutableCachePath("https://github.com/bitrise-io/bitrise-steplib.git", "step3", "1.0.0", "linux-amd64")
 		require.NoError(t, err)
 		require.NoError(t, os.MkdirAll(filepath.Dir(cachePath), 0755))
 		require.NoError(t, os.WriteFile(cachePath, []byte("corrupted"), 0644))
 
-		path, err := activateStepExecutable(ctx, fetcher, "step3", "1.0.0", "linux-amd64", executable, t.TempDir(), logger, storageURLs)
+		path, err := activateStepExecutable(ctx, fetcher, "https://github.com/bitrise-io/bitrise-steplib.git", "step3", "1.0.0", "linux-amd64", executable, t.TempDir(), logger, storageURLs)
 		require.NoError(t, err)
 		require.EqualValues(t, 1, atomic.LoadInt32(&hits))
 
 		got, err := os.ReadFile(path)
 		require.NoError(t, err)
 		require.Equal(t, content, got)
+	})
+
+	t.Run("different steplib sources for the same step ID/version/platform get separate cache entries", func(t *testing.T) {
+		redirectCacheDir(t)
+		contentA := []byte("library A's binary")
+		contentB := []byte("library B's binary")
+		fetcher, storageURLs := newExecutableTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+			if strings.Contains(r.URL.Path, "a-only") {
+				_, _ = w.Write(contentA)
+				return
+			}
+			_, _ = w.Write(contentB)
+		})
+
+		executableA := models.Executable{StorageURI: "steps/a-only.bin", Hash: sha256Hash(contentA)}
+		executableB := models.Executable{StorageURI: "steps/b-only.bin", Hash: sha256Hash(contentB)}
+
+		pathA, err := activateStepExecutable(ctx, fetcher, "https://github.com/example/library-a.git", "shared-step", "1.0.0", "linux-amd64", executableA, t.TempDir(), logger, storageURLs)
+		require.NoError(t, err)
+		pathB, err := activateStepExecutable(ctx, fetcher, "https://github.com/example/library-b.git", "shared-step", "1.0.0", "linux-amd64", executableB, t.TempDir(), logger, storageURLs)
+		require.NoError(t, err)
+
+		cachePathA, err := stepExecutableCachePath("https://github.com/example/library-a.git", "shared-step", "1.0.0", "linux-amd64")
+		require.NoError(t, err)
+		cachePathB, err := stepExecutableCachePath("https://github.com/example/library-b.git", "shared-step", "1.0.0", "linux-amd64")
+		require.NoError(t, err)
+		require.NotEqual(t, cachePathA, cachePathB, "different libraries must not share a cache path for the same step ID/version/platform")
+
+		gotA, err := os.ReadFile(pathA)
+		require.NoError(t, err)
+		require.Equal(t, contentA, gotA)
+
+		gotB, err := os.ReadFile(pathB)
+		require.NoError(t, err)
+		require.Equal(t, contentB, gotB)
 	})
 
 	t.Run("concurrent activations for the same key do not corrupt the cache", func(t *testing.T) {
@@ -345,7 +381,7 @@ func TestActivateStepExecutableCache(t *testing.T) {
 			wg.Add(1)
 			go func(i int) {
 				defer wg.Done()
-				paths[i], errs[i] = activateStepExecutable(ctx, fetcher, "step4", "1.0.0", "linux-amd64", executable, destDirs[i], logger, storageURLs)
+				paths[i], errs[i] = activateStepExecutable(ctx, fetcher, "https://github.com/bitrise-io/bitrise-steplib.git", "step4", "1.0.0", "linux-amd64", executable, destDirs[i], logger, storageURLs)
 			}(i)
 		}
 		wg.Wait()
