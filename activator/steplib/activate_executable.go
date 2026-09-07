@@ -41,6 +41,13 @@ func activateStepExecutable(
 	switch err := validateHash(cachePath, expectedHash); {
 	case err == nil:
 		logger.Debugf("Disk cache hit for %s@%s", stepID, version)
+		// A concurrent activation, or one interrupted between the download's
+		// atomic publish and the chmod below, can leave a hash-valid cache
+		// entry that isn't executable yet. Repair the mode on every hit so
+		// such an entry doesn't stay broken forever.
+		if err := os.Chmod(cachePath, 0755); err != nil {
+			return "", fmt.Errorf("set executable permission on file: %s", err)
+		}
 	case errors.Is(err, fs.ErrNotExist):
 		needsDownload = true
 		logger.Debugf("Disk cache miss for %s@%s", stepID, version)
@@ -71,6 +78,12 @@ func activateStepExecutable(
 	}
 	if err := fileutil.NewFileManager().CopyFile(cachePath, destPath, &fileutil.CopyOptions{Overwrite: true}); err != nil {
 		return "", fmt.Errorf("copy cached executable to destination: %w", err)
+	}
+	// CopyFile preserves the source file's mode. A concurrent activation can replace
+	// cachePath between our copy and its own chmod, so the copied file's mode isn't
+	// guaranteed to be executable even though we chmod cachePath above.
+	if err := os.Chmod(destPath, 0755); err != nil {
+		return "", fmt.Errorf("set executable permission on destination file: %w", err)
 	}
 
 	return destPath, nil

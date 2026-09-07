@@ -326,6 +326,29 @@ func TestActivateStepExecutableCache(t *testing.T) {
 		require.Equal(t, content, got)
 	})
 
+	t.Run("cache entry with valid content but wrong mode is repaired, not just trusted", func(t *testing.T) {
+		redirectCacheDir(t)
+		content := []byte("step binary contents v3b")
+		fetcher, storageURLs := newExecutableTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+			t.Fatal("must not re-download when the cached content is already valid")
+		})
+
+		executable := models.Executable{StorageURI: "steps/step3b.bin", Hash: sha256Hash(content)}
+		cachePath, err := stepExecutableCachePath("https://github.com/bitrise-io/bitrise-steplib.git", "step3b", "1.0.0", "linux-amd64")
+		require.NoError(t, err)
+		require.NoError(t, os.MkdirAll(filepath.Dir(cachePath), 0755))
+		// Simulate a cache hit landing between the download's atomic publish
+		// and the mode fixup: correct content, wrong (non-executable) mode.
+		require.NoError(t, os.WriteFile(cachePath, content, 0600))
+
+		path, err := activateStepExecutable(ctx, fetcher, "https://github.com/bitrise-io/bitrise-steplib.git", "step3b", "1.0.0", "linux-amd64", executable, t.TempDir(), logger, storageURLs)
+		require.NoError(t, err)
+
+		info, err := os.Stat(path)
+		require.NoError(t, err)
+		require.Equal(t, os.FileMode(0755), info.Mode().Perm(), "cache hit must repair the executable mode")
+	})
+
 	t.Run("different steplib sources for the same step ID/version/platform get separate cache entries", func(t *testing.T) {
 		redirectCacheDir(t)
 		contentA := []byte("library A's binary")
