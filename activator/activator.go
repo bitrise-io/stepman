@@ -33,11 +33,6 @@ type Options struct {
 	// PrecompiledStorageURLs are the base URLs tried in order for precompiled
 	// executables. Empty means steplib.DefaultPrecompiledStorageURLs.
 	PrecompiledStorageURLs []string
-
-	// IsOfflineMode forbids network access, restricting activation to what is
-	// already in the local StepLib cache. It is not supported together with
-	// the StepLib V2 API, which has no local inventory to read from.
-	IsOfflineMode bool
 }
 
 // withDefaults fills in the values that Options leaves optional, so the rest of

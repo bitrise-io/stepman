@@ -102,7 +102,7 @@ func Test_activateStepLibStep(t *testing.T) {
 				t.Errorf("failed to create dir for step.yml: %s", err)
 			}
 
-			got, _, err := prepareStepLibForActivation(TestLogger[*testing.T]{t}, tt.stepIDData, false, false)
+			got, _, err := prepareStepLibForActivation(TestLogger[*testing.T]{t}, tt.stepIDData, false)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("activateStepLibStep() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -325,7 +325,6 @@ func BenchmarkActivateSteplibRefStep(b *testing.B) {
 	tests := []struct {
 		name                       string
 		id                         stepid.CanonicalID
-		isOfflineMode              bool
 		didStepLibUpdateInWorkflow bool
 		shouldCleanSteplib         bool
 		wantErr                    bool
@@ -380,7 +379,7 @@ func BenchmarkActivateSteplibRefStep(b *testing.B) {
 				}
 
 				//nolint:exhaustruct // the benchmark drives the legacy git-clone path
-				a := New(logger, Options{DisableSteplibAPI: true, IsOfflineMode: tt.isOfflineMode})
+				a := New(logger, Options{DisableSteplibAPI: true})
 				got, gotErr := a.ActivateSteplibRefStep(tt.id, stepYMLCopyPth, tmpDir, tt.didStepLibUpdateInWorkflow)
 				if gotErr != nil {
 					if !tt.wantErr {

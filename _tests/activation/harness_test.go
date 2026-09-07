@@ -3,7 +3,7 @@
 // Package activation is a native, in-process integration test for the steplib
 // activation entry point (activator.ActivateSteplibRefStep). It exercises the v1
 // (legacy local steplib) and v2 (API) paths against real URLs across version
-// forms, precompiled/source fetch, cache state, offline mode, and error cases,
+// forms, precompiled/source fetch, cache state, and error cases,
 // and logs the raw activation logs of both paths side by side for eyeballing.
 //
 // Build-tagged `integration`; needs network. Run with:
@@ -75,7 +75,7 @@ type activationResult struct {
 
 // activate runs one activation through the given variant, setting the path/fetch
 // experiment env for the call and capturing its logs and timing.
-func activate(t *testing.T, v variant, id stepid.CanonicalID, offline, didStepLibUpdate bool) activationResult {
+func activate(t *testing.T, v variant, id stepid.CanonicalID, didStepLibUpdate bool) activationResult {
 	t.Helper()
 
 	// The V2 API path targets the production inventory; there is no longer an
@@ -84,7 +84,6 @@ func activate(t *testing.T, v variant, id stepid.CanonicalID, offline, didStepLi
 	opts := activator.Options{
 		DisableSteplibAPI:  !v.useAPI,
 		DisablePrecompiled: !v.precompiled,
-		IsOfflineMode:      offline,
 	}
 
 	logger := &capturingLogger{}
@@ -132,10 +131,10 @@ func logResult(t *testing.T, header string, r activationResult) {
 
 // logPair runs and logs v1 then v2 for the same ref, adjacent, for an eyeball diff.
 // Returns both results so the caller can assert.
-func logPair(t *testing.T, id stepid.CanonicalID, v1, v2 variant, offline bool) (activationResult, activationResult) {
+func logPair(t *testing.T, id stepid.CanonicalID, v1, v2 variant) (activationResult, activationResult) {
 	t.Helper()
-	r1 := activate(t, v1, id, offline, false)
-	r2 := activate(t, v2, id, offline, false)
+	r1 := activate(t, v1, id, false)
+	r2 := activate(t, v2, id, false)
 	t.Logf("=== %s @ %q ===", id.IDorURI, id.Version)
 	logResult(t, v1.name, r1)
 	logResult(t, v2.name, r2)
