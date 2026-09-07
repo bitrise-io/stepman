@@ -5,6 +5,7 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/bitrise-io/stepman/internal/httpfetch"
 	"github.com/bitrise-io/stepman/models"
 	"github.com/bitrise-io/stepman/stepid"
 	"github.com/bitrise-io/stepman/steplibrary"
@@ -21,7 +22,6 @@ import (
 func TestActivateStep_ResolvesExactVersion(t *testing.T) {
 	srv := serveHelloStepInventory(t)
 	log := apiTestLogger{t}
-	t.Setenv(precompiledStepsEnv, "false")
 
 	destination := t.TempDir()
 	workDir := t.TempDir()
@@ -29,7 +29,7 @@ func TestActivateStep_ResolvesExactVersion(t *testing.T) {
 
 	id := stepid.CanonicalID{SteplibSource: testSteplibURL, IDorURI: "hello-step", Version: "2.0.0"}
 
-	resolved, err := ActivateStep(id, destination, stepYML, log, false, steplibrary.New(log, srv.URL), newFakeExecutableFetcher(t))
+	resolved, err := ActivateStep(id, destination, stepYML, log, sourceOnlyOpts(), steplibrary.New(log, srv.URL, httpfetch.NewWithClient(srv.Client())), newFakeExecutableFetcher(t))
 	require.NoError(t, err)
 
 	assert.Equal(t, "hello-step", resolved.StepInfo.ID)
@@ -45,11 +45,10 @@ func TestActivateStep_ResolvesExactVersion(t *testing.T) {
 func TestActivateStep_ResolvesMajorLock(t *testing.T) {
 	srv := serveHelloStepInventory(t)
 	log := apiTestLogger{t}
-	t.Setenv(precompiledStepsEnv, "false")
 
 	id := stepid.CanonicalID{SteplibSource: testSteplibURL, IDorURI: "hello-step", Version: "1"}
 
-	resolved, err := ActivateStep(id, t.TempDir(), filepath.Join(t.TempDir(), "current_step.yml"), log, false, steplibrary.New(log, srv.URL), newFakeExecutableFetcher(t))
+	resolved, err := ActivateStep(id, t.TempDir(), filepath.Join(t.TempDir(), "current_step.yml"), log, sourceOnlyOpts(), steplibrary.New(log, srv.URL, httpfetch.NewWithClient(srv.Client())), newFakeExecutableFetcher(t))
 	require.NoError(t, err)
 
 	assert.Equal(t, "1.1.0", resolved.StepInfo.Version, "major lock 1 resolves to the highest 1.x")
@@ -60,11 +59,10 @@ func TestActivateStep_ResolvesMajorLock(t *testing.T) {
 func TestActivateStep_NonexistentVersionFails(t *testing.T) {
 	srv := serveHelloStepInventory(t)
 	log := apiTestLogger{t}
-	t.Setenv(precompiledStepsEnv, "false")
 
 	id := stepid.CanonicalID{SteplibSource: testSteplibURL, IDorURI: "hello-step", Version: "99.99.99"}
 
-	_, err := ActivateStep(id, t.TempDir(), filepath.Join(t.TempDir(), "current_step.yml"), log, false, steplibrary.New(log, srv.URL), newFakeExecutableFetcher(t))
+	_, err := ActivateStep(id, t.TempDir(), filepath.Join(t.TempDir(), "current_step.yml"), log, sourceOnlyOpts(), steplibrary.New(log, srv.URL, httpfetch.NewWithClient(srv.Client())), newFakeExecutableFetcher(t))
 	require.Error(t, err, "a version not in the inventory must fail resolution")
 }
 
@@ -73,12 +71,12 @@ func TestActivateStep_NonexistentVersionFails(t *testing.T) {
 func TestActivateStep_NoExecutable_ActivatesSource(t *testing.T) {
 	srv := serveHelloStepInventory(t)
 	log := apiTestLogger{t}
-	t.Setenv(precompiledStepsEnv, "true")
+	useBinary := precompiledOpts()
 
 	destination := t.TempDir()
 	id := stepid.CanonicalID{SteplibSource: testSteplibURL, IDorURI: "hello-step", Version: "2.0.0"}
 
-	resolved, err := ActivateStep(id, destination, filepath.Join(t.TempDir(), "current_step.yml"), log, false, steplibrary.New(log, srv.URL), newFakeExecutableFetcher(t))
+	resolved, err := ActivateStep(id, destination, filepath.Join(t.TempDir(), "current_step.yml"), log, useBinary, steplibrary.New(log, srv.URL, httpfetch.NewWithClient(srv.Client())), newFakeExecutableFetcher(t))
 	require.NoError(t, err)
 
 	assert.Empty(t, resolved.ExecPath, "a step without executables must fall back to source")
@@ -99,12 +97,12 @@ func TestActivateStep_ChoosesExecutable(t *testing.T) {
 	})
 
 	log := apiTestLogger{t}
-	t.Setenv(precompiledStepsEnv, "true")
+	useBinary := precompiledOpts()
 
 	destination := t.TempDir()
 	id := stepid.CanonicalID{SteplibSource: testSteplibURL, IDorURI: "hello-step", Version: "2.0.0"}
 
-	resolved, err := ActivateStep(id, destination, filepath.Join(t.TempDir(), "current_step.yml"), log, false, steplibrary.New(log, srv.URL), newFakeExecutableFetcher(t))
+	resolved, err := ActivateStep(id, destination, filepath.Join(t.TempDir(), "current_step.yml"), log, useBinary, steplibrary.New(log, srv.URL, httpfetch.NewWithClient(srv.Client())), newFakeExecutableFetcher(t))
 	require.NoError(t, err)
 
 	assert.Equal(t, filepath.Join(destination, "hello-step"), resolved.ExecPath)
@@ -125,14 +123,14 @@ func TestActivateStep_ExecutableDownloadFails_FallsBackToSource(t *testing.T) {
 	})
 
 	log := apiTestLogger{t}
-	t.Setenv(precompiledStepsEnv, "true")
+	useBinary := precompiledOpts()
 
 	destination := t.TempDir()
 	id := stepid.CanonicalID{SteplibSource: testSteplibURL, IDorURI: "hello-step", Version: "2.0.0"}
 
 	fetcher := newFakeExecutableFetcher(t)
 	fetcher.downloadErr = errFakeDownload
-	resolved, err := ActivateStep(id, destination, filepath.Join(t.TempDir(), "current_step.yml"), log, false, steplibrary.New(log, srv.URL), fetcher)
+	resolved, err := ActivateStep(id, destination, filepath.Join(t.TempDir(), "current_step.yml"), log, useBinary, steplibrary.New(log, srv.URL, httpfetch.NewWithClient(srv.Client())), fetcher)
 	require.NoError(t, err, "a failed executable download must fall back to source, not error")
 
 	assert.Empty(t, resolved.ExecPath)

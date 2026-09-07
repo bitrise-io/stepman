@@ -2,31 +2,24 @@ package activator
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 
 	"github.com/bitrise-io/stepman/activator/steplib"
-	"github.com/bitrise-io/stepman/internal/httpfetch"
 	"github.com/bitrise-io/stepman/models"
 	"github.com/bitrise-io/stepman/stepid"
 	"github.com/bitrise-io/stepman/steplibrary"
 	"github.com/bitrise-io/stepman/stepman"
 )
 
-const (
-	bitriseSteplibURL    = "https://github.com/bitrise-io/bitrise-steplib.git"
-	bitriseSteplibAPIURL = "https://steplib.bitrise.io/api"
-	useSteplibAPIEnv     = "BITRISE_STEPLIB_USE_API"
-)
-
-func ActivateSteplibRefStep(
-	log stepman.Logger,
+// ActivateSteplibRefStep activates a step referenced through a StepLib.
+func (a *Activator) ActivateSteplibRefStep(
 	id stepid.CanonicalID,
 	activatedStepDir string,
 	workDir string,
 	didStepLibUpdateInWorkflow bool,
-	isOfflineMode bool,
 ) (ActivatedStep, error) {
+	log := a.log
+	isOfflineMode := a.opts.IsOfflineMode
 	stepYMLPath := filepath.Join(workDir, "current_step.yml")
 	//nolint:exhaustruct // missing fields are added down below based on activation result
 	activationResult := ActivatedStep{
@@ -35,8 +28,8 @@ func ActivateSteplibRefStep(
 	}
 
 	var libraryAPI *steplibrary.Client
-	if shouldUseSteplibAPI(id.SteplibSource) {
-		libraryAPI = steplibrary.New(log, bitriseSteplibAPIURL)
+	if a.useSteplibAPIFor(id.SteplibSource) {
+		libraryAPI = a.library
 	}
 
 	// The inventory source is set here, on the same branch that dispatches, and before
@@ -57,7 +50,12 @@ func ActivateSteplibRefStep(
 	}
 
 	// ActivateStep dispatches to the v2 or legacy codepath.
-	resolvedStep, err := steplib.ActivateStep(id, activatedStepDir, stepYMLPath, log, isOfflineMode, libraryAPI, httpfetch.NewClient(log))
+	activateOpts := steplib.Options{
+		UsePrecompiled: a.opts.UsePrecompiled,
+		StorageURLs:    a.opts.PrecompiledStorageURLs,
+		IsOfflineMode:  isOfflineMode,
+	}
+	resolvedStep, err := steplib.ActivateStep(id, activatedStepDir, stepYMLPath, log, activateOpts, libraryAPI, a.fetcher)
 	activationResult.StepInfo = resolvedStep.StepInfo
 	activationResult.ExecutablePath = resolvedStep.ExecPath
 	if resolvedStep.ExecPath != "" {
@@ -70,15 +68,6 @@ func ActivateSteplibRefStep(
 	}
 
 	return activationResult, nil
-}
-
-func shouldUseSteplibAPI(steplibURI string) bool {
-	if steplibURI != bitriseSteplibURL {
-		return false
-	}
-
-	apiDisabled := os.Getenv(useSteplibAPIEnv) == "false" || os.Getenv(useSteplibAPIEnv) == "0"
-	return !apiDisabled
 }
 
 func prepareStepLibForActivation(

@@ -227,7 +227,7 @@ func Benchmark_goBuildStep(b *testing.B) {
 		IDorURI:       "xcode-test",
 		Version:       "5.1.1",
 	}
-	_, err = steplib.ActivateStep(id, stepDir, "", logger, false, nil, httpfetch.NewClient(logger))
+	_, err = steplib.ActivateStep(id, stepDir, "", logger, steplib.Options{UsePrecompiled: false, StorageURLs: nil, IsOfflineMode: false}, nil, httpfetch.NewClient(logger))
 	require.NoError(b, err)
 
 	packageName := "github.com/bitrise-steplib/steps-xcode-test"
