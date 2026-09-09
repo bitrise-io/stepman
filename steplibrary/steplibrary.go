@@ -21,8 +21,8 @@ type Client struct {
 // fetcher: the HTTP client used for every inventory request. Callers pass one
 // in so that a single client, and therefore a single connection pool, can be
 // shared across everything a run fetches.
-func New(log stepman.Logger, inventoryURL string, fetcher httpfetch.Client) *Client {
-	return &Client{
+func New(log stepman.Logger, inventoryURL string, fetcher httpfetch.Client) Client {
+	return Client{
 		log:          log,
 		inventoryURL: inventoryURL,
 		api:          NewHTTPAPI(inventoryURL, fetcher),

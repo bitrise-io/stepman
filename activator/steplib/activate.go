@@ -51,11 +51,14 @@ type ResolvedStep struct {
 	StepInfo models.StepInfoModel
 }
 
-func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string, log stepman.Logger, opts Options, libraryAPI *steplibrary.Client, fetcher httpfetch.Client) (ResolvedStep, error) {
+// useSteplibAPI selects the inventory backend: the StepLib V2 API when set, a
+// git-cloned steplib otherwise. library serves the former and is unread when
+// useSteplibAPI is false.
+func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string, log stepman.Logger, opts Options, useSteplibAPI bool, library *steplibrary.Client, fetcher httpfetch.Client) (ResolvedStep, error) {
 	var stepInfo models.StepInfoModel
 	var resolveErr error
-	if libraryAPI != nil {
-		stepInfo, resolveErr = libraryAPI.FetchStepMetadata(context.Background(), id)
+	if useSteplibAPI {
+		stepInfo, resolveErr = library.FetchStepMetadata(context.Background(), id)
 	} else {
 		// Legacy path: resolve the step from the local steplib spec (resolving the
 		// version constraint to a concrete version). This repeats the resolution
@@ -70,7 +73,7 @@ func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string,
 	version := stepInfo.Version
 
 	// Place the step.yml at destinationStepYML once, up front.
-	if libraryAPI == nil {
+	if !useSteplibAPI {
 		if err := copyStepYML(id.SteplibSource, id.IDorURI, version, destinationStepYML); err != nil {
 			return ResolvedStep{ExecPath: "", StepInfo: stepInfo}, fmt.Errorf("copy step.yml: %s", err)
 		}
@@ -86,9 +89,9 @@ func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string,
 	}
 
 	// Fall back to step source activation.
-	if libraryAPI != nil {
+	if useSteplibAPI {
 		// activate the source over the API, without git clone
-		if err := activateStepSourceWithAPI(libraryAPI, id.IDorURI, version, stepModel.Source, destination, log, opts.IsOfflineMode, fetcher); err != nil {
+		if err := activateStepSourceWithAPI(library, id.IDorURI, version, stepModel.Source, destination, log, opts.IsOfflineMode, fetcher); err != nil {
 			return ResolvedStep{ExecPath: "", StepInfo: stepInfo}, err
 		}
 		return ResolvedStep{ExecPath: "", StepInfo: stepInfo}, nil

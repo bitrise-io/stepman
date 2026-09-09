@@ -12,6 +12,7 @@ import (
 	"github.com/bitrise-io/stepman/internal/httpfetch"
 	"github.com/bitrise-io/stepman/models"
 	"github.com/bitrise-io/stepman/stepid"
+	"github.com/bitrise-io/stepman/steplibrary"
 	"github.com/stretchr/testify/require"
 )
 
@@ -227,7 +228,8 @@ func Benchmark_goBuildStep(b *testing.B) {
 		IDorURI:       "xcode-test",
 		Version:       "5.1.1",
 	}
-	_, err = steplib.ActivateStep(id, stepDir, "", logger, steplib.Options{UsePrecompiled: false, StorageURLs: nil, IsOfflineMode: false}, nil, httpfetch.NewClient(logger))
+	library := steplibrary.New(logger, "http://unused.invalid", httpfetch.NewClient(logger))
+	_, err = steplib.ActivateStep(id, stepDir, "", logger, steplib.Options{UsePrecompiled: false, StorageURLs: nil, IsOfflineMode: false}, false, &library, httpfetch.NewClient(logger))
 	require.NoError(b, err)
 
 	packageName := "github.com/bitrise-steplib/steps-xcode-test"

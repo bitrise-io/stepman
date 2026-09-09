@@ -7,7 +7,6 @@ import (
 	"github.com/bitrise-io/stepman/activator/steplib"
 	"github.com/bitrise-io/stepman/models"
 	"github.com/bitrise-io/stepman/stepid"
-	"github.com/bitrise-io/stepman/steplibrary"
 	"github.com/bitrise-io/stepman/stepman"
 )
 
@@ -27,15 +26,12 @@ func (a *Activator) ActivateSteplibRefStep(
 		DidStepLibUpdate: false,
 	}
 
-	var libraryAPI *steplibrary.Client
-	if a.useSteplibAPIFor(id.SteplibSource) {
-		libraryAPI = a.library
-	}
+	useSteplibAPI := a.useSteplibAPIFor(id.SteplibSource)
 
 	// The inventory source is set here, on the same branch that dispatches, and before
 	// any return: the caller keeps the partial result on error, so a failed activation
 	// is still attributable to the inventory that served it.
-	if libraryAPI == nil {
+	if !useSteplibAPI {
 		activationResult.ActivationInventorySource = ActivationInventorySourceSteplib
 
 		// Old stepman preparation codepath
@@ -55,7 +51,7 @@ func (a *Activator) ActivateSteplibRefStep(
 		StorageURLs:    a.opts.PrecompiledStorageURLs,
 		IsOfflineMode:  isOfflineMode,
 	}
-	resolvedStep, err := steplib.ActivateStep(id, activatedStepDir, stepYMLPath, log, activateOpts, libraryAPI, a.fetcher)
+	resolvedStep, err := steplib.ActivateStep(id, activatedStepDir, stepYMLPath, log, activateOpts, useSteplibAPI, &a.library, a.fetcher)
 	activationResult.StepInfo = resolvedStep.StepInfo
 	activationResult.ExecutablePath = resolvedStep.ExecPath
 	if resolvedStep.ExecPath != "" {
