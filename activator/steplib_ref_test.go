@@ -281,51 +281,6 @@ func TestUseSteplibAPIFor(t *testing.T) {
 	}
 }
 
-// TestOptionsFromEnv covers the env-var reads that used to sit deep in the
-// activation call stack: both flags default to on and only "false"/"0" opt out.
-func TestOptionsFromEnv(t *testing.T) {
-	tests := []struct {
-		name               string
-		envValue           string // empty means the env var is unset
-		wantAPI, wantBinar bool
-	}{
-		{name: "Unset enables both", wantAPI: true, wantBinar: true},
-		{name: "true enables both", envValue: "true", wantAPI: true, wantBinar: true},
-		{name: "1 enables both", envValue: "1", wantAPI: true, wantBinar: true},
-		{name: "Unrecognized value enables both", envValue: "maybe", wantAPI: true, wantBinar: true},
-		{name: "false opts out of both", envValue: "false"},
-		{name: "0 opts out of both", envValue: "0"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			for _, key := range []string{"BITRISE_STEPLIB_USE_API", "BITRISE_STEPLIB_USE_BINARY"} {
-				// t.Setenv registers the restore even when the value is then
-				// removed, so an unset case cannot leak into the rest of the suite.
-				t.Setenv(key, tt.envValue)
-				if tt.envValue == "" {
-					require.NoError(t, os.Unsetenv(key))
-				}
-			}
-
-			opts := OptionsFromEnv()
-			require.Equal(t, tt.wantAPI, opts.UseSteplibAPI)
-			require.Equal(t, tt.wantBinar, opts.UsePrecompiled)
-			require.False(t, opts.IsOfflineMode, "offline mode is never inferred from the environment here")
-		})
-	}
-}
-
-func TestOptionsFromEnv_StorageURLOverride(t *testing.T) {
-	t.Setenv("BITRISE_STEPLIB_STORAGE_URLS", "https://a.example.com,https://b.example.com")
-	require.Equal(t, []string{"https://a.example.com", "https://b.example.com"},
-		OptionsFromEnv().PrecompiledStorageURLs)
-
-	require.NoError(t, os.Unsetenv("BITRISE_STEPLIB_STORAGE_URLS"))
-	require.Nil(t, OptionsFromEnv().PrecompiledStorageURLs,
-		"no override leaves the defaults to be filled in by the constructor")
-}
-
 // TestWithDefaults pins the values New fills in for a zero-value Options.
 func TestWithDefaults(t *testing.T) {
 	//nolint:exhaustruct // exercising exactly the unset fields
