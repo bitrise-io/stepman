@@ -63,7 +63,7 @@ func TestSteplibActivation(t *testing.T) {
 				id := steplibStep("git-clone", ver.version)
 				t.Logf("=== git-clone @ %q (%s) ===", ver.version, ver.label)
 				for _, v := range allVariants {
-					r := activate(t, v, id, false, false)
+					r := activate(t, v, id, false)
 					logResult(t, v.name, r)
 					require.NoError(t, r.err, "%s should activate git-clone@%q", v.name, ver.version)
 					assertStepInfoContent(t, v.name, r.activated.StepInfo, id, ver.label)
@@ -77,7 +77,7 @@ func TestSteplibActivation(t *testing.T) {
 		t.Run("go-step-precompiled-gets-executable", func(t *testing.T) {
 			id := steplibStep("git-clone", "8.5.0")
 			for _, v := range []variant{v1Precompiled, v2Precompiled} {
-				r := activate(t, v, id, false, false)
+				r := activate(t, v, id, false)
 				logResult(t, v.name, r)
 				require.NoError(t, r.err)
 				assert.Equal(t, activator.ActivationTypeSteplibExecutable, r.activated.ActivationType,
@@ -87,7 +87,7 @@ func TestSteplibActivation(t *testing.T) {
 		t.Run("bash-step-precompiled-falls-back-to-source", func(t *testing.T) {
 			id := steplibStep("script", "1.2.1")
 			for _, v := range []variant{v1Precompiled, v2Precompiled} {
-				r := activate(t, v, id, false, false)
+				r := activate(t, v, id, false)
 				logResult(t, v.name, r)
 				require.NoError(t, r.err)
 				assert.Equal(t, activator.ActivationTypeSteplibSource, r.activated.ActivationType,
@@ -96,7 +96,7 @@ func TestSteplibActivation(t *testing.T) {
 		})
 		t.Run("version-without-binary-falls-back-to-source", func(t *testing.T) {
 			id := steplibStep("git-clone", "8.4.0") // 8.4.0 ships no prebuilt binary
-			r := activate(t, v2Precompiled, id, false, false)
+			r := activate(t, v2Precompiled, id, false)
 			logResult(t, v2Precompiled.name, r)
 			require.NoError(t, r.err)
 			assert.Equal(t, activator.ActivationTypeSteplibSource, r.activated.ActivationType)
@@ -104,7 +104,7 @@ func TestSteplibActivation(t *testing.T) {
 		t.Run("source-fetch", func(t *testing.T) {
 			id := steplibStep("git-clone", "8.5.0")
 			for _, v := range []variant{v1Source, v2Source} {
-				r := activate(t, v, id, false, false)
+				r := activate(t, v, id, false)
 				logResult(t, v.name, r)
 				require.NoError(t, r.err)
 				assert.Equal(t, activator.ActivationTypeSteplibSource, r.activated.ActivationType)
@@ -116,28 +116,13 @@ func TestSteplibActivation(t *testing.T) {
 	t.Run("cache-cold-warm", func(t *testing.T) {
 		id := steplibStep("git-clone", "8.5.0")
 		evictFromCache(t, id)
-		cold := activate(t, v1Source, id, false, false)
+		cold := activate(t, v1Source, id, false)
 		logResult(t, "v1-source COLD (cache miss)", cold)
 		require.NoError(t, cold.err)
-		warm := activate(t, v1Source, id, false, false)
+		warm := activate(t, v1Source, id, false)
 		logResult(t, "v1-source WARM (cache hit)", warm)
 		require.NoError(t, warm.err)
 		t.Logf("cold=%s warm=%s (warm should skip the source download)", cold.elapsed.Round(1e6), warm.elapsed.Round(1e6))
-	})
-
-	// 4. Offline mode (v1): warmed version succeeds, non-cached version errors.
-	t.Run("offline", func(t *testing.T) {
-		warmed := steplibStep("git-clone", "8.5.0")
-		require.NoError(t, activate(t, v1Source, warmed, false, false).err, "prime the cache online")
-		hit := activate(t, v1Source, warmed, true, false)
-		logResult(t, "offline + cached", hit)
-		assert.NoError(t, hit.err, "offline activation of a cached version should succeed")
-
-		missing := steplibStep("git-clone", "8.4.1")
-		evictFromCache(t, missing)
-		miss := activate(t, v1Source, missing, true, false)
-		logResult(t, "offline + not cached", miss)
-		assert.Error(t, miss.err, "offline activation of a non-cached version should fail")
 	})
 
 	// 5. Error cases — paired v1 vs v2, both must fail; capture messages.
@@ -158,7 +143,7 @@ func TestSteplibActivation(t *testing.T) {
 			c := c
 			t.Run(c.name, func(t *testing.T) {
 				id := steplibStep(c.id, c.ver)
-				r1, r2 := logPair(t, id, v1Source, v2Source, false)
+				r1, r2 := logPair(t, id, v1Source, v2Source)
 				assert.Error(t, r1.err, "v1 should fail: %s", c.name)
 				assert.Error(t, r2.err, "v2 should fail: %s", c.name)
 			})
@@ -168,10 +153,10 @@ func TestSteplibActivation(t *testing.T) {
 	// 6. didStepLibUpdateInWorkflow flag (v1): true skips the steplib update.
 	t.Run("didsteplibupdate-flag", func(t *testing.T) {
 		id := steplibStep("git-clone", "8.5.0")
-		off := activate(t, v1Source, id, false, false)
+		off := activate(t, v1Source, id, false)
 		logResult(t, "didStepLibUpdateInWorkflow=false", off)
 		require.NoError(t, off.err)
-		on := activate(t, v1Source, id, false, true)
+		on := activate(t, v1Source, id, true)
 		logResult(t, "didStepLibUpdateInWorkflow=true", on)
 		require.NoError(t, on.err)
 	})
@@ -183,7 +168,7 @@ func TestSteplibActivation_APISourceFreshEnv(t *testing.T) {
 	t.Setenv("HOME", t.TempDir()) // fresh: ~/.stepman is not set up
 
 	id := steplibStep("git-clone", "8.5.0")
-	r := activate(t, v2Source, id, false, false)
+	r := activate(t, v2Source, id, false)
 	logResult(t, "api-source (fresh env, no SetupLibrary)", r)
 
 	require.NoError(t, r.err, "api source activation must work without the git cloned steplib set up")

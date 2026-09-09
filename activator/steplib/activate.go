@@ -39,10 +39,6 @@ type Options struct {
 	// StorageURLs are the base URLs tried in order for precompiled
 	// executables. Empty means DefaultPrecompiledStorageURLs.
 	StorageURLs []string
-
-	// IsOfflineMode forbids network access, restricting activation to what is
-	// already in the local StepLib cache.
-	IsOfflineMode bool
 }
 
 // storageURLs is the configured list, or the built-in one when unset, so a
@@ -102,7 +98,7 @@ func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string,
 	// Fall back to step source activation.
 	if useSteplibAPI {
 		// activate the source over the API, without git clone
-		if err := activateStepSourceWithAPI(library, id.IDorURI, version, stepModel.Source, destination, log, opts.IsOfflineMode, fetcher); err != nil {
+		if err := activateStepSourceWithAPI(library, id.IDorURI, version, stepModel.Source, destination, log, fetcher); err != nil {
 			return ResolvedStep{ExecPath: "", StepInfo: stepInfo}, err
 		}
 		return ResolvedStep{ExecPath: "", StepInfo: stepInfo}, nil
@@ -113,7 +109,7 @@ func ActivateStep(id stepid.CanonicalID, destination, destinationStepYML string,
 	if err != nil {
 		return ResolvedStep{ExecPath: "", StepInfo: stepInfo}, fmt.Errorf("failed to read %s steplib: %s", id.SteplibSource, err)
 	}
-	if err := activateStepSource(stepCollection, id.SteplibSource, id.IDorURI, version, stepModel, destination, log, opts.IsOfflineMode, fetcher); err != nil {
+	if err := activateStepSource(stepCollection, id.SteplibSource, id.IDorURI, version, stepModel, destination, log, fetcher); err != nil {
 		return ResolvedStep{ExecPath: "", StepInfo: stepInfo}, err
 	}
 
