@@ -21,7 +21,7 @@ func TestActivateStepSourceWithAPI_OfflineFails(t *testing.T) {
 	log := apiTestLogger{t}
 	client := steplibrary.New(log, "http://unused.invalid", httpfetch.NewClient(log))
 
-	err := activateStepSourceWithAPI(&client, "hello-step", "2.0.0",
+	err := activateStepSourceWithAPI(client, "hello-step", "2.0.0",
 		&models.StepSourceModel{Git: "https://github.com/example/hello-step.git"}, t.TempDir(), log, true, httpfetch.NewClient(log))
 
 	require.Error(t, err)
@@ -33,13 +33,13 @@ func TestActivateStepSourceWithAPI_MissingSourceGitFails(t *testing.T) {
 	client := steplibrary.New(log, "http://unused.invalid", httpfetch.NewClient(log))
 
 	t.Run("nil source", func(t *testing.T) {
-		err := activateStepSourceWithAPI(&client, "hello-step", "2.0.0", nil, t.TempDir(), log, false, httpfetch.NewClient(log))
+		err := activateStepSourceWithAPI(client, "hello-step", "2.0.0", nil, t.TempDir(), log, false, httpfetch.NewClient(log))
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "source git")
 	})
 
 	t.Run("empty git URL", func(t *testing.T) {
-		err := activateStepSourceWithAPI(&client, "hello-step", "2.0.0",
+		err := activateStepSourceWithAPI(client, "hello-step", "2.0.0",
 			&models.StepSourceModel{Git: ""}, t.TempDir(), log, false, httpfetch.NewClient(log))
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "source git")
@@ -60,7 +60,7 @@ func TestActivateStepSourceWithAPI_NoDownloadLocationFails(t *testing.T) {
 	log := apiTestLogger{t}
 	client := steplibrary.New(log, srv.URL, httpfetch.NewWithClient(srv.Client()))
 
-	err := activateStepSourceWithAPI(&client, "hello-step", "2.0.0",
+	err := activateStepSourceWithAPI(client, "hello-step", "2.0.0",
 		&models.StepSourceModel{Git: "https://github.com/example/hello-step.git"}, t.TempDir(), log, false, httpfetch.NewClient(log))
 
 	require.Error(t, err)

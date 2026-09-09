@@ -47,11 +47,11 @@ func (a *Activator) ActivateSteplibRefStep(
 
 	// ActivateStep dispatches to the v2 or legacy codepath.
 	activateOpts := steplib.Options{
-		UsePrecompiled: a.opts.UsePrecompiled,
-		StorageURLs:    a.opts.PrecompiledStorageURLs,
-		IsOfflineMode:  isOfflineMode,
+		DisablePrecompiled: a.opts.DisablePrecompiled,
+		StorageURLs:        a.opts.PrecompiledStorageURLs,
+		IsOfflineMode:      isOfflineMode,
 	}
-	resolvedStep, err := steplib.ActivateStep(id, activatedStepDir, stepYMLPath, log, activateOpts, useSteplibAPI, &a.library, a.fetcher)
+	resolvedStep, err := steplib.ActivateStep(id, activatedStepDir, stepYMLPath, log, activateOpts, useSteplibAPI, a.library, a.fetcher)
 	activationResult.StepInfo = resolvedStep.StepInfo
 	activationResult.ExecutablePath = resolvedStep.ExecPath
 	if resolvedStep.ExecPath != "" {

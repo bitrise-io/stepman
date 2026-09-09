@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/bitrise-io/go-utils/pathutil"
-	"github.com/bitrise-io/stepman/activator/steplib"
 	"github.com/bitrise-io/stepman/stepid"
 	"github.com/bitrise-io/stepman/stepman"
 	"github.com/stretchr/testify/require"
@@ -158,7 +157,7 @@ func TestActivateSteplibRefStep(t *testing.T) {
 			workDir := t.TempDir()
 
 			//nolint:exhaustruct // the remaining options are irrelevant on the legacy path
-			a := New(logger, Options{UseSteplibAPI: false})
+			a := New(logger, Options{DisableSteplibAPI: true})
 
 			// didStepLibUpdateInWorkflow=true keeps the StepLib update path off, so
 			// resolution is served from the local cache and DidStepLibUpdate is false.
@@ -223,7 +222,7 @@ func TestActivateSteplibRefStep_APIEnabled(t *testing.T) {
 			workDir := t.TempDir()
 
 			//nolint:exhaustruct // storage URLs and the API URL fall back to their defaults
-			a := New(TestLogger[*testing.T]{t}, Options{UseSteplibAPI: true, UsePrecompiled: false})
+			a := New(TestLogger[*testing.T]{t}, Options{DisableSteplibAPI: false, DisablePrecompiled: true})
 
 			got, err := a.ActivateSteplibRefStep(tt.id, activatedStepDir, workDir, false)
 			if tt.wantErr {
@@ -275,18 +274,29 @@ func TestUseSteplibAPIFor(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			//nolint:exhaustruct // only the API flag decides this
-			a := New(TestLogger[*testing.T]{t}, Options{UseSteplibAPI: tt.useSteplibAPI})
+			a := New(TestLogger[*testing.T]{t}, Options{DisableSteplibAPI: !tt.useSteplibAPI})
 			require.Equal(t, tt.want, a.useSteplibAPIFor(tt.steplib))
 		})
 	}
 }
 
-// TestWithDefaults pins the values New fills in for a zero-value Options.
+// TestWithDefaults pins the values New fills in for a zero-value Options. The
+// storage URLs are deliberately absent: steplib owns that list and defaults it
+// itself, so a caller reaching steplib directly gets them too.
 func TestWithDefaults(t *testing.T) {
 	//nolint:exhaustruct // exercising exactly the unset fields
 	got := withDefaults(Options{})
 	require.Equal(t, bitriseSteplibAPIURL, got.SteplibAPIURL)
-	require.Equal(t, steplib.DefaultPrecompiledStorageURLs, got.PrecompiledStorageURLs)
+	require.Nil(t, got.PrecompiledStorageURLs)
+}
+
+// TestZeroOptionsKeepProductionDefaults guards the opt-out shape of the flags:
+// a caller that sets neither must still get the API and prebuilt executables.
+func TestZeroOptionsKeepProductionDefaults(t *testing.T) {
+	//nolint:exhaustruct // the point is that the rest stays unset
+	a := New(TestLogger[*testing.T]{t}, Options{})
+	require.True(t, a.useSteplibAPIFor(bitriseSteplibURL))
+	require.False(t, a.opts.DisablePrecompiled)
 }
 
 type genericLogger interface {
@@ -370,7 +380,7 @@ func BenchmarkActivateSteplibRefStep(b *testing.B) {
 				}
 
 				//nolint:exhaustruct // the benchmark drives the legacy git-clone path
-				a := New(logger, Options{UseSteplibAPI: false, IsOfflineMode: tt.isOfflineMode})
+				a := New(logger, Options{DisableSteplibAPI: true, IsOfflineMode: tt.isOfflineMode})
 				got, gotErr := a.ActivateSteplibRefStep(tt.id, stepYMLCopyPth, tmpDir, tt.didStepLibUpdateInWorkflow)
 				if gotErr != nil {
 					if !tt.wantErr {

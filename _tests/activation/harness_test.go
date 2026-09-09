@@ -82,9 +82,9 @@ func activate(t *testing.T, v variant, id stepid.CanonicalID, offline, didStepLi
 	// override to redirect it at a dev/test inventory.
 	//nolint:exhaustruct // the API URL and storage URLs fall back to their defaults
 	opts := activator.Options{
-		UseSteplibAPI:  v.useAPI,
-		UsePrecompiled: v.precompiled,
-		IsOfflineMode:  offline,
+		DisableSteplibAPI:  !v.useAPI,
+		DisablePrecompiled: !v.precompiled,
+		IsOfflineMode:      offline,
 	}
 
 	logger := &capturingLogger{}
