@@ -23,6 +23,8 @@ Activation goes through `activator.Activator`, built once per run with `activato
 
 Precompiled step executables (skip building from source) are controlled by `Options.UsePrecompiled`, with the storage URLs to try in `Options.PrecompiledStorageURLs` (defaults in `activator/steplib/activate.go`).
 
+Inventory reads go through an in-memory HTTP cache (`github.com/bartventer/httpcache`) that honours the API's `Cache-Control` and revalidates with ETags, built in `httpfetch.NewClients` and living only for the run. Step archives and precompiled executables use the second, uncached client from the same pair; both share one connection pool.
+
 The Bitrise CLI maps `BITRISE_STEPLIB_USE_API`, `BITRISE_STEPLIB_USE_BINARY` and `BITRISE_STEPLIB_STORAGE_URLS` onto those options in `cli/step_activator.go`; both feature flags default to on there and are disabled with `false`/`0`.
 
 ## Development Commands

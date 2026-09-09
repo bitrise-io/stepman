@@ -67,13 +67,24 @@ type Activator struct {
 // building one per step is what this constructor exists to avoid.
 func New(log stepman.Logger, opts Options) *Activator {
 	opts = withDefaults(opts)
-	fetcher := httpfetch.NewClient(log)
+
+	// The inventory client caches responses in memory; the download client
+	// does not. Both share one connection pool. The cache is an optimisation,
+	// so if it cannot be built the run continues without it rather than
+	// failing - but it says so, because a run silently paying full price for
+	// every inventory read is worth knowing about.
+	clients, err := httpfetch.NewClients(log)
+	if err != nil {
+		log.Warnf("Continuing without the in-memory inventory cache: %s", err)
+		plain := httpfetch.NewClient(log)
+		clients = httpfetch.Clients{Inventory: plain, Downloads: plain}
+	}
 
 	return &Activator{
 		log:     log,
 		opts:    opts,
-		fetcher: fetcher,
-		library: steplibrary.New(log, opts.SteplibAPIURL, fetcher),
+		fetcher: clients.Downloads,
+		library: steplibrary.New(log, opts.SteplibAPIURL, clients.Inventory),
 	}
 }
 

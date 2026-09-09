@@ -16,8 +16,15 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/bartventer/httpcache"
+	// Registers the "memcache" store scheme used by inventoryCacheDSN.
+	_ "github.com/bartventer/httpcache/store/memcache"
 	"github.com/hashicorp/go-retryablehttp"
 )
+
+// inventoryCacheDSN selects the library's in-memory store. Nothing is written
+// to disk: the cache lives and dies with the process.
+const inventoryCacheDSN = "memcache://"
 
 // Client streams or atomically downloads HTTP resources. Implementations
 // returned by NewClient retry transient failures on both Get and Download.
@@ -60,6 +67,64 @@ func NewClient(logger Logger) Client {
 	rc.Logger = &retryhttpLogger{l: logger}
 	rc.ErrorHandler = retryablehttp.PassthroughErrorHandler
 	return &client{httpClient: rc.StandardClient()}
+}
+
+// Clients are the two HTTP clients a stepman run needs. They share one
+// retryablehttp client, and therefore one connection pool, so every request a
+// run makes can reuse the same connections.
+//
+// They are a struct rather than two return values because both have the same
+// type: a transposed pair would compile and then quietly cache the wrong half.
+type Clients struct {
+	// Inventory reads StepLib V2 inventory JSON through an in-memory HTTP
+	// cache that honours Cache-Control and revalidates with ETags. The
+	// inventory is small and every step re-reads it, so this is where the
+	// caching pays.
+	Inventory Client
+
+	// Downloads fetches step archives and precompiled executables, uncached.
+	// They are large, immutable, already hash-verified, and land at their own
+	// paths, so holding them in memory would cost a lot and save nothing.
+	Downloads Client
+}
+
+// NewClients builds the pair over a single shared connection pool.
+func NewClients(logger Logger) (Clients, error) {
+	rc := retryablehttp.NewClient()
+	rc.Logger = &retryhttpLogger{l: logger}
+	rc.ErrorHandler = retryablehttp.PassthroughErrorHandler
+
+	// StandardClient returns a fresh *http.Client each call, both backed by
+	// this one retryablehttp client - which is where the connection pool
+	// lives, so the two share it.
+	downloads := rc.StandardClient()
+	inventory := rc.StandardClient()
+
+	// The cache sits above the retries: a hit returns without entering the
+	// retry machinery, while a revalidation still gets retried on 5xx.
+	cached, err := newCachingTransport(downloads.Transport)
+	if err != nil {
+		return Clients{}, err
+	}
+	inventory.Transport = cached
+
+	return Clients{
+		Inventory: &client{httpClient: inventory},
+		Downloads: &client{httpClient: downloads},
+	}, nil
+}
+
+// newCachingTransport wraps upstream with the in-memory response cache.
+// httpcache.NewTransport panics rather than returning an error when the store
+// cannot be opened, so contain it here: a library panic must not take down a
+// build over a cache that is only an optimisation.
+func newCachingTransport(upstream http.RoundTripper) (rt http.RoundTripper, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			rt, err = nil, fmt.Errorf("open in-memory HTTP cache: %v", r)
+		}
+	}()
+	return httpcache.NewTransport(inventoryCacheDSN, httpcache.WithUpstream(upstream)), nil
 }
 
 // NewWithClient returns a Client backed by the given httpClient, which must be
