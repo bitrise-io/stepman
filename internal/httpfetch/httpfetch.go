@@ -115,16 +115,55 @@ func NewClients(logger Logger) (Clients, error) {
 }
 
 // newCachingTransport wraps upstream with the in-memory response cache.
-// httpcache.NewTransport panics rather than returning an error when the store
-// cannot be opened, so contain it here: a library panic must not take down a
-// build over a cache that is only an optimisation.
+// httpcache.NewTransport panics with ErrOpenCache rather than returning an
+// error when the store cannot be opened, so turn that one back into an error:
+// a cache that is only an optimisation must not take down a build. Anything
+// else is a genuine bug and keeps its stack.
 func newCachingTransport(upstream http.RoundTripper) (rt http.RoundTripper, err error) {
 	defer func() {
-		if r := recover(); r != nil {
-			rt, err = nil, fmt.Errorf("open in-memory HTTP cache: %v", r)
+		r := recover()
+		if r == nil {
+			return
 		}
+		if rerr, ok := r.(error); ok && errors.Is(rerr, httpcache.ErrOpenCache) {
+			rt, err = nil, fmt.Errorf("open in-memory HTTP cache: %w", rerr)
+			return
+		}
+		panic(r)
 	}()
-	return httpcache.NewTransport(inventoryCacheDSN, httpcache.WithUpstream(upstream)), nil
+	return httpcache.NewTransport(
+		inventoryCacheDSN,
+		httpcache.WithUpstream(cacheSuccessesOnly{upstream: upstream}),
+	), nil
+}
+
+// cacheSuccessesOnly stops the cache storing anything but a 2xx.
+//
+// The cache stores any final status carrying a freshness indicator, and
+// retryablehttp is configured with PassthroughErrorHandler, so a 502 that
+// survives the retries is handed back as a normal response. If the origin's
+// error page carries the same "max-age=60" the inventory paths use, that 502
+// gets stored and served as fresh for the next minute - with no request and no
+// retries - so one blip fails every remaining step of the run instead of one.
+//
+// Marking non-2xx responses no-store keeps them out. It does not change what
+// the caller sees: httpfetch.Get rejects every non-2xx anyway.
+type cacheSuccessesOnly struct{ upstream http.RoundTripper }
+
+func (c cacheSuccessesOnly) RoundTrip(req *http.Request) (*http.Response, error) {
+	resp, err := c.upstream.RoundTrip(req)
+	if err != nil || resp == nil {
+		return resp, err
+	}
+	// 304 is how revalidation succeeds; the cache consumes it and must not be
+	// told to discard the entry it belongs to.
+	if resp.StatusCode == http.StatusNotModified {
+		return resp, nil
+	}
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		resp.Header.Set("Cache-Control", "no-store")
+	}
+	return resp, nil
 }
 
 // NewWithClient returns a Client backed by the given httpClient, which must be
