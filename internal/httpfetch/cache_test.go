@@ -53,7 +53,7 @@ func (s *inventoryServer) start(t *testing.T) *httptest.Server {
 // mirroring NewClients' wiring: the cache sits above the server's transport.
 func cachingClientFor(t *testing.T, srv *httptest.Server) Client {
 	t.Helper()
-	rt, err := newCachingTransport(srv.Client().Transport)
+	rt, err := newCachingTransport(testLogger{t}, srv.Client().Transport)
 	require.NoError(t, err)
 	return NewWithClient(&http.Client{Transport: rt})
 }

@@ -16,6 +16,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"log/slog"
+
 	"github.com/bartventer/httpcache"
 	// Registers the "memcache" store scheme used by inventoryCacheDSN.
 	_ "github.com/bartventer/httpcache/store/memcache"
@@ -49,6 +51,30 @@ type Client interface {
 type Logger interface {
 	Debugf(format string, v ...any)
 }
+
+// slogHandler routes the cache library's slog output to our Logger, so cache
+// hits, misses and revalidations show up under --debug alongside everything
+// else. Without it the library defaults to a discard handler and the cache is
+// invisible in exactly the situation someone would be debugging.
+type slogHandler struct{ l Logger }
+
+func (h slogHandler) Enabled(context.Context, slog.Level) bool { return true }
+
+func (h slogHandler) Handle(_ context.Context, r slog.Record) error {
+	msg := r.Message
+	r.Attrs(func(a slog.Attr) bool {
+		msg += " " + a.String()
+		return true
+	})
+	h.l.Debugf("httpcache: %s", msg)
+	return nil
+}
+
+// WithAttrs and WithGroup are required by slog.Handler. The cache's output is
+// flat debug lines, so grouping buys nothing and the receiver is returned
+// unchanged rather than building a tree we would only flatten again.
+func (h slogHandler) WithAttrs([]slog.Attr) slog.Handler { return h }
+func (h slogHandler) WithGroup(string) slog.Handler      { return h }
 
 // retryhttpLogger adapts Logger to the retryablehttp.Logger interface (Printf only).
 type retryhttpLogger struct{ l Logger }
@@ -102,7 +128,7 @@ func NewClients(logger Logger) (Clients, error) {
 
 	// The cache sits above the retries: a hit returns without entering the
 	// retry machinery, while a revalidation still gets retried on 5xx.
-	cached, err := newCachingTransport(downloads.Transport)
+	cached, err := newCachingTransport(logger, downloads.Transport)
 	if err != nil {
 		return Clients{}, err
 	}
@@ -119,7 +145,7 @@ func NewClients(logger Logger) (Clients, error) {
 // error when the store cannot be opened, so turn that one back into an error:
 // a cache that is only an optimisation must not take down a build. Anything
 // else is a genuine bug and keeps its stack.
-func newCachingTransport(upstream http.RoundTripper) (rt http.RoundTripper, err error) {
+func newCachingTransport(logger Logger, upstream http.RoundTripper) (rt http.RoundTripper, err error) {
 	defer func() {
 		r := recover()
 		if r == nil {
@@ -134,6 +160,7 @@ func newCachingTransport(upstream http.RoundTripper) (rt http.RoundTripper, err 
 	return httpcache.NewTransport(
 		inventoryCacheDSN,
 		httpcache.WithUpstream(cacheSuccessesOnly{upstream: upstream}),
+		httpcache.WithLogger(slog.New(slogHandler{l: logger})),
 	), nil
 }
 
