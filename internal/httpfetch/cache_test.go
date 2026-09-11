@@ -185,14 +185,14 @@ func TestCacheKeyedPerURL(t *testing.T) {
 // asserting against a separately built client would pass even if NewClients
 // wired the cache to the wrong half.
 func TestNewClientsCachesInventoryOnly(t *testing.T) {
-	clients, err := NewClients(testLogger{t})
+	clients, err := NewCachingClient(testLogger{t})
 	require.NoError(t, err)
 
 	t.Run("inventory caches", func(t *testing.T) {
 		origin := &inventoryServer{cacheControl: "public, max-age=60, must-revalidate", etag: `"v1"`, body: `{"step_ids":["script"]}`}
 		srv := origin.start(t)
 		for range 3 {
-			require.Equal(t, `{"step_ids":["script"]}`, getBody(t, clients.Inventory, srv.URL))
+			require.Equal(t, `{"step_ids":["script"]}`, getBody(t, clients.Caching, srv.URL))
 		}
 		require.EqualValues(t, 1, origin.hits.Load(), "the inventory client must serve repeats from cache")
 	})
@@ -203,7 +203,7 @@ func TestNewClientsCachesInventoryOnly(t *testing.T) {
 		origin := &inventoryServer{cacheControl: "public, max-age=60, must-revalidate", etag: `"v1"`, body: "binary-ish"}
 		srv := origin.start(t)
 		for range 3 {
-			require.Equal(t, "binary-ish", getBody(t, clients.Downloads, srv.URL))
+			require.Equal(t, "binary-ish", getBody(t, clients.Passthrough, srv.URL))
 		}
 		require.EqualValues(t, 3, origin.hits.Load(), "step archives and executables must never be held in memory")
 	})
