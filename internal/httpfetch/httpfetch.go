@@ -62,6 +62,14 @@ type client struct {
 	httpClient *http.Client
 }
 
+// newRetryingClient returns an *http.Client that retries transient failures.
+func newRetryingClient(logger Logger) *http.Client {
+	rc := retryablehttp.NewClient()
+	rc.Logger = &retryhttpLogger{l: logger}
+	rc.ErrorHandler = retryablehttp.PassthroughErrorHandler
+	return rc.StandardClient()
+}
+
 // NewClient returns a Client backed by a retryablehttp client.
 func NewClient(logger Logger) Client {
 	return &client{httpClient: newRetryingClient(logger)}
@@ -70,28 +78,35 @@ func NewClient(logger Logger) Client {
 // NewCachingClient returns a caching and a passthrough Client. Both run over the
 // same retrying transport, so they share one connection pool.
 func NewCachingClient(logger Logger) (Clients, error) {
+	// The cache is layered above the retries, so a 500 is retried before it is stored.
 	passthrough := newRetryingClient(logger)
-
-	// The cache sits above the retries, so a 500 is retried before it is stored.
-	cached, err := newCachingTransport(logger, passthrough.Transport)
+	caching, err := NewCachingWithClient(logger, passthrough)
 	if err != nil {
 		return Clients{}, err
 	}
-	caching := *passthrough
-	caching.Transport = cached
 
 	return Clients{
-		Caching:     &client{httpClient: &caching},
+		Caching:     caching,
 		Passthrough: &client{httpClient: passthrough},
 	}, nil
 }
 
-// newRetryingClient returns an *http.Client that retries transient failures.
-func newRetryingClient(logger Logger) *http.Client {
-	rc := retryablehttp.NewClient()
-	rc.Logger = &retryhttpLogger{l: logger}
-	rc.ErrorHandler = retryablehttp.PassthroughErrorHandler
-	return rc.StandardClient()
+// NewCachingWithClient returns a caching Client.
+// Prefer NewCachingClient unless you need a specific transport.
+func NewCachingWithClient(logger Logger, httpClient *http.Client) (Client, error) {
+	upstream := httpClient.Transport
+	if upstream == nil {
+		upstream = http.DefaultTransport // what net/http itself uses for a nil Transport
+	}
+
+	cached, err := newCachingTransport(logger, upstream)
+	if err != nil {
+		return nil, err
+	}
+
+	caching := *httpClient
+	caching.Transport = cached
+	return &client{httpClient: &caching}, nil
 }
 
 // NewWithClient returns a Client backed by the given httpClient.
