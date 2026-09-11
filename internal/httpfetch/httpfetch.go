@@ -64,33 +64,34 @@ type client struct {
 
 // NewClient returns a Client backed by a retryablehttp client.
 func NewClient(logger Logger) Client {
-	rc := retryablehttp.NewClient()
-	rc.Logger = &retryhttpLogger{l: logger}
-	rc.ErrorHandler = retryablehttp.PassthroughErrorHandler
-	return &client{httpClient: rc.StandardClient()}
+	return &client{httpClient: newRetryingClient(logger)}
 }
 
-// NewCachingClient returns both a caching and passthrough client sharing a connection pool
+// NewCachingClient returns a caching and a passthrough Client. Both run over the
+// same retrying transport, so they share one connection pool.
 func NewCachingClient(logger Logger) (Clients, error) {
-	rc := retryablehttp.NewClient()
-	rc.Logger = &retryhttpLogger{l: logger}
-	rc.ErrorHandler = retryablehttp.PassthroughErrorHandler
+	passthrough := newRetryingClient(logger)
 
-	// StandardClient returns a fresh *http.Client each call
-	caching := rc.StandardClient()
-	passthrough := rc.StandardClient()
-
-	// The cache sits above the retryablehttp (so 500 status is retried)
-	cached, err := newCachingTransport(logger, caching.Transport)
+	// The cache sits above the retries, so a 500 is retried before it is stored.
+	cached, err := newCachingTransport(logger, passthrough.Transport)
 	if err != nil {
 		return Clients{}, err
 	}
-	passthrough.Transport = cached
+	caching := *passthrough
+	caching.Transport = cached
 
 	return Clients{
-		Caching:     &client{httpClient: passthrough},
-		Passthrough: &client{httpClient: caching},
+		Caching:     &client{httpClient: &caching},
+		Passthrough: &client{httpClient: passthrough},
 	}, nil
+}
+
+// newRetryingClient returns an *http.Client that retries transient failures.
+func newRetryingClient(logger Logger) *http.Client {
+	rc := retryablehttp.NewClient()
+	rc.Logger = &retryhttpLogger{l: logger}
+	rc.ErrorHandler = retryablehttp.PassthroughErrorHandler
+	return rc.StandardClient()
 }
 
 // NewWithClient returns a Client backed by the given httpClient.
