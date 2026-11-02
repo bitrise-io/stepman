@@ -32,9 +32,9 @@ const (
 	// Fixed git identity used when materializing the fixture steplib so the
 	// resulting commit SHA (via source.commit of share-created steps and audit
 	// temp paths) is deterministic across machines.
-	fixtureGitName  = "Stepman Golden"
-	fixtureGitEmail = "stepman-golden@bitrise.io"
-	fixtureGitDate  = "2020-01-01T00:00:00Z"
+	fixtureGitName   = "Stepman Golden"
+	fixtureGitEmail  = "stepman-golden@bitrise.io"
+	fixtureGitDate   = "2020-01-01T00:00:00Z"
 	maxInlineContent = 1024
 )
 
@@ -306,7 +306,10 @@ func (n normalizer) normalize(s string) string {
 	s = publishedAtYAMLPattern.ReplaceAllString(s, "published_at: $$PUBLISHED_AT")
 	s = sha1Pattern.ReplaceAllString(s, "$$SHA")
 	if n.version != "" {
-		s = strings.ReplaceAll(s, n.version, "$VERSION")
+		// Match on word boundaries only: "dev" would otherwise collide with
+		// "development" inside the `share` help text.
+		versionRe := regexp.MustCompile(`\b` + regexp.QuoteMeta(n.version) + `\b`)
+		s = versionRe.ReplaceAllString(s, "$$VERSION")
 	}
 	return s
 }

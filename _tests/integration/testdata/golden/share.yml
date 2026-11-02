@@ -1,0 +1,81 @@
+steps:
+- args: [share]
+  exit_code: 0
+  stdout: "Do you want to share your own Step with the world? Awesome!\n\nJust follow
+    these steps:\n\n0. First, you need to ensure that your step is stored in a public
+    git repository\nand it follows our step development guideline: https://github.com/bitrise-io/bitrise/blob/master/_docs/step-development-guideline.md.\n\nTo
+    audit your step on your local machine call $ stepman audit --step-yml path/to/your/step.yml\n\n1.
+    Fork the StepLib repository you want to share your Step in.\nYou can find the
+    main (\"official\") StepLib repository at https://github.com/bitrise-io/bitrise-steplib\n\n2.
+    Call $ stepman share start -c https://github.com/[your-username]/bitrise-steplib.git,
+    with the git clone URL of your forked StepLib repository.\nThis will prepare your
+    forked StepLib locally for sharing.\n\n3. Next, call $ stepman share create --tag
+    [step-version-tag] --git [step-git-uri].git --stepid [step-id],\nto add your Step
+    to your forked StepLib repository (locally).\n\nImportant: you have to add the
+    (version) tag to your Step's repository.\n\n4. You can call $ stepman audit -c
+    https://github.com/[your-username]/bitrise-steplib.git \nto perform a complete
+    health-check on your forked StepLib before submitting your Pull Request.\n\nThis
+    can help you catch issues which might prevent your Step from being accepted.\n\n5.
+    Almost done! You should review your Step's step.yml file (the one added to the
+    local StepLib),\nand once you're happy with it call $ stepman share finish\n\nThis
+    will commit & push the step.yml into your forked StepLib repository.\n\n6. The
+    only remaining thing is to create a Pull Request in the original StepLib repository.
+    And you are done!\n\n"
+- args: [share, start, -c, 'file://$STEPLIB']
+  exit_code: 0
+  stdout: |+
+    Validating Step share params...
+    all inputs are valid
+
+    Preparing StepLib...
+    StepLib prepared at: $WORK/home/.stepman/step_collections/$ALIAS/collection
+
+    Next, call $ stepman share create --tag [step-version-tag] --git [step-git-uri].git --stepid [step-id],
+    to add your Step to your forked StepLib repository (locally).
+
+    Important: you have to add the (version) tag to your Step's repository.
+
+  changed_files:
+    home/.stepman/routing.json: "{\n\t\"file://$STEPLIB\": \"$ALIAS\"\n}"
+    home/.stepman/share.json: "{\n\t\"Collection\": \"file://$STEPLIB\",\n\t\"StepID\":
+      \"\",\n\t\"StepTag\": \"\"\n}"
+    home/.stepman/step_collections/$ALIAS/collection/LICENSE: |
+      MIT License
+
+      Copyright (c) 2024 Bitrise
+
+      Permission is hereby granted, free of charge, to any person obtaining a copy
+      of this software and associated documentation files (the "Software"), to deal
+      in the Software without restriction, including without limitation the rights
+      to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+      copies of the Software, and to permit persons to whom the Software is
+      furnished to do so, subject to the following conditions:
+
+      The above copyright notice and this permission notice shall be included in all
+      copies or substantial portions of the Software.
+
+      THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
+    home/.stepman/step_collections/$ALIAS/collection/README.md: |
+      # Stepman integration-test fixture steplib
+
+      A minimal steplib layout consumed by the golden parity suite in
+      `_tests/integration`. The runner copies this tree into a temp dir,
+      turns it into a git repo, and points `stepman` subcommands at it over
+      `file://`. Not used by any live step or by the public steplib index.
+
+      Contents:
+
+      - `steplib.yml` — minimal collection metadata.
+      - `steps/test-step/1.0.0/step.yml` — one well-formed step version.
+    home/.stepman/step_collections/$ALIAS/collection/steplib.yml: |
+      format_version: 1.0.0
+      steplib_source: https://github.com/bitrise-io/stepman-fixture-steplib.git
+      assets_download_base_uri: ""
+      download_locations:
+      - type: git
+        src: source/git
+    home/.stepman/step_collections/$ALIAS/collection/steps/test-step/1.0.0/step.yml: <1091
+      bytes, sha256 c45c472ce64eb9a74bea2a94f449bbe132c9b48f33a746034b96dd1a9c7436d1>
+    home/.stepman/step_collections/$ALIAS/spec/slim-spec.json: <2327 bytes, sha256
+      cce1032e2be7e53b35b0ee7fa9441ed5c81de73427fef3102122f493804c85b2>
+    home/.stepman/step_collections/$ALIAS/spec/spec.json: <2327 bytes, sha256 cce1032e2be7e53b35b0ee7fa9441ed5c81de73427fef3102122f493804c85b2>

@@ -77,4 +77,13 @@ var goldenCases = []goldenCase{
 		stepmanCmd("export-spec", "--steplib", "file://$STEPLIB", "--output", "$WORK/out-latest.json", "--export-type", "latest"),
 		stepmanCmd("export-spec", "--steplib", "file://$STEPLIB", "--output", "$WORK/out-minimal.json", "--export-type", "minimal"),
 	}},
+	// `share` covers only the two offline-safe subcommands (`share` help and
+	// `share start`). `share create`'s step-audit rejects any non-http(s)
+	// source URL, and the subsequent re-audit (and `share audit` and
+	// `share finish`) clone the step from `source.git`, which turns the test
+	// into a GitHub-reachability check. Documented as a skip in the PR body.
+	{name: "share", needsSteplib: true, steps: []goldenStep{
+		stepmanCmd("share"),
+		stepmanCmd("share", "start", "-c", "file://$STEPLIB"),
+	}},
 }
