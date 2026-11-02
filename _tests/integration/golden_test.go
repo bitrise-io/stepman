@@ -228,17 +228,29 @@ func runGoldenCase(t *testing.T, bin, version string, tc goldenCase) []goldenRes
 		}
 
 		curr := snapshotFiles(t, work)
-		for _, name := range sortedKeys(curr) {
-			if prevContent, ok := prev[name]; !ok || prevContent != curr[name] {
+		// Diff on the NORMALIZED representation so that a rewrite that only
+		// touches an epoch timestamp inside e.g. spec.json (which the
+		// normalizer collapses to $GENERATED_AT) does not surface as a bogus
+		// changed_files entry on an otherwise no-op step.
+		normPrev := make(map[string]string, len(prev))
+		for name, content := range prev {
+			normPrev[n.normalize(name)] = n.normalize(content)
+		}
+		normCurr := make(map[string]string, len(curr))
+		for name, content := range curr {
+			normCurr[n.normalize(name)] = n.normalize(content)
+		}
+		for _, name := range sortedKeys(normCurr) {
+			if prevContent, ok := normPrev[name]; !ok || prevContent != normCurr[name] {
 				if result.ChangedFiles == nil {
 					result.ChangedFiles = map[string]string{}
 				}
-				result.ChangedFiles[n.normalize(name)] = fileSummary(n.normalize(curr[name]))
+				result.ChangedFiles[name] = fileSummary(normCurr[name])
 			}
 		}
-		for _, name := range sortedKeys(prev) {
-			if _, ok := curr[name]; !ok {
-				result.RemovedFiles = append(result.RemovedFiles, n.normalize(name))
+		for _, name := range sortedKeys(normPrev) {
+			if _, ok := normCurr[name]; !ok {
+				result.RemovedFiles = append(result.RemovedFiles, name)
 			}
 		}
 		prev = curr

@@ -1,5 +1,20 @@
 package integration
 
+// validStepYAML is a self-contained step.yml the audit command accepts in
+// the pre-share mode (title/summary/website present; source/published_at NOT
+// required until share-pr audit).
+const validStepYAML = `title: Audit Fixture
+summary: Minimal step that passes "stepman audit --step-yml".
+description: Used by the golden suite's audit case.
+website: https://example.com/audit-fixture
+run_if: ""
+inputs:
+- example_input: default
+  opts:
+    title: Example
+    summary: Example input.
+`
+
 var goldenCases = []goldenCase{
 	{name: "version", steps: []goldenStep{
 		stepmanCmd("--version"),
@@ -39,4 +54,27 @@ var goldenCases = []goldenCase{
 	// http(s)://*.git), so a golden here would depend on github.com reachability
 	// and GitHub's live 404 wording. Live-steplib coverage of download lives in
 	// TestStepInfo / update_test.go.
+	{name: "audit-step-yml", steps: []goldenStep{
+		// Local step.yml audit — no steplib needed, no network. Smoke-tests
+		// both the success wording and the error path.
+		stepmanCmd("audit", "--step-yml", "test-step/step.yml"),
+	}, files: map[string]string{
+		"test-step/step.yml": validStepYAML,
+	}},
+	// NOTE: `audit -c <steplib>` is omitted — it iterates every step in the
+	// collection and git-clones each `source.git` to validate the commit SHA,
+	// which requires network reachability. The step-yml form above covers the
+	// local-validation code path.
+	{name: "delete", needsSteplib: true, steps: []goldenStep{
+		stepmanCmd("setup", "-c", "file://$STEPLIB"),
+		stepmanCmd("delete", "-c", "file://$STEPLIB"),
+		// delete when nothing is set up: must stay non-zero and informative.
+		stepmanCmd("delete", "-c", "file://$STEPLIB"),
+	}},
+	{name: "export-spec", needsSteplib: true, steps: []goldenStep{
+		stepmanCmd("setup", "-c", "file://$STEPLIB"),
+		stepmanCmd("export-spec", "--steplib", "file://$STEPLIB", "--output", "$WORK/out-full.json", "--export-type", "full"),
+		stepmanCmd("export-spec", "--steplib", "file://$STEPLIB", "--output", "$WORK/out-latest.json", "--export-type", "latest"),
+		stepmanCmd("export-spec", "--steplib", "file://$STEPLIB", "--output", "$WORK/out-minimal.json", "--export-type", "minimal"),
+	}},
 }

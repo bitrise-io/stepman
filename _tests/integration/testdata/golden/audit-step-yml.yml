@@ -1,0 +1,5 @@
+steps:
+- args: [audit, --step-yml, test-step/step.yml]
+  exit_code: 0
+  stdout: |2
+     * [OK] Success audit (test-step/step.yml)
