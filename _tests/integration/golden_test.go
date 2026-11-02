@@ -29,13 +29,12 @@ const (
 	goldenDir          = "testdata/golden"
 	workPlaceholder    = "$WORK"
 	steplibPlaceholder = "$STEPLIB"
-	// Fixed git identity used when materializing the fixture steplib so the
-	// resulting commit SHA (via source.commit of share-created steps and audit
-	// temp paths) is deterministic across machines.
-	fixtureGitName   = "Stepman Golden"
-	fixtureGitEmail  = "stepman-golden@bitrise.io"
-	fixtureGitDate   = "2020-01-01T00:00:00Z"
-	maxInlineContent = 1024
+	fixtureStepID      = "test-step"
+	fixtureStepVersion = "1.0.0"
+	fixtureGitName     = "Stepman Golden"
+	fixtureGitEmail    = "stepman-golden@bitrise.io"
+	fixtureGitDate     = "2020-01-01T00:00:00Z"
+	maxInlineContent   = 1024
 )
 
 type goldenStep struct {
@@ -174,7 +173,7 @@ func runGoldenCase(t *testing.T, bin, version string, tc goldenCase) []goldenRes
 		steplib = materializeSteplib(t, work)
 	}
 
-	n := normalizer{work: work, realWork: realWork, steplib: steplib, version: version}
+	n := newNormalizer(work, realWork, steplib, version)
 	resolve := func(s string) string {
 		s = strings.ReplaceAll(s, workPlaceholder, work)
 		if steplib != "" {
@@ -228,10 +227,8 @@ func runGoldenCase(t *testing.T, bin, version string, tc goldenCase) []goldenRes
 		}
 
 		curr := snapshotFiles(t, work)
-		// Diff on the NORMALIZED representation so that a rewrite that only
-		// touches an epoch timestamp inside e.g. spec.json (which the
-		// normalizer collapses to $GENERATED_AT) does not surface as a bogus
-		// changed_files entry on an otherwise no-op step.
+		// Diff on normalized content so epoch rewrites of e.g. spec.json
+		// (collapsed to $GENERATED_AT) do not surface as changed_files noise.
 		normPrev := make(map[string]string, len(prev))
 		for name, content := range prev {
 			normPrev[n.normalize(name)] = n.normalize(content)
@@ -262,6 +259,15 @@ func runGoldenCase(t *testing.T, bin, version string, tc goldenCase) []goldenRes
 
 type normalizer struct {
 	work, realWork, steplib, version string
+	versionRe                        *regexp.Regexp
+}
+
+func newNormalizer(work, realWork, steplib, version string) normalizer {
+	n := normalizer{work: work, realWork: realWork, steplib: steplib, version: version}
+	if version != "" {
+		n.versionRe = regexp.MustCompile(`\b` + regexp.QuoteMeta(version) + `\b`)
+	}
+	return n
 }
 
 var (
@@ -273,7 +279,8 @@ var (
 	sigsegvPattern      = regexp.MustCompile(`code=0x[0-9a-f]+ addr=0x[0-9a-f]+ pc=0x[0-9a-f]+`)
 	// step_collections/<unix-timestamp>/ — the folder alias stepman mints per route.
 	stepCollectionAliasPattern = regexp.MustCompile(`step_collections/\d+`)
-	// routing.json stores the alias as a bare value.
+	// routing.json stores the alias as a bare value. Over-eager on purpose; audit when
+	// adding cases that emit unrelated 10+-digit quoted numeric strings.
 	routingAliasPattern = regexp.MustCompile(`"\d{10,}"`)
 	// generated_at_timestamp: <epoch> in the JSON spec and slim-spec.
 	generatedAtPattern = regexp.MustCompile(`"generated_at_timestamp":\s*\d+`)
@@ -281,9 +288,9 @@ var (
 	publishedAtJSONPattern = regexp.MustCompile(`"published_at":\s*"[^"]*"`)
 	publishedAtYAMLPattern = regexp.MustCompile(`published_at:\s*\S+`)
 	// source.commit / commit: 40-char hex (SHA1) from `git rev-parse` on the fixture.
-	sha1Pattern = regexp.MustCompile(`\b[0-9a-f]{40}\b`)
-	// audit writes to a per-stepID+version temp dir: /tmp/.../stepIDversion.../...
-	tmpStepPattern = regexp.MustCompile(`(?:/private)?/(?:tmp|var/folders/[^/]+/[^/]+/T)/[^/\s]*test-step1\.0\.0[^/\s]*(?:/[^\s]*)?`)
+	// Over-eager on purpose; audit when adding cases that emit unrelated 40-hex tokens.
+	sha1Pattern    = regexp.MustCompile(`\b[0-9a-f]{40}\b`)
+	tmpStepPattern = regexp.MustCompile(`(?:/private)?/(?:tmp|var/folders/[^/]+/[^/]+/T)/[^/\s]*` + regexp.QuoteMeta(fixtureStepID+fixtureStepVersion) + `[^/\s]*(?:/[^\s]*)?`)
 )
 
 func (n normalizer) normalize(s string) string {
@@ -305,11 +312,8 @@ func (n normalizer) normalize(s string) string {
 	s = publishedAtJSONPattern.ReplaceAllString(s, `"published_at": "$$PUBLISHED_AT"`)
 	s = publishedAtYAMLPattern.ReplaceAllString(s, "published_at: $$PUBLISHED_AT")
 	s = sha1Pattern.ReplaceAllString(s, "$$SHA")
-	if n.version != "" {
-		// Match on word boundaries only: "dev" would otherwise collide with
-		// "development" inside the `share` help text.
-		versionRe := regexp.MustCompile(`\b` + regexp.QuoteMeta(n.version) + `\b`)
-		s = versionRe.ReplaceAllString(s, "$$VERSION")
+	if n.versionRe != nil {
+		s = n.versionRe.ReplaceAllString(s, "$$VERSION")
 	}
 	return s
 }
