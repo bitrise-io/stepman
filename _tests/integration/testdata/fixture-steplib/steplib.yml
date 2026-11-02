@@ -1,0 +1,6 @@
+format_version: 1.0.0
+steplib_source: https://github.com/bitrise-io/stepman-fixture-steplib.git
+assets_download_base_uri: ""
+download_locations:
+- type: git
+  src: source/git

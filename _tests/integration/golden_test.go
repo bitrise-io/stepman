@@ -26,8 +26,15 @@ import (
 var updateGolden = flag.Bool("update", false, "update golden files")
 
 const (
-	goldenDir        = "testdata/golden"
-	workPlaceholder  = "$WORK"
+	goldenDir          = "testdata/golden"
+	workPlaceholder    = "$WORK"
+	steplibPlaceholder = "$STEPLIB"
+	// Fixed git identity used when materializing the fixture steplib so the
+	// resulting commit SHA (via source.commit of share-created steps and audit
+	// temp paths) is deterministic across machines.
+	fixtureGitName  = "Stepman Golden"
+	fixtureGitEmail = "stepman-golden@bitrise.io"
+	fixtureGitDate  = "2020-01-01T00:00:00Z"
 	maxInlineContent = 1024
 )
 
@@ -38,10 +45,14 @@ type goldenStep struct {
 }
 
 type goldenCase struct {
-	name  string
-	files map[string]string
-	env   []string
-	steps []goldenStep
+	name string
+	// needsSteplib copies testdata/fixture-steplib into $WORK/steplib and
+	// turns it into a git repo with a fixed identity. $STEPLIB in args and env
+	// resolves to that path.
+	needsSteplib bool
+	files        map[string]string
+	env          []string
+	steps        []goldenStep
 }
 
 type goldenFile struct {
@@ -158,8 +169,19 @@ func runGoldenCase(t *testing.T, bin, version string, tc goldenCase) []goldenRes
 		require.NoError(t, os.WriteFile(pth, []byte(content), 0644))
 	}
 
-	n := normalizer{work: work, realWork: realWork, version: version}
-	resolve := func(s string) string { return strings.ReplaceAll(s, workPlaceholder, work) }
+	steplib := ""
+	if tc.needsSteplib {
+		steplib = materializeSteplib(t, work)
+	}
+
+	n := normalizer{work: work, realWork: realWork, steplib: steplib, version: version}
+	resolve := func(s string) string {
+		s = strings.ReplaceAll(s, workPlaceholder, work)
+		if steplib != "" {
+			s = strings.ReplaceAll(s, steplibPlaceholder, steplib)
+		}
+		return s
+	}
 
 	var results []goldenResult
 	prev := snapshotFiles(t, work)
@@ -211,12 +233,12 @@ func runGoldenCase(t *testing.T, bin, version string, tc goldenCase) []goldenRes
 				if result.ChangedFiles == nil {
 					result.ChangedFiles = map[string]string{}
 				}
-				result.ChangedFiles[name] = fileSummary(curr[name])
+				result.ChangedFiles[n.normalize(name)] = fileSummary(n.normalize(curr[name]))
 			}
 		}
 		for _, name := range sortedKeys(prev) {
 			if _, ok := curr[name]; !ok {
-				result.RemovedFiles = append(result.RemovedFiles, name)
+				result.RemovedFiles = append(result.RemovedFiles, n.normalize(name))
 			}
 		}
 		prev = curr
@@ -227,7 +249,7 @@ func runGoldenCase(t *testing.T, bin, version string, tc goldenCase) []goldenRes
 }
 
 type normalizer struct {
-	work, realWork, version string
+	work, realWork, steplib, version string
 }
 
 var (
@@ -237,6 +259,19 @@ var (
 	logrusTextTime      = regexp.MustCompile(`time="[^"]*"`)
 	stackTracePattern   = regexp.MustCompile(`(?s)\ngoroutine \d+ \[.*`)
 	sigsegvPattern      = regexp.MustCompile(`code=0x[0-9a-f]+ addr=0x[0-9a-f]+ pc=0x[0-9a-f]+`)
+	// step_collections/<unix-timestamp>/ — the folder alias stepman mints per route.
+	stepCollectionAliasPattern = regexp.MustCompile(`step_collections/\d+`)
+	// routing.json stores the alias as a bare value.
+	routingAliasPattern = regexp.MustCompile(`"\d{10,}"`)
+	// generated_at_timestamp: <epoch> in the JSON spec and slim-spec.
+	generatedAtPattern = regexp.MustCompile(`"generated_at_timestamp":\s*\d+`)
+	// published_at: "<iso-ts>" injected by share create.
+	publishedAtJSONPattern = regexp.MustCompile(`"published_at":\s*"[^"]*"`)
+	publishedAtYAMLPattern = regexp.MustCompile(`published_at:\s*\S+`)
+	// source.commit / commit: 40-char hex (SHA1) from `git rev-parse` on the fixture.
+	sha1Pattern = regexp.MustCompile(`\b[0-9a-f]{40}\b`)
+	// audit writes to a per-stepID+version temp dir: /tmp/.../stepIDversion.../...
+	tmpStepPattern = regexp.MustCompile(`(?:/private)?/(?:tmp|var/folders/[^/]+/[^/]+/T)/[^/\s]*test-step1\.0\.0[^/\s]*(?:/[^\s]*)?`)
 )
 
 func (n normalizer) normalize(s string) string {
@@ -246,15 +281,73 @@ func (n normalizer) normalize(s string) string {
 	s = ansiPattern.ReplaceAllString(s, "")
 	s = logrusTimePattern.ReplaceAllString(s, "$1[HH:MM:SS]")
 	s = stdlogPrefixPattern.ReplaceAllString(s, "YYYY/MM/DD HH:MM:SS ")
+	s = tmpStepPattern.ReplaceAllString(s, "$$TMP_STEP")
+	if n.steplib != "" {
+		s = strings.ReplaceAll(s, n.steplib, steplibPlaceholder)
+	}
 	s = strings.ReplaceAll(s, n.realWork, workPlaceholder)
 	s = strings.ReplaceAll(s, n.work, workPlaceholder)
+	s = stepCollectionAliasPattern.ReplaceAllString(s, "step_collections/$$ALIAS")
+	s = routingAliasPattern.ReplaceAllString(s, `"$$ALIAS"`)
+	s = generatedAtPattern.ReplaceAllString(s, `"generated_at_timestamp": $$GENERATED_AT`)
+	s = publishedAtJSONPattern.ReplaceAllString(s, `"published_at": "$$PUBLISHED_AT"`)
+	s = publishedAtYAMLPattern.ReplaceAllString(s, "published_at: $$PUBLISHED_AT")
+	s = sha1Pattern.ReplaceAllString(s, "$$SHA")
 	if n.version != "" {
 		s = strings.ReplaceAll(s, n.version, "$VERSION")
 	}
 	return s
 }
 
-func isPrintCommand(_ []string) bool {
+// materializeSteplib copies the fixture steplib into $WORK/steplib, inits a git repo
+// with a fixed identity and committer/author dates, and returns the absolute path.
+// Needed by cases that drive `share start` (always clones) or audit flows that
+// expect source.commit to resolve to something.
+func materializeSteplib(t *testing.T, workDir string) string {
+	t.Helper()
+	dst := filepath.Join(workDir, "steplib")
+	cmd := exec.Command("cp", "-R", "testdata/fixture-steplib", dst)
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, "cp fixture-steplib: %s", out)
+
+	gitEnv := append(os.Environ(),
+		"GIT_AUTHOR_NAME="+fixtureGitName,
+		"GIT_AUTHOR_EMAIL="+fixtureGitEmail,
+		"GIT_AUTHOR_DATE="+fixtureGitDate,
+		"GIT_COMMITTER_NAME="+fixtureGitName,
+		"GIT_COMMITTER_EMAIL="+fixtureGitEmail,
+		"GIT_COMMITTER_DATE="+fixtureGitDate,
+	)
+	runGit := func(args ...string) {
+		c := exec.Command("git", args...)
+		c.Dir = dst
+		c.Env = gitEnv
+		if out, err := c.CombinedOutput(); err != nil {
+			t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, out)
+		}
+	}
+	runGit("init", "-q", "-b", "main")
+	runGit("config", "commit.gpgsign", "false")
+	runGit("config", "tag.gpgsign", "false")
+	runGit("config", "user.name", fixtureGitName)
+	runGit("config", "user.email", fixtureGitEmail)
+	runGit("add", "-A")
+	runGit("commit", "-q", "-m", "fixture steplib")
+
+	return dst
+}
+
+// isPrintCommand returns true for subcommands whose human-readable output
+// iterates maps (step-list, collections) and would otherwise jitter line order
+// between runs. The emitted lines go through sortLines before comparison.
+func isPrintCommand(args []string) bool {
+	if len(args) == 0 {
+		return false
+	}
+	switch args[0] {
+	case "step-list", "collections":
+		return true
+	}
 	return false
 }
 
@@ -279,8 +372,17 @@ func trimTrailingSpaces(s string) string {
 func snapshotFiles(t *testing.T, root string) map[string]string {
 	files := map[string]string{}
 	err := filepath.WalkDir(root, func(pth string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
+		if err != nil {
 			return err
+		}
+		// Skip git bookkeeping entirely: stepman copies the whole fixture dir
+		// (including .git/) during `setup --local`, and git's hook samples,
+		// object pack files and HEAD timestamps add noise without signal.
+		if d.IsDir() {
+			if d.Name() == ".git" {
+				return filepath.SkipDir
+			}
+			return nil
 		}
 		content, err := os.ReadFile(pth)
 		if err != nil {
