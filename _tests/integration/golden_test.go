@@ -254,11 +254,7 @@ func (n normalizer) normalize(s string) string {
 	return s
 }
 
-// isPrintCommand returns true when the stepman command emits an unordered map that must be sorted
-// for a stable golden. No current stepman command needs this; the hook is kept so follow-up PRs
-// can enable it as needed.
-func isPrintCommand(args []string) bool {
-	_ = args
+func isPrintCommand(_ []string) bool {
 	return false
 }
 
