@@ -1,0 +1,13 @@
+steps:
+- args: [--version]
+  exit_code: 0
+  stdout: |
+    $VERSION
+- args: [-v]
+  exit_code: 0
+  stdout: |
+    $VERSION
+- args: [version]
+  exit_code: 0
+  stdout: |
+    $VERSION

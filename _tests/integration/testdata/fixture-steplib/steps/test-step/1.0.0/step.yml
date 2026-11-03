@@ -1,0 +1,43 @@
+title: Test Step
+summary: Minimal step used by the stepman integration golden suite.
+description: |
+  A fixture step for the stepman integration golden tests.
+  Not published anywhere; the git source is a placeholder.
+website: https://example.com/test-step
+source_code_url: https://example.com/test-step
+support_url: https://example.com/test-step/issues
+published_at: 2024-01-15T10:00:00Z
+host_os_tags:
+- osx-10.10
+project_type_tags:
+- ios
+- android
+type_tags:
+- script
+is_requires_admin_user: false
+is_always_run: false
+is_skippable: false
+run_if: ""
+toolkit:
+  bash:
+    entry_file: step.sh
+source:
+  git: https://github.com/bitrise-io/stepman-fixture-step.git
+  commit: aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111
+inputs:
+- example_step_input: Default Value - you can leave this empty if you want to
+  opts:
+    title: Example Step Input
+    summary: Short summary.
+    description: |
+      Description of this input.
+    is_expand: true
+    is_required: true
+    value_options: []
+outputs:
+- EXAMPLE_STEP_OUTPUT:
+  opts:
+    title: Example Step Output
+    summary: Short summary.
+    description: |
+      Description of this output.

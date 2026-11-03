@@ -1,0 +1,69 @@
+steps:
+- args: [setup, -c, 'file://$STEPLIB']
+  exit_code: 0
+  changed_files:
+    home/.stepman/routing.json: "{\n\t\"file://$STEPLIB\": \"$ALIAS\"\n}"
+    home/.stepman/step_collections/$ALIAS/collection/LICENSE: |
+      MIT License
+
+      Copyright (c) 2024 Bitrise
+
+      Permission is hereby granted, free of charge, to any person obtaining a copy
+      of this software and associated documentation files (the "Software"), to deal
+      in the Software without restriction, including without limitation the rights
+      to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+      copies of the Software, and to permit persons to whom the Software is
+      furnished to do so, subject to the following conditions:
+
+      The above copyright notice and this permission notice shall be included in all
+      copies or substantial portions of the Software.
+
+      THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
+    home/.stepman/step_collections/$ALIAS/collection/README.md: |
+      # Stepman integration-test fixture steplib
+
+      A minimal steplib layout consumed by the golden parity suite in
+      `_tests/integration`. The runner copies this tree into a temp dir,
+      turns it into a git repo, and points `stepman` subcommands at it over
+      `file://`. Not used by any live step or by the public steplib index.
+
+      Contents:
+
+      - `steplib.yml` — minimal collection metadata.
+      - `steps/test-step/1.0.0/step.yml` — one well-formed step version.
+    home/.stepman/step_collections/$ALIAS/collection/steplib.yml: |
+      format_version: 1.0.0
+      steplib_source: https://github.com/bitrise-io/stepman-fixture-steplib.git
+      assets_download_base_uri: ""
+      download_locations:
+      - type: git
+        src: source/git
+    home/.stepman/step_collections/$ALIAS/collection/steps/test-step/1.0.0/step.yml: <1091
+      bytes, sha256 c45c472ce64eb9a74bea2a94f449bbe132c9b48f33a746034b96dd1a9c7436d1>
+    home/.stepman/step_collections/$ALIAS/spec/slim-spec.json: <2327 bytes, sha256
+      cce1032e2be7e53b35b0ee7fa9441ed5c81de73427fef3102122f493804c85b2>
+    home/.stepman/step_collections/$ALIAS/spec/spec.json: <2327 bytes, sha256 cce1032e2be7e53b35b0ee7fa9441ed5c81de73427fef3102122f493804c85b2>
+- args: [export-spec, --steplib, 'file://$STEPLIB', --output, $WORK/out-full.json,
+    --export-type, full]
+  exit_code: 0
+  stdout: |
+    Exporting StepLib (file://$STEPLIB) spec, export-type: full, output: $WORK/out-full.json
+    StepLib spec exported to: $WORK/out-full.json
+  changed_files:
+    out-full.json: <1710 bytes, sha256 7d432bee8a59752eb6337495b8ec4ce2df9fc508ecaca3f12f2e31d577d71394>
+- args: [export-spec, --steplib, 'file://$STEPLIB', --output, $WORK/out-latest.json,
+    --export-type, latest]
+  exit_code: 0
+  stdout: |
+    Exporting StepLib (file://$STEPLIB) spec, export-type: latest, output: $WORK/out-latest.json
+    StepLib spec exported to: $WORK/out-latest.json
+  changed_files:
+    out-latest.json: <1710 bytes, sha256 7d432bee8a59752eb6337495b8ec4ce2df9fc508ecaca3f12f2e31d577d71394>
+- args: [export-spec, --steplib, 'file://$STEPLIB', --output, $WORK/out-minimal.json,
+    --export-type, minimal]
+  exit_code: 0
+  stdout: |
+    Exporting StepLib (file://$STEPLIB) spec, export-type: minimal, output: $WORK/out-minimal.json
+    StepLib spec exported to: $WORK/out-minimal.json
+  changed_files:
+    out-minimal.json: '{"format_version":"1.0.0","generated_at_timestamp": $GENERATED_AT,"steplib_source":"https://github.com/bitrise-io/stepman-fixture-steplib.git","download_locations":[{"type":"git","src":"source/git"}],"assets_download_base_uri":"","steps":{"test-step":{"info":{}}}}'
