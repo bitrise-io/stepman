@@ -102,7 +102,7 @@ func TestGolden(t *testing.T) {
 			t.Parallel()
 
 			got := runGoldenCase(t, bin, strings.TrimSpace(string(version)), tc)
-			pth := filepath.Join(goldenDir, tc.name+".yml")
+			pth := filepath.Join(goldenDir, tc.name+".golden")
 			if *updateGolden {
 				content, err := yaml.Marshal(goldenFile{Steps: got})
 				require.NoError(t, err)
