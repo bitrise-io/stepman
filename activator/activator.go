@@ -61,6 +61,7 @@ func New(log stepman.Logger, opts Options) *Activator {
 	clients, err := httpfetch.NewCachingClient(log)
 	if err != nil {
 		log.Warnf("Continuing without the in-memory inventory cache: %s", err)
+		// plain carries the download bound, so inventory reads get the looser cap in this degraded mode.
 		plain := httpfetch.NewClient(log)
 		clients = httpfetch.Clients{Caching: plain, Passthrough: plain}
 	}
