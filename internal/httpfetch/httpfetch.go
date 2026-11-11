@@ -7,12 +7,13 @@
 // hanging the build. The bounds, from the inside out:
 //
 //   - Per attempt, the transport waits at most DefaultResponseHeaderTimeout
-//     for the response headers once the request is written, on top of its 30s
-//     dial and 10s TLS handshake limits. This is what detects a server that
+//     for the response headers once the request is written, on top of
+//     cleanhttp's dial and TLS handshake limits. This is what detects a server that
 //     accepted the connection and went silent, however large the body would
 //     have been. Such an attempt is retried like any other network error.
 //   - Transient failures (network errors, 5xx, 429) are retried up to retryMax
-//     times with exponential backoff: 1s, 2s, 4s, 8s, 15s in total.
+//     times with exponential backoff: 1s, 2s, 4s, 8s, 15s in total. A
+//     Retry-After from the server is honoured up to retryWaitMax.
 //   - Per operation, each client caps the whole thing, retries, backoff and
 //     reading the body included: DefaultInventoryTimeout for inventory reads,
 //     DefaultDownloadTimeout for archive and executable downloads. This is the
@@ -127,9 +128,16 @@ func newRetryingClient(logger Logger, transport http.RoundTripper) *http.Client 
 	rc.RetryMax = retryMax
 	rc.RetryWaitMin = retryWaitMin
 	rc.RetryWaitMax = retryWaitMax
+	rc.Backoff = cappedBackoff
 	rc.Logger = &retryhttpLogger{l: logger}
 	rc.ErrorHandler = retryablehttp.PassthroughErrorHandler
 	return rc.StandardClient()
+}
+
+// cappedBackoff is retryablehttp's default backoff, except that a server's
+// Retry-After cannot stretch one wait past waitMax.
+func cappedBackoff(waitMin, waitMax time.Duration, attemptNum int, resp *http.Response) time.Duration {
+	return min(retryablehttp.DefaultBackoff(waitMin, waitMax, attemptNum, resp), waitMax)
 }
 
 // NewClient returns an uncached Client for step archives and precompiled
@@ -153,6 +161,16 @@ func NewCachingClient(logger Logger) (Clients, error) {
 		Caching:     caching,
 		Passthrough: newClient(passthrough, DefaultDownloadTimeout),
 	}, nil
+}
+
+// NewUncachedClients returns the pair NewCachingClient would, without the
+// inventory cache, for when that cache cannot be opened. Each keeps its bound.
+func NewUncachedClients(logger Logger) Clients {
+	hc := newRetryingClient(logger, newTransport(DefaultResponseHeaderTimeout))
+	return Clients{
+		Caching:     newClient(hc, DefaultInventoryTimeout),
+		Passthrough: newClient(hc, DefaultDownloadTimeout),
+	}
 }
 
 // NewCachingWithClient returns a caching Client bounded by
@@ -197,6 +215,9 @@ func (c *client) Get(parent context.Context, url string) (io.ReadCloser, error) 
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		snippet, readErr := io.ReadAll(io.LimitReader(resp.Body, 1024))
+		if readErr != nil {
+			readErr = c.explainTimeout(ctx, parent, readErr)
+		}
 		closeErr := resp.Body.Close()
 		cancel()
 		return nil, errors.Join(
