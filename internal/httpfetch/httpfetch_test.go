@@ -21,13 +21,13 @@ func sha256Hash(b []byte) string {
 	return hex.EncodeToString(sum[:])
 }
 
-func newClient() Client {
+func newTestFetcher() Client {
 	return NewClient(log.NewDefaultLogger(false))
 }
 
 func TestGet(t *testing.T) {
 	ctx := context.Background()
-	fetcher := newClient()
+	fetcher := newTestFetcher()
 
 	t.Run("2xx returns the body", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -63,7 +63,7 @@ func TestGet(t *testing.T) {
 
 func TestDownload(t *testing.T) {
 	ctx := context.Background()
-	fetcher := newClient()
+	fetcher := newTestFetcher()
 	payload := []byte("binary content")
 
 	t.Run("writes the fetched content to destPath", func(t *testing.T) {
@@ -105,7 +105,7 @@ func TestDownload(t *testing.T) {
 
 func TestDownloadWithHash(t *testing.T) {
 	ctx := context.Background()
-	fetcher := newClient()
+	fetcher := newTestFetcher()
 	payload := []byte("binary content")
 	hash := sha256Hash(payload)
 

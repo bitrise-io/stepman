@@ -61,8 +61,7 @@ func New(log stepman.Logger, opts Options) *Activator {
 	clients, err := httpfetch.NewCachingClient(log)
 	if err != nil {
 		log.Warnf("Continuing without the in-memory inventory cache: %s", err)
-		plain := httpfetch.NewClient(log)
-		clients = httpfetch.Clients{Caching: plain, Passthrough: plain}
+		clients = httpfetch.NewUncachedClients(log)
 	}
 
 	return &Activator{
